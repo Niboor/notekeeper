@@ -182,7 +182,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-DATA-3 | Must | unimplemented | Client-to-Core traffic over plain HTTP. | NFR-S1 |
 | SEC-DATA-4 | Should | unimplemented | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
 | SEC-DATA-5 | Must | unimplemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
-| SEC-DATA-6 | Must | unimplemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on user data and attachments; the ingress example does not cache). | — |
+| SEC-DATA-6 | Must | unimplemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
 | SEC-DATA-7 | Should | unimplemented | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
 | SEC-DATA-8 | Must | unimplemented | A data export containing anything but the requesting user's own data. | AUTH-U5 |
 

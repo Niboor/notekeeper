@@ -42,7 +42,7 @@ Makefile        entry point for build, test, lint (see §9)
 - **HTTP:** standard library `net/http` with `chi` for routing and middleware. Structured logging with `log/slog` (JSON, request IDs propagated from bots, NFR-O1); Prometheus metrics with `prometheus/client_golang` (NFR-O2). No tracing (dropped).
 - **Database:** `pgx` v5 with `pgxpool`; queries written in SQL and compiled with `sqlc`; migrations with `goose` (embedded SQL, run as a Kubernetes Job or init container, NFR-D4).
 - **Passwords:** argon2id from `golang.org/x/crypto` (SEC-BASE-1); common-password list embedded in the binary (SEC-AUTH-5).
-- **Tokens and sessions:** opaque random tokens stored hashed in Postgres, not JWTs, so revocation is immediate (SEC-AUTH-6) and any replica can validate them (AUTH-C5). Refresh-token rotation with a grace window (SEC-AUTH-7). Sliding session lifetime (AUTH-C9).
+- **Tokens and sessions:** opaque MAC-derived tokens (not JWTs, and not stored: they are recomputed from the session id and a server key, so a database leak reveals no token), always validated against the session row so revocation is immediate (SEC-AUTH-6) and any replica can serve any request (AUTH-C5). Refresh-token rotation with a grace window (SEC-AUTH-7). Sliding session lifetime (AUTH-C9). See design/03-auth.md §2.
 - **OAuth 2.0 authorisation code + PKCE (AUTH-C3):** a small hand-written endpoint for our own first-party clients. Runner-up: `zitadel/oidc`, if third-party clients ever appear.
 - **Modes:** the same binary starts as `core serve` (HTTP API) and runs River workers in-process. Splitting workers into their own Deployment later needs no code change.
 
@@ -65,7 +65,7 @@ Known caveats and how we handle them:
 - **Realtime (CORE-S1, CORE-S2):** each replica holds one dedicated long-lived `pgx.Conn` (outside the pool) that runs `LISTEN`; incoming notifications fan out to connected SSE clients. Clients that reconnect catch up through the change feed (CORE-S3), so a missed notification is harmless.
 - **Connection pooling:** no PgBouncer in v1. If one is added later, the listener connection bypasses it or uses session mode, and transaction mode is used for everything else (CORE-A8).
 - **Jobs (River):** reminder scheduling, delivery retries and expiry, share-link expiry purge, session cleanup, attachment blob cleanup. Claimed with `SKIP LOCKED`, enqueued transactionally with the change that causes them (CORE-R4, CORE-R5).
-- **Search (CORE-N13):** a generated `tsvector` column with the `english` text-search configuration, `unaccent` wrapped in an immutable SQL function so it can be used in an index, GIN index. `pg_trgm` for prefix matching and optional typo tolerance.
+- **Search (CORE-N13):** a trigger-maintained `note_search` table (the indexed text spans note parts and attachment filenames, so a generated column cannot work) holding a `tsvector` built with the `english` configuration, `unaccent` wrapped in an immutable SQL function, and a GIN index. `pg_trgm` for prefix matching and optional typo tolerance. See design/01-data-model.md §8.
 - **Identifiers:** UUIDv7 generated in the application, since the database-side generator is only in PostgreSQL 18 (NFR-D8).
 - **Attachments (CORE-A2, CORE-A8):** chunked `bytea` rows in an ordinary table with cascading delete, behind a storage-backend interface; not Large Objects.
 - **No server-side media processing** (CORE-A4, SEC-CNT-5).
@@ -146,6 +146,6 @@ Entry point is the `Makefile` (NFR-Q5); `make help` lists every target.
 | `@dnd-kit/react` is pre-1.0 | Start from stable packages; keep Pragmatic DnD as fallback |
 | `LISTEN/NOTIFY` and poolers | Dedicated listener connection, no PgBouncer in v1 (§3.3) |
 | Attachments in PostgreSQL grow the database and WAL | Quotas (CORE-A3), storage-backend interface for a later object store (CORE-A2, CORE-A7) |
-| Public attachment access from `<img>` tags cannot carry a header | To settle in the technical design: short-lived signed attachment URLs scoped to the share link (CORE-SH7) |
+| Public attachment access from `<img>` tags cannot carry a header | Resolved in the design: the share page fetches attachments with the token header into blob URLs, so no token or signature is ever in a URL; no `Range` on the share page (design/README.md D2) |
 
 Points deliberately left to the technical design document: database schema, position/ordering strategy for notes, exact token and cookie format, the public attachment URL scheme, the grouping module structure, and the API resource model.
