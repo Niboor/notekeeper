@@ -134,7 +134,7 @@ flowchart LR
 | CORE-N9 | Must | Deleted notes can be listed (Trash), newest-deleted first, with their previous page/category shown. |
 | CORE-N10 | Must | Permanently deleting a note (and its attachments) from the Trash on explicit user action. Required because Trash content counts toward the user's storage quota (CORE-A3). |
 | CORE-N11 | Must | Trash retention is unlimited: dismissed notes are kept until the user permanently deletes them. There is no automatic purge. |
-| CORE-N13 | Must | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, not tied to a single language (users write in several), typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
+| CORE-N13 | Must | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English and Dutch** (inflections and plurals, e.g. "ticket"/"tickets", "boodschap"/"boodschappen") even though a single note may mix both, so language is not a per-note setting the user has to maintain. Further languages can be added later without changing the API or reindexing by hand. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
 | CORE-N14 | Should | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | Bulk operations (dismiss/move multiple notes). |
 | CORE-N16 | Could | Search inside attachment contents (PDF text layer, OCR of images), e.g. to find a ticket by event name. |
@@ -176,7 +176,7 @@ flowchart LR
 
 ### 4.6 Reminders (Should)
 
-A reminder makes a note nudge the user at a chosen time. Core sends it to the user's chat through a bot and shows it in the app. Reminders are a Should for v1 (built after the capture/organise core), but the outbound part of the bot contract (BOT-11..13) is designed from the start so nothing has to be reworked.
+A reminder makes a note nudge the user at a chosen time. Core sends it to the user's chat through a bot and shows it in the app. Reminders are a Should for v1 (built after the capture/organise core, but including recurrence and chat commands), but the outbound part of the bot contract (BOT-11..13) is designed from the start so nothing has to be reworked.
 
 | ID | Pri | Requirement |
 |---|---|---|
@@ -185,12 +185,13 @@ A reminder makes a note nudge the user at a chosen time. Core sends it to the us
 | CORE-R3 | Should | When a reminder is due, Core queues a **delivery** for every channel the user enabled for reminders: each linked chat identity marked as reminder target, plus the in-app notification. Default: the first linked chat identity; in-app only if none is linked. |
 | CORE-R4 | Should | Deliveries are durable (stored in PostgreSQL before sending), at-least-once, and retried with backoff on transient failure. They are never dropped because a bot is temporarily down: they are sent as soon as it is back and flagged as late (e.g. more than 5 minutes past due). |
 | CORE-R5 | Should | Scheduling holds no in-process timers: any Core replica can fire due reminders and each reminder is claimed by exactly one (e.g. row-level claiming with `SKIP LOCKED`). Target: p95 within 60 s of the due time when the channel is available. |
-| CORE-R6 | Should | A reminder message contains the note text (truncated), the names/count of attachments and a deep link to the note in the web app. Attachments are not re-sent in v1. |
+| CORE-R6 | Should | A reminder message contains the note text (truncated), a deep link to the note in the web app, and the note's **attachments are re-sent** into the chat (e.g. the ticket PDF), so the note's content is usable from the chat alone. If an attachment cannot be sent (too large for the platform, platform error), the message falls back to naming it and linking to the note; a failed attachment never blocks the reminder text. |
 | CORE-R7 | Should | Dismissing a note suspends its pending reminders. Restoring it re-arms those still in the future; reminders that came due while it was dismissed are not sent. |
 | CORE-R8 | Should | A reminder can be snoozed (preset durations) or marked done from the app. Fired reminders remain visible on the note (e.g. "reminded Fri 09:00"). |
 | CORE-R9 | Should | In-app: due reminders show as a notification indicator, and the user can see a list of upcoming reminders. |
-| CORE-R10 | Could | Recurring reminders (daily/weekly/monthly/custom). |
-| CORE-R11 | Could | Reminder actions from chat: replying to a reminder with `snooze 1h` / `done`, or creating a reminder from chat (e.g. replying to a note's message with `!remind tomorrow 9am`). Plain messages never create reminders, so capture stays unchanged. |
+| CORE-R10 | Should | **Recurring reminders** (daily, weekly, monthly, custom interval, optionally on chosen weekdays). Recurrence is evaluated in the user's timezone, so "09:00" stays 09:00 across daylight-saving changes. Occurrences missed during an outage collapse into one late delivery rather than a burst. A recurring reminder can be ended or skipped once. |
+| CORE-R11 | Should | **Reminder actions from chat.** (a) `!remind <when>` as a reply to a message that belongs to a note sets a reminder on that note; (b) `!remind <when> <text>` creates a new Inbox note with that text and a reminder; (c) replying to a reminder message with `!snooze <duration>` snoozes it, and `!done` marks it done. Time expressions are understood in **English and Dutch** (e.g. "tomorrow 9am", "morgen 9u", "in 2 hours", "over twee uur", "vrijdag 18:30") relative to the user's timezone. If the expression cannot be understood, nothing is created and the bot replies with what went wrong and an example. Ordinary messages never create reminders, so plain capture is unchanged. |
+| CORE-R13 | Should | Reminder time expressions are parsed by Core (not by the bots), so behaviour is identical across chat platforms and covers all supported languages in one place. |
 | CORE-R12 | Could | Browser/mobile push notifications for in-app reminders (Web Push, later FCM). |
 
 ## 5. Accounts and authentication
@@ -254,12 +255,14 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-5 | Must | Events include **relationship hints** when the platform provides them: "replies to message X", "in thread T". Core uses them for grouping (§6.3). |
 | BOT-6 | Must | Attachment upload: the bot uploads binary content (already decrypted, if the platform encrypts it) with filename and media type, and refers to it from the message event. Uploads are resumable/streamed. |
 | BOT-7 | Must | **Idempotent ingestion**: the tuple (bot instance, conversation, platform message ID, event kind/edit ID) is a natural dedupe key. Replaying an event is safe and yields the same result. Delivery is at-least-once. |
-| BOT-8 | Must | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. |
+| BOT-8 | Must | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message **in the user's language** for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
 | BOT-9 | Must | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
 | BOT-10 | Should | Core's notion of "what the bot has already delivered" (e.g. last platform timestamp per conversation) is queryable, so a bot that lost its own state can resync. |
 | BOT-11 | Should | **Delivery API (Core → bot, pull-based).** A bot fetches the queued outbound deliveries addressed to its bot instance (long-poll or streaming), claims each with a lease, and reports the outcome: delivered, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired deliveries are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. Required for reminders (§4.6). |
 | BOT-12 | Should | A delivery names its target: external identity plus conversation ID. Core learns the conversation from linking and message events (BOT-2/BOT-3) and keeps the most recent direct-message conversation per identity. |
-| BOT-13 | Should | Each delivery has a unique ID, which the bot uses to make sending idempotent where the platform allows (e.g. a Matrix transaction ID), so a restart between sending and acknowledging does not visibly duplicate the message. |
+| BOT-13 | Should | Each delivery has a unique ID, which the bot uses to make sending idempotent where the platform allows (e.g. a Matrix transaction ID), so a restart between sending and acknowledging does not visibly duplicate the message. After sending, the bot reports the platform message ID(s) it created, so that a user's reply to a reminder (`!snooze`, `!done`) can be mapped back to that delivery. |
+| BOT-14 | Should | **Command events.** Beyond `link`/`unlink`/`help`, the bot forwards recognised chat commands (`remind`, `snooze`, `done`) to Core as platform-neutral command events: command name, raw argument text, sender identity, conversation, and the replied-to message ID. Core interprets them and returns the outcome plus a localised reply text for the bot to show. |
+| BOT-15 | Should | **Attachment download for deliveries.** A delivery lists its attachments (filename, media type, size) and the bot can download them through the bot API, but only attachments referenced by deliveries addressed to that bot instance; bot credentials never grant general read access to a user's attachments (AUTH-B2). |
 
 ### 6.2 Bot behaviour requirements (all bots)
 
@@ -318,11 +321,11 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | MX-5 | Must | Formatted messages (`formatted_body` HTML) are converted to the Core's text format (Markdown subset); plain `body` is the fallback. Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. |
 | MX-6 | Must | Edits (`m.replace` relations) map to `message_edited`; redactions map to `message_deleted`. Replies (`m.in_reply_to`) and threads (`m.thread`) map to relationship hints (BOT-5). |
 | MX-7 | Must | Feedback: a reaction on the source message on success (default ✅); a short text reply for errors (unlinked, too large, quota) — see BOT-B3. |
-| MX-8 | Must | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`. Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). |
+| MX-8 | Must | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`; with reminders also `!remind`, `!snooze`, `!done` (CORE-R11, BOT-14). Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). A known command with invalid arguments is answered with an error and never turns into a note. |
 | MX-9 | Must | Catch-up after downtime via the Matrix sync token stored durably (BOT-B2, BOT-B5). |
 | MX-10 | Must | Only messages sent after the identity was linked (or after the bot joined the room, whichever is later) are processed. History import is out of scope: older room history is never backfilled into notes. |
 | MX-11 | Could | Support for bot-side "typing"/read-receipt to signal processing, if it reduces uncertainty for the user. |
-| MX-12 | Should | **Reminder delivery** (BOT-11..13): the bot posts the reminder as a message in the linked DM (plain text plus formatted body, with the deep link), derives the Matrix transaction ID from the delivery ID, and reports a permanent failure if the room is gone or the user has left. |
+| MX-12 | Should | **Reminder delivery** (BOT-11..15): the bot posts the reminder as a message in the linked DM (plain text plus formatted body, with the deep link), then re-sends each attachment as Matrix media (encrypted upload in encrypted rooms), falling back to a name plus link if the homeserver refuses it. It derives the Matrix transaction ID from the delivery ID, reports the sent event IDs (BOT-13), and reports a permanent failure if the room is gone or the user has left. |
 
 ### 7.2 Matrix-specific non-functional requirements
 
@@ -349,7 +352,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-9 | Must | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). |
-| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. |
+| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, interface/bot language (English or Dutch), bot status, grouping window. |
 | WEB-13 | Should | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | Merge/split notes (CORE-N14). |
@@ -488,7 +491,7 @@ Targets assume friends-and-family use (see §12).
 |---|---|---|
 | NFR-Q1 | Must | Grouping and edit-handling rules (§6.3, §6.4) are covered by automated scenario tests derived from the flows in §10. |
 | NFR-Q2 | Must | CI runs unit, integration (real PostgreSQL) and end-to-end API tests; the Matrix bot is testable against a local homeserver in CI. |
-| NFR-Q3 | Should | Localisation-ready UI (English first; strings externalised). |
+| NFR-Q3 | Must | **Localisation: English and Dutch** from day one. The web UI, and everything bots say in chat (feedback, command replies, reminders), is available in both. Each user has a language setting (default from the browser at first login). Strings are externalised and dates, times and numbers follow the locale, so further languages can be added without code changes to application logic. |
 | NFR-Q4 | Should | Developer documentation: architecture, API, bot-writing guide (how to add a new chat platform), deployment, backup/restore. |
 
 ## 12. Assumptions
@@ -520,11 +523,12 @@ Answers given after the first draft, and where they are reflected.
 | 11 | Search / reminders | Global search is a Must; reminders (delivered to chat and in-app) are a Should | CORE-N13, WEB-14, §4.6, BOT-11..13, MX-12 |
 | 12 | Group chats | DM only | MX-1, MX-2 |
 | 13 | Routing from chat | None; everything lands in the Inbox | §2.2 |
+| 14 | Reminders from chat | Wanted: `!remind`, `!snooze`, `!done` (Should) | CORE-R11, R13, BOT-14, MX-8 |
+| 15 | Recurring reminders | Wanted (Should) | CORE-R10 |
+| 16 | Reminder targets | Each user picks reminder targets, default the first linked chat identity | CORE-R3 |
+| 17 | Reminder attachments | Re-sent into the chat, with fallback to a link | CORE-R6, BOT-15, MX-12 |
+| 18 | Languages | English and Dutch (UI, bot messages, search, reminder time parsing); others later | CORE-N13, CORE-R11, NFR-Q3, WEB-12 |
 
 ## 14. Open questions
 
-1. **Reminder creation from chat.** In v1 reminders are created in the app only. Do you want `!remind ...` from chat (CORE-R11, currently a Could) soon after?
-2. **Recurring reminders** (CORE-R10, Could): needed for things like chores, or are one-off reminders enough?
-3. **Reminder targets.** Assumed: each user picks which linked chat identities receive reminders, default the first one linked. Should it instead default to all of them?
-4. **Reminder content.** Assumed: text plus a link to the note. Should the actual attachment (e.g. the ticket PDF) be re-sent into the chat?
-5. **Languages.** Which languages will you and your users write notes in? Search is specified as language-agnostic; this decides how much tuning it needs and whether the UI must be translatable from day one.
+None at the moment. New questions will be added here as design starts.
