@@ -106,10 +106,12 @@ flowchart LR
 
 | Component | Responsibility |
 |---|---|
-| **Core** | Single source of truth. Users, auth, pages/categories/notes, trash, attachments, message grouping and edit handling, global search, reminder scheduling and the outbound delivery queue, realtime change feed. Exposes the public HTTP API. |
-| **Web app** | Browser UI. A client of the user-facing API only; no privileged access. |
+| **Core** | Single source of truth. Users, auth, pages/categories/notes, trash, attachments, message grouping and edit handling, global search, reminder scheduling and the outbound delivery queue, realtime change feed. Exposes three HTTP APIs: the user API, the bot API and the public share API. |
+| **Web app** | Browser UI, including the share page. A client of the user API (and, on the share page, the public share API) only; no privileged access. |
 | **Bot(s)** | Translate between a chat platform and the bot-facing part of the Core API. Contain platform-specific logic only (protocol, encryption, message formats). They also send outbound messages (e.g. reminders) that Core queues for them. |
 | **PostgreSQL** | All persistent state of Core (and any durable state the bots need). |
+
+**APIs.** Core exposes three separately documented HTTP APIs: the **user API** (web app and future Android client, user authentication), the **bot API** (bots, bot credentials) and the **public share API** (read-only access to one shared note, authorised only by the link token, served only on the share hostname).
 
 **Key design decision — where does "smart" logic live?** Grouping of messages into notes, edit propagation and deduplication live in the **Core**, not in the bots. Bots forward normalised events and platform hints (replies, threads, edits, timestamps); Core decides what they mean. This keeps behaviour consistent across chat platforms and keeps bots thin, so adding a bot is cheap. Likewise Core decides *when* a reminder fires and *to whom*; the bot only delivers it.
 
@@ -218,7 +220,7 @@ A user can share a single note with someone who has no account, through an ungue
 | CORE-SH7 | Must | unimplemented | Public endpoints are strictly read-only, accept no credentials, set no cookies, and can reach only the shared note and its attachments. Attachment URLs issued under a link are scoped to that link and lapse with it. |
 | CORE-SH8 | Must | unimplemented | Shared content is served so that it cannot interact with an authenticated session of the app (separate origin or equivalent isolation), with `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, non-cacheable responses, and the safe content-type/header handling of WEB-N5. |
 | CORE-SH9 | Must | unimplemented | Public endpoints are rate-limited per IP and per link, and a per-link request/bandwidth ceiling stops one link from exhausting the server. |
-| CORE-SH10 | Should | unimplemented | The public page is lightweight and mobile friendly, and text and attachment downloads work without JavaScript. English in v1 (NFR-Q3). |
+| CORE-SH10 | Must | unimplemented | **The share page is a route of the web app**, loaded from a separate, cookie-free share hostname (CORE-SH8), so there is one UI codebase and one Markdown renderer. It is mobile friendly and requires JavaScript. The token travels in the URL **fragment** (`…/s#<token>`), which browsers never send to servers, so it cannot appear in access logs or referrers; the page passes it to the public API in a request header. The public API is served only on the share hostname, and Core rejects any non-public route arriving on that hostname (defence in depth beside the ingress). |
 | CORE-SH11 | Should | unimplemented | The operator can disable share links entirely by configuration; existing links then stop working. |
 | CORE-SH12 | Should | unimplemented | Link creation and revocation are audit-logged (no note content in logs). Access is counted for CORE-SH3 (last access, view count). |
 | CORE-SH13 | Could | unimplemented | Extending the expiry of an existing link; sharing a whole page read-only; a `!share` chat command. |
@@ -407,7 +409,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | WEB-N1 | Must | unimplemented | **Responsive**: fully usable on a phone-sized viewport, since the app must be reachable "from every device I own". |
-| WEB-N2 | Must | unimplemented | Only the public user-facing API is used, so the same functionality is available to a future Android client. |
+| WEB-N2 | Must | unimplemented | Only the user API is used (plus the public share API on the share page), so the same functionality is available to a future Android client. |
 | WEB-N3 | Must | unimplemented | Interaction feels instant: user actions are reflected within 100 ms (optimistic UI); initial page load ≤ 2 s on a typical broadband connection for a page with up to 500 notes. |
 | WEB-N4 | Should | unimplemented | Accessible (WCAG 2.1 AA): keyboard operable, screen-reader labelled, sufficient contrast, respects reduced-motion and dark mode. |
 | WEB-N5 | Must | unimplemented | All user-supplied content (note text, filenames, formatted chat content) is sanitised before rendering; attachments are served with safe content types and headers to prevent XSS. |
@@ -421,7 +423,7 @@ No Android requirements are in scope for v1. To keep the option open:
 
 | ID | State | Requirement |
 |---|---|---|
-| AND-1 | unimplemented | All functionality is available through the public, versioned, documented API (OpenAPI); the web app has no private endpoints. |
+| AND-1 | unimplemented | All functionality is available through the versioned, documented user API (OpenAPI); the web app has no private endpoints. |
 | AND-2 | unimplemented | Native-friendly auth (AUTH-C3): OAuth 2.0 code + PKCE, refresh tokens, per-device session listing/revocation. |
 | AND-3 | unimplemented | Sync-friendly API (CORE-S3, S4, S5): change feed with tombstones, stable client-generatable IDs, versions, idempotent writes — so offline-first operation can be added without redesigning the API. |
 | AND-4 | unimplemented | The realtime channel (CORE-S1) works over plain HTTP(S)/WebSocket so a mobile client can use it. Notekeeper itself sends no push notifications: reminders arrive as chat messages, and the chat app's notification settings decide how the user is alerted. |
@@ -485,7 +487,7 @@ These are the general security requirements. The detailed "must not be possible"
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | NFR-S1 | Must | unimplemented | TLS for all external traffic; secrets never logged or committed; credentials stored hashed (users, bots) or encrypted (Matrix keys). |
-| NFR-S2 | Must | unimplemented | Least privilege between components: bots only reach the bot-facing API (and their own durable state); Web/Android only reach the user-facing API. Network policies restrict database access to Core (and the bots for their own tables/schema). |
+| NFR-S2 | Must | unimplemented | Least privilege between components: bots only reach the bot-facing API (and their own durable state); Web/Android only reach the user API (and the web app's share page the public share API). Network policies restrict database access to Core (and the bots for their own tables/schema). |
 | NFR-S3 | Must | unimplemented | Multi-tenant isolation is tested (automated tests asserting that user A can never read/modify/enumerate user B's notes, pages, attachments or links). Consider database row-level security as defence in depth. Public share endpoints are covered too: tests assert that a link exposes only its own note and attachments. |
 | NFR-S4 | Must | unimplemented | Inputs are validated and size-limited (message length, attachments, number of parts). Rate limits on all public endpoints, with stricter limits on auth, pairing-code redemption and ingestion. |
 | NFR-S5 | Must | unimplemented | **Privacy note (accepted trade-off):** notes originate from E2EE chat but are stored readable by the Notekeeper server. Documentation must state this clearly. Optional encryption at rest of attachments/DB is a Should. |
@@ -526,7 +528,7 @@ Targets assume friends-and-family use (see §12).
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| NFR-API1 | Must | unimplemented | One HTTP API described by an OpenAPI document that is the source of truth for clients (web, Android, bots); clients/SDKs can be generated from it. |
+| NFR-API1 | Must | unimplemented | The user, bot and public share APIs are each described by an OpenAPI document that is the source of truth for clients (web, Android, bots); clients/SDKs can be generated from it. |
 | NFR-API2 | Must | unimplemented | Versioned (major version in path or header); backwards-compatible evolution within a version; deprecation policy (see AND-7). |
 | NFR-API3 | Must | unimplemented | Consistent conventions: UUID IDs, RFC 3339 UTC timestamps, cursor-based pagination, problem-details error format, idempotency keys on unsafe operations (CORE-S5). |
 | NFR-API4 | Must | unimplemented | Uploads/downloads for attachments follow standard HTTP semantics (streaming, `Range`, `ETag`/conditional requests). |
@@ -579,7 +581,7 @@ Answers given after the first draft, and where they are reflected.
 | 20 | Kubernetes | Example manifests are sufficient; no Helm chart, no full cluster management | NFR-D6, §2.2 |
 | 21 | PDF/attachment content search | Not required | §2.2 |
 | 22 | Checklists | Markdown task lists as interactive checkboxes (Should) | CORE-N17, WEB-20 |
-| 23 | Share links | Must: read-only, openable without an account, always expiring | §4.7, WEB-21 |
+| 23 | Share links | Must: read-only, openable without an account, always expiring. The share page is a route of the SPA on a second hostname (token in the URL fragment); no server-rendered page, no no-JavaScript support | §4.7, WEB-21 |
 | 24 | Push notifications | Not a Notekeeper requirement; reminders reach the chat, whose notifications alert the user | CORE-R12 removed, AND-4, §2.2 |
 | 25 | Review gaps | All seven fixed: conditional reminder filter, failed attachments never drop text, platform timestamps for notes, no overwrite of drafts, complete user deletion, no push contradiction | WEB-14, CORE-A9, CORE-N18, WEB-11, CORE-A4, AUTH-U9, BOT-16, BOT-B7 |
 | 26 | Security requirements | Kept in a separate file, written as abuse cases that must fail | [security-requirements.md](security-requirements.md) |
@@ -589,6 +591,8 @@ Answers given after the first draft, and where they are reflected.
 | 30 | Thumbnails | Not required: originals are served as stored, no server-side image processing | CORE-A4, WEB-8, SEC-CNT-5 |
 | 31 | PostgreSQL version | 16 and later | NFR-D8 |
 | 32 | Test tooling | Tiered `make` targets: unit, integration, end-to-end | NFR-Q5 |
+| 33 | Share page | SPA route on a second, cookie-free hostname rather than a separately rendered page | CORE-SH8, CORE-SH10 |
+| 34 | Tech stack | Go (Core and Matrix bot), React SPA, PostgreSQL 16+; see [tech-stack.md](tech-stack.md) | tech-stack.md |
 
 ## 14. Open questions
 
