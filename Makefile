@@ -46,7 +46,8 @@ web-install: ## Install web dependencies
 
 ##@ Build and generate
 .PHONY: generate
-generate: ## Regenerate code from the OpenAPI specs (Go server, bot client, TypeScript types)
+generate: ## Regenerate code from the OpenAPI specs and SQL queries (Go server, bot client, sqlc, TypeScript types)
+	cd core && sqlc generate
 	oapi-codegen -config api/gen-config/userapi.yaml api/user.yaml
 	oapi-codegen -config api/gen-config/botapi.yaml api/bot.yaml
 	oapi-codegen -config api/gen-config/publicapi.yaml api/public.yaml
@@ -56,7 +57,7 @@ generate: ## Regenerate code from the OpenAPI specs (Go server, bot client, Type
 
 .PHONY: generate-check
 generate-check: generate ## Fail if regenerating changes committed files
-	git diff --exit-code -- core/internal/gen bots/sdk/botclient web/src/api
+	git diff --exit-code -- core/internal/gen core/internal/store/dbq bots/sdk/botclient web/src/api
 
 .PHONY: build
 build: check-libolm ## Build Core, the Matrix bot and the web app
