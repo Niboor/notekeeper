@@ -19,7 +19,7 @@ func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 	if err != nil {
 		return host
 	}
-	if !contains(trusted, peer) {
+	if !inPrefixes(trusted, peer) {
 		return peer.String()
 	}
 	// Walk the chain from the right: the first address that is not a trusted proxy is the client.
@@ -29,14 +29,14 @@ func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 		if err != nil {
 			continue
 		}
-		if !contains(trusted, a) {
+		if !inPrefixes(trusted, a) {
 			return a.String()
 		}
 	}
 	return peer.String()
 }
 
-func contains(prefixes []netip.Prefix, a netip.Addr) bool {
+func inPrefixes(prefixes []netip.Prefix, a netip.Addr) bool {
 	for _, p := range prefixes {
 		if p.Contains(a) {
 			return true

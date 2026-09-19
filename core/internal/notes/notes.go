@@ -31,10 +31,16 @@ type Service struct{ St *store.Store }
 // New creates the service.
 func New(st *store.Store) *Service { return &Service{St: st} }
 
+// Part is a note part with the type of the bot it came from, if any (for "via Matrix").
+type Part struct {
+	dbq.NotePart
+	SourceBotType *string
+}
+
 // Note is a note with its parts.
 type Note struct {
 	Note  dbq.Note
-	Parts []dbq.NotePart
+	Parts []Part
 }
 
 // Page is one page of a listing.
@@ -88,9 +94,9 @@ func withParts(ctx context.Context, q *dbq.Queries, notes []dbq.Note) ([]Note, e
 	if err != nil {
 		return nil, err
 	}
-	byNote := make(map[uuid.UUID][]dbq.NotePart, len(notes))
+	byNote := make(map[uuid.UUID][]Part, len(notes))
 	for _, p := range parts {
-		byNote[p.NoteID] = append(byNote[p.NoteID], p)
+		byNote[p.NotePart.NoteID] = append(byNote[p.NotePart.NoteID], Part{NotePart: p.NotePart, SourceBotType: p.SourceBotType})
 	}
 	out := make([]Note, len(notes))
 	for i, n := range notes {

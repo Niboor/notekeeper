@@ -252,38 +252,46 @@ func (q *Queries) ListInbox(ctx context.Context, arg ListInboxParams) ([]Note, e
 }
 
 const listNoteParts = `-- name: ListNoteParts :many
-select id, user_id, note_id, ordinal, kind, text, attachment_id, failed_filename, failed_size, failed_reason, attach_reason, related_part_id, created_at, text_edited_at, source_bot_instance_id, source_identity_id, source_conversation_id, source_message_id, source_part_index from note_parts where note_id = any($1::uuid[]) order by note_id, ordinal
+select p.id, p.user_id, p.note_id, p.ordinal, p.kind, p.text, p.attachment_id, p.failed_filename, p.failed_size, p.failed_reason, p.attach_reason, p.related_part_id, p.created_at, p.text_edited_at, p.source_bot_instance_id, p.source_identity_id, p.source_conversation_id, p.source_message_id, p.source_part_index, b.type as source_bot_type
+from note_parts p left join bot_instances b on b.id = p.source_bot_instance_id
+where p.note_id = any($1::uuid[]) order by p.note_id, p.ordinal
 `
 
-func (q *Queries) ListNoteParts(ctx context.Context, dollar_1 []uuid.UUID) ([]NotePart, error) {
+type ListNotePartsRow struct {
+	NotePart      NotePart
+	SourceBotType *string
+}
+
+func (q *Queries) ListNoteParts(ctx context.Context, dollar_1 []uuid.UUID) ([]ListNotePartsRow, error) {
 	rows, err := q.db.Query(ctx, listNoteParts, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []NotePart{}
+	items := []ListNotePartsRow{}
 	for rows.Next() {
-		var i NotePart
+		var i ListNotePartsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.NoteID,
-			&i.Ordinal,
-			&i.Kind,
-			&i.Text,
-			&i.AttachmentID,
-			&i.FailedFilename,
-			&i.FailedSize,
-			&i.FailedReason,
-			&i.AttachReason,
-			&i.RelatedPartID,
-			&i.CreatedAt,
-			&i.TextEditedAt,
-			&i.SourceBotInstanceID,
-			&i.SourceIdentityID,
-			&i.SourceConversationID,
-			&i.SourceMessageID,
-			&i.SourcePartIndex,
+			&i.NotePart.ID,
+			&i.NotePart.UserID,
+			&i.NotePart.NoteID,
+			&i.NotePart.Ordinal,
+			&i.NotePart.Kind,
+			&i.NotePart.Text,
+			&i.NotePart.AttachmentID,
+			&i.NotePart.FailedFilename,
+			&i.NotePart.FailedSize,
+			&i.NotePart.FailedReason,
+			&i.NotePart.AttachReason,
+			&i.NotePart.RelatedPartID,
+			&i.NotePart.CreatedAt,
+			&i.NotePart.TextEditedAt,
+			&i.NotePart.SourceBotInstanceID,
+			&i.NotePart.SourceIdentityID,
+			&i.NotePart.SourceConversationID,
+			&i.NotePart.SourceMessageID,
+			&i.NotePart.SourcePartIndex,
+			&i.SourceBotType,
 		); err != nil {
 			return nil, err
 		}

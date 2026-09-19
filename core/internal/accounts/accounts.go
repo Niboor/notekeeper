@@ -433,7 +433,7 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 		return ErrInvalidCredentials
 	}
 	if err := auth.CheckPolicy(next); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	h, err := s.Hash.Hash(ctx, next)
 	if err != nil {

@@ -9,6 +9,10 @@ linters:
     - misspell
     - noctx
     - unconvert
+  settings:
+    gosec:
+      excludes:
+        - G115 # integer conversions here are all range-bounded (sizes, small counters, token fields)
   exclusions:
     paths:
       - internal/gen

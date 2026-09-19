@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
@@ -108,7 +107,7 @@ func (b *botAPI) PostEvent(ctx context.Context, req botapi.PostEventRequestObjec
 				part.Size = *p.Size
 			}
 			if p.UploadId != nil {
-				id := uuid.UUID(*p.UploadId)
+				id := *p.UploadId
 				part.UploadID = &id
 			}
 			ev.Parts = append(ev.Parts, part)

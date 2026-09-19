@@ -62,6 +62,9 @@ type Syncer struct {
 	*mautrix.DefaultSyncer
 	store  *Store
 	userID func() id.UserID
+	// OnProcessed, if set, is called after each response was processed and its token committed
+	// (readiness: "the last sync succeeded", docs/design/06-matrix-bot.md section 9).
+	OnProcessed func()
 }
 
 // NewSyncer returns a syncer that commits through store. userID is called lazily because the
@@ -75,5 +78,11 @@ func (s *Syncer) ProcessResponse(ctx context.Context, res *mautrix.RespSync, sin
 	if err := s.DefaultSyncer.ProcessResponse(ctx, res, since); err != nil {
 		return err
 	}
-	return s.store.Commit(ctx, s.userID())
+	if err := s.store.Commit(ctx, s.userID()); err != nil {
+		return err
+	}
+	if s.OnProcessed != nil {
+		s.OnProcessed()
+	}
+	return nil
 }

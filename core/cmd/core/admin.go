@@ -18,6 +18,7 @@ import (
 const adminUsage = `usage: core admin <command>
 
   bootstrap <username>                      create the admin account and print its activation link
+  user-create <username> [display name]    create a user and print the activation link
   link <username>                           print a new activation link (lost password, recovery)
   bot-create <type> <name> [domain]         register a bot instance (domain: e.g. the Matrix server name)
   bot-credential <instance name>            create a credential for a bot instance; the secret is shown once
@@ -66,6 +67,23 @@ func admin(ctx context.Context, args []string) error {
 			return errors.New("usage: core admin bootstrap <username>")
 		}
 		link, err := svc.Bootstrap(ctx, rest[0])
+		if err != nil {
+			return err
+		}
+		printLink(link)
+	case "user-create":
+		if len(rest) < 1 || len(rest) > 2 {
+			return errors.New("usage: core admin user-create <username> [display name]")
+		}
+		in := accounts.CreateUserInput{Username: rest[0]}
+		if len(rest) == 2 {
+			in.DisplayName = rest[1]
+		}
+		u, err := svc.CreateUser(ctx, store.Actor{Kind: "system"}, in)
+		if err != nil {
+			return err
+		}
+		link, err := svc.IssueActivation(ctx, store.Actor{Kind: "system"}, u.ID)
 		if err != nil {
 			return err
 		}

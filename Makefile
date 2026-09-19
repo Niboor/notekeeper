@@ -120,6 +120,25 @@ docs-check: ## Regenerate the traceability table and fail on drift
 check: generate-check lint test test-integration docs-check secrets vuln ## Everything CI runs
 
 ##@ Development stack
+# Local development values. These are NOT secrets: they only work against the throwaway
+# development database started by `make up`.
+DEV_ENV := NK_DATABASE_URL=postgres://nk_app:nk_app_dev@localhost:5432/notekeeper?sslmode=disable \
+  NK_MIGRATE_DATABASE_URL=postgres://nk:nk-dev-only@localhost:5432/notekeeper?sslmode=disable \
+  NK_TOKEN_KEYS=dev:ZGV2LW9ubHkta2V5LWRldi1vbmx5LWtleS1kZXYtb25seS1rZXk= \
+  NK_APP_URL=http://localhost:5173 NK_LOG_LEVEL=debug NK_ARGON2_MEMORY_KIB=8192
+
+.PHONY: dev-core
+dev-core: up ## Run Core against the development database (migrates first)
+	cd core && $(DEV_ENV) go run ./cmd/core migrate && $(DEV_ENV) go run ./cmd/core serve
+
+.PHONY: dev-admin
+dev-admin: ## Run an operator command against the development database: make dev-admin ARGS="bootstrap alice"
+	cd core && $(DEV_ENV) go run ./cmd/core admin $(ARGS)
+
+.PHONY: dev-web
+dev-web: ## Run the web app with hot reload (proxies /api to Core on :8080)
+	cd web && npm run dev
+
 .PHONY: up
 up: ## Start the development stack (PostgreSQL)
 	$(COMPOSE) up -d --wait

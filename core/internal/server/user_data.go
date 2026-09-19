@@ -101,7 +101,8 @@ func noteOf(n notes.Note) userapi.Note {
 	}
 	for i, p := range n.Parts {
 		part := userapi.NotePart{Id: p.ID, Kind: userapi.NotePartKind(p.Kind), Text: p.Text,
-			AttachReason: userapi.NotePartAttachReason(p.AttachReason), CreatedAt: p.CreatedAt, TextEditedAt: p.TextEditedAt}
+			AttachReason: userapi.NotePartAttachReason(p.AttachReason), CreatedAt: p.CreatedAt, TextEditedAt: p.TextEditedAt,
+			SourceBotType: p.SourceBotType}
 		if p.Kind == "failed_attachment" {
 			fa := userapi.FailedAttachment{Filename: deref(p.FailedFilename), Reason: deref(p.FailedReason)}
 			if p.FailedSize != nil {

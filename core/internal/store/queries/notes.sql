@@ -11,7 +11,9 @@ values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) returnin
 select * from notes where id = $1 and user_id = $2;
 
 -- name: ListNoteParts :many
-select * from note_parts where note_id = any($1::uuid[]) order by note_id, ordinal;
+select sqlc.embed(p), b.type as source_bot_type
+from note_parts p left join bot_instances b on b.id = p.source_bot_instance_id
+where p.note_id = any($1::uuid[]) order by p.note_id, p.ordinal;
 
 -- name: ListInbox :many
 select * from notes

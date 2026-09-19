@@ -1,0 +1,52 @@
+/* Design tokens of the Paper direction (docs/design/ui/README.md). Light by default, dark when the
+   system asks for it, and an explicit choice (data-theme on <html>) always wins. */
+/* Direction A, "Paper": warm and calm. Soft off-white paper, notes set in a book serif, rounded
+   cards with a faint shadow, terracotta accent. Nothing here resembles a ticket board. */
+:root {
+  --font-ui: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-note: "Literata Variable", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-meta: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --radius: 12px; --radius-sm: 8px; --logo-radius: 6px;
+  --note-size: 15px; --card-pad: 13px 15px 12px; --gap: 12px; --lane-w: 292px; --inbox-w: 312px;
+}
+:root, :root[data-theme=light] {
+  --bg: #f5f0e6; --bar: #f5f0e6; --panel: #ece4d3; --surface: #fffdf7; --field: #fbf7ee;
+  --ink: #2a2520; --muted: #6a6053; --line: #e0d6c2; --line-strong: #cfc3ab; --hover: #ebe3d1;
+  --accent: #b8441a; --accent-soft: #f8e3d6; --accent-text: #9c3512; --on-accent: #fff; --danger: #b42318; --focus: #b8441a;
+  --shadow-card: 0 1px 0 rgb(70 50 20 / .05), 0 2px 8px rgb(70 50 20 / .07);
+  --shadow-lift: 0 14px 30px rgb(70 50 20 / .22), 0 3px 8px rgb(70 50 20 / .12);
+  --thumb: linear-gradient(135deg, #d9cbb0, #b9a98a 55%, #cbb98f);
+  --toast-bg: #2a2520; --toast-ink: #f5f0e6; --toast-accent: #f0a27f;
+}
+:root[data-theme=dark] {
+  --bg: #1c1916; --bar: #1c1916; --panel: #24201c; --surface: #2c2722; --field: #24201c;
+  --ink: #efe7d9; --muted: #b0a595; --line: #3a342d; --line-strong: #4a4238; --hover: #37312a;
+  --accent: #e2794a; --accent-soft: #4a2d20; --accent-text: #f0a27f; --on-accent: #1c1916; --danger: #f0776b; --focus: #f0a27f;
+  --shadow-card: 0 1px 0 rgb(0 0 0 / .3), 0 2px 8px rgb(0 0 0 / .3);
+  --shadow-lift: 0 14px 30px rgb(0 0 0 / .55), 0 3px 8px rgb(0 0 0 / .3);
+  --thumb: linear-gradient(135deg, #4b4032, #6d5b45 55%, #574936);
+  --toast-bg: #efe7d9; --toast-ink: #1c1916; --toast-accent: #a23a14;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #1c1916; --bar: #1c1916; --panel: #24201c; --surface: #2c2722; --field: #24201c;
+    --ink: #efe7d9; --muted: #b0a595; --line: #3a342d; --line-strong: #4a4238; --hover: #37312a;
+    --accent: #e2794a; --accent-soft: #4a2d20; --accent-text: #f0a27f; --on-accent: #1c1916; --danger: #f0776b; --focus: #f0a27f;
+    --shadow-card: 0 1px 0 rgb(0 0 0 / .3), 0 2px 8px rgb(0 0 0 / .3);
+    --shadow-lift: 0 14px 30px rgb(0 0 0 / .55), 0 3px 8px rgb(0 0 0 / .3);
+    --thumb: linear-gradient(135deg, #4b4032, #6d5b45 55%, #574936);
+    --toast-bg: #efe7d9; --toast-ink: #1c1916; --toast-accent: #a23a14;
+  }
+}
+
+.note { border-radius: var(--radius); box-shadow: var(--shadow-card); border: 1px solid var(--line); }
+.inbox { box-shadow: inset -8px 0 14px -12px rgb(70 50 20 / .25); }
+.lane-head h2 { font-family: var(--font-note); font-size: 16px; font-weight: 600; }
+.inbox .lane-head h2 { color: var(--accent-text); }
+.page.is-current { background: var(--surface); box-shadow: var(--shadow-card); border-radius: 999px; }
+.page { border-radius: 999px; }
+.search { border-radius: 999px; padding-inline: 14px; }
+.brand-name { font-family: var(--font-note); font-size: 17px; font-weight: 600; }
+.file { background: var(--panel); border-color: transparent; }
+.thumb { box-shadow: inset 0 0 0 1px rgb(0 0 0 / .06); }
+.toast { border-radius: 999px; }

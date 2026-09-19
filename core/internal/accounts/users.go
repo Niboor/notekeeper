@@ -176,7 +176,7 @@ func (s *Service) ActivationLinkFor(ctx context.Context, username string) (Activ
 // policy is rejected without consuming the token.
 func (s *Service) Activate(ctx context.Context, token, password string, c ClientInfo) (Tokens, error) {
 	if err := auth.CheckPolicy(password); err != nil {
-		return Tokens{}, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return Tokens{}, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	hash, err := s.Hash.Hash(ctx, password)
 	if err != nil {
