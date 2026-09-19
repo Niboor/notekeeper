@@ -4,6 +4,7 @@
 package botclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,12 +12,192 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for EventKind.
+const (
+	MessageCreated EventKind = "message_created"
+	MessageDeleted EventKind = "message_deleted"
+	MessageEdited  EventKind = "message_edited"
+)
+
+// Valid indicates whether the value is a known member of the EventKind enum.
+func (e EventKind) Valid() bool {
+	switch e {
+	case MessageCreated:
+		return true
+	case MessageDeleted:
+		return true
+	case MessageEdited:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventPartType.
+const (
+	Attachment       EventPartType = "attachment"
+	AttachmentFailed EventPartType = "attachment_failed"
+	Text             EventPartType = "text"
+	Unsupported      EventPartType = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the EventPartType enum.
+func (e EventPartType) Valid() bool {
+	switch e {
+	case Attachment:
+		return true
+	case AttachmentFailed:
+		return true
+	case Text:
+		return true
+	case Unsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventResultResult.
+const (
+	Appended EventResultResult = "appended"
+	Created  EventResultResult = "created"
+	Ignored  EventResultResult = "ignored"
+	Rejected EventResultResult = "rejected"
+	Removed  EventResultResult = "removed"
+	Updated  EventResultResult = "updated"
+)
+
+// Valid indicates whether the value is a known member of the EventResultResult enum.
+func (e EventResultResult) Valid() bool {
+	switch e {
+	case Appended:
+		return true
+	case Created:
+		return true
+	case Ignored:
+		return true
+	case Rejected:
+		return true
+	case Removed:
+		return true
+	case Updated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Command defines model for Command.
+type Command struct {
+	Args         *string    `json:"args,omitempty"`
+	Command      string     `json:"command"`
+	Conversation string     `json:"conversation"`
+	MessageId    *string    `json:"message_id,omitempty"`
+	ReplyTo      *string    `json:"reply_to,omitempty"`
+	Sender       string     `json:"sender"`
+	Timestamp    *time.Time `json:"timestamp,omitempty"`
+}
+
+// CommandResult defines model for CommandResult.
+type CommandResult struct {
+	Feedback Feedback `json:"feedback"`
+	Ok       bool     `json:"ok"`
+}
+
+// Event defines model for Event.
+type Event struct {
+	Conversation string `json:"conversation"`
+
+	// EventId Unique per platform event; the dedupe key
+	EventId string    `json:"event_id"`
+	Kind    EventKind `json:"kind"`
+
+	// MessageId For edits and deletes the ORIGINAL message id
+	MessageId string       `json:"message_id"`
+	Parts     *[]EventPart `json:"parts,omitempty"`
+	RelatesTo *struct {
+		ReplyTo *string `json:"reply_to,omitempty"`
+		Thread  *string `json:"thread,omitempty"`
+	} `json:"relates_to,omitempty"`
+
+	// Sender Verified by the bot from platform metadata
+	Sender string `json:"sender"`
+
+	// Timestamp Platform event time
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// EventKind defines model for Event.Kind.
+type EventKind string
+
+// EventPart defines model for EventPart.
+type EventPart struct {
+	Description *string             `json:"description,omitempty"`
+	Filename    *string             `json:"filename,omitempty"`
+	MediaType   *string             `json:"media_type,omitempty"`
+	Reason      *string             `json:"reason,omitempty"`
+	Size        *int64              `json:"size,omitempty"`
+	Text        *string             `json:"text,omitempty"`
+	Type        EventPartType       `json:"type"`
+	UploadId    *openapi_types.UUID `json:"upload_id,omitempty"`
+}
+
+// EventPartType defines model for EventPart.Type.
+type EventPartType string
+
+// EventResult defines model for EventResult.
+type EventResult struct {
+	Code     *string             `json:"code,omitempty"`
+	Feedback Feedback            `json:"feedback"`
+	NoteId   *openapi_types.UUID `json:"note_id,omitempty"`
+	Result   EventResultResult   `json:"result"`
+}
+
+// EventResultResult defines model for EventResult.Result.
+type EventResultResult string
+
+// Feedback defines model for Feedback.
+type Feedback struct {
+	// React Reaction to add to the source message, e.g. "ok"
+	React *string `json:"react,omitempty"`
+
+	// ReplyText Text to send back to the user
+	ReplyText *string `json:"reply_text,omitempty"`
+}
+
+// IdentityStatus defines model for IdentityStatus.
+type IdentityStatus struct {
+	Conversation *string    `json:"conversation,omitempty"`
+	Linked       bool       `json:"linked"`
+	LinkedAt     *time.Time `json:"linked_at,omitempty"`
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Code      *string `json:"code,omitempty"`
+	Detail    *string `json:"detail,omitempty"`
+	RequestId *string `json:"request_id,omitempty"`
+	Status    int     `json:"status"`
+	Title     string  `json:"title"`
+	Type      *string `json:"type,omitempty"`
+}
 
 // Version defines model for Version.
 type Version struct {
 	Version string `json:"version"`
 }
+
+// PostCommandJSONRequestBody defines body for PostCommand for application/json ContentType.
+type PostCommandJSONRequestBody = Command
+
+// PostEventJSONRequestBody defines body for PostEvent for application/json ContentType.
+type PostEventJSONRequestBody = Event
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -92,13 +273,149 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// GetBotVersion Build information (M0 pipeline placeholder)
+	// PostCommandWithBody A chat command (link, unlink, help, ...)
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+	PostCommandWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostCommand A chat command (link, unlink, help, ...)
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+	PostCommand(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostEventWithBody A normalised chat event (created, edited or deleted message)
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+	PostEventWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostEvent A normalised chat event (created, edited or deleted message)
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+	PostEvent(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostHeartbeat Liveness signal for the admin's bot status
+	//
+	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+	PostHeartbeat(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetIdentity Whether a chat identity is linked (nothing about the user)
+	//
+	// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
+	GetIdentity(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBotVersion Build information
 	//
 	// Corresponds with GET /bot/v1/version (the `GetBotVersion` operationId).
 	GetBotVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-// GetBotVersion Build information (M0 pipeline placeholder)
+// PostCommandWithBody A chat command (link, unlink, help, ...)
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+func (c *Client) PostCommandWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCommandRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostCommand A chat command (link, unlink, help, ...)
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+func (c *Client) PostCommand(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCommandRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostEventWithBody A normalised chat event (created, edited or deleted message)
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+func (c *Client) PostEventWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostEventRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostEvent A normalised chat event (created, edited or deleted message)
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+func (c *Client) PostEvent(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostEventRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostHeartbeat Liveness signal for the admin's bot status
+//
+// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+func (c *Client) PostHeartbeat(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostHeartbeatRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetIdentity Whether a chat identity is linked (nothing about the user)
+//
+// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
+func (c *Client) GetIdentity(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetIdentityRequest(c.Server, externalUserId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetBotVersion Build information
 //
 // Corresponds with GET /bot/v1/version (the `GetBotVersion` operationId).
 func (c *Client) GetBotVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -111,6 +428,147 @@ func (c *Client) GetBotVersion(ctx context.Context, reqEditors ...RequestEditorF
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewPostCommandRequest calls the generic PostCommand builder with application/json body
+func NewPostCommandRequest(server string, body PostCommandJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostCommandRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostCommandRequestWithBody constructs an http.Request for the PostCommand method, with any body, and a specified content type
+func NewPostCommandRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/commands")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostEventRequest calls the generic PostEvent builder with application/json body
+func NewPostEventRequest(server string, body PostEventJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostEventRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostEventRequestWithBody constructs an http.Request for the PostEvent method, with any body, and a specified content type
+func NewPostEventRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostHeartbeatRequest constructs an http.Request for the PostHeartbeat method
+func NewPostHeartbeatRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/heartbeat")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetIdentityRequest constructs an http.Request for the GetIdentity method
+func NewGetIdentityRequest(server string, externalUserId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "external_user_id", externalUserId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/identities/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetBotVersionRequest constructs an http.Request for the GetBotVersion method
@@ -184,12 +642,239 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// GetBotVersionWithResponse Build information (M0 pipeline placeholder)
+	// PostCommandWithBodyWithResponse A chat command (link, unlink, help, ...)
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+	PostCommandWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCommandResponse, error)
+
+	// PostCommandWithResponse A chat command (link, unlink, help, ...)
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+	PostCommandWithResponse(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCommandResponse, error)
+
+	// PostEventWithBodyWithResponse A normalised chat event (created, edited or deleted message)
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+	PostEventWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostEventResponse, error)
+
+	// PostEventWithResponse A normalised chat event (created, edited or deleted message)
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+	PostEventWithResponse(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEventResponse, error)
+
+	// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+	PostHeartbeatWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error)
+
+	// GetIdentityWithResponse Whether a chat identity is linked (nothing about the user)
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
+	GetIdentityWithResponse(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*GetIdentityResponse, error)
+
+	// GetBotVersionWithResponse Build information
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /bot/v1/version (the `GetBotVersion` operationId).
 	GetBotVersionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBotVersionResponse, error)
+}
+
+type PostCommandResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CommandResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostCommandResponse) GetJSON200() *CommandResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PostCommandResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostCommandResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostCommandResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostCommandResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostCommandResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostEventResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EventResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostEventResponse) GetJSON200() *EventResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PostEventResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostEventResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostEventResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostEventResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostEventResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostHeartbeatResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PostHeartbeatResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostHeartbeatResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostHeartbeatResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostHeartbeatResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostHeartbeatResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetIdentityResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *IdentityStatus
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetIdentityResponse) GetJSON200() *IdentityStatus {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetIdentityResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetIdentityResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetIdentityResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetIdentityResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetIdentityResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type GetBotVersionResponse struct {
@@ -233,7 +918,85 @@ func (r GetBotVersionResponse) ContentType() string {
 	return ""
 }
 
-// GetBotVersionWithResponse Build information (M0 pipeline placeholder)
+// PostCommandWithBodyWithResponse A chat command (link, unlink, help, ...)
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+func (c *ClientWithResponses) PostCommandWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCommandResponse, error) {
+	rsp, err := c.PostCommandWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCommandResponse(rsp)
+}
+
+// PostCommandWithResponse A chat command (link, unlink, help, ...)
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
+func (c *ClientWithResponses) PostCommandWithResponse(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCommandResponse, error) {
+	rsp, err := c.PostCommand(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCommandResponse(rsp)
+}
+
+// PostEventWithBodyWithResponse A normalised chat event (created, edited or deleted message)
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+func (c *ClientWithResponses) PostEventWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostEventResponse, error) {
+	rsp, err := c.PostEventWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostEventResponse(rsp)
+}
+
+// PostEventWithResponse A normalised chat event (created, edited or deleted message)
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
+func (c *ClientWithResponses) PostEventWithResponse(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEventResponse, error) {
+	rsp, err := c.PostEvent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostEventResponse(rsp)
+}
+
+// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+func (c *ClientWithResponses) PostHeartbeatWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error) {
+	rsp, err := c.PostHeartbeat(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostHeartbeatResponse(rsp)
+}
+
+// GetIdentityWithResponse Whether a chat identity is linked (nothing about the user)
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
+func (c *ClientWithResponses) GetIdentityWithResponse(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*GetIdentityResponse, error) {
+	rsp, err := c.GetIdentity(ctx, externalUserId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetIdentityResponse(rsp)
+}
+
+// GetBotVersionWithResponse Build information
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -244,6 +1007,134 @@ func (c *ClientWithResponses) GetBotVersionWithResponse(ctx context.Context, req
 		return nil, err
 	}
 	return ParseGetBotVersionResponse(rsp)
+}
+
+// ParsePostCommandResponse parses an HTTP response from a PostCommandWithResponse call
+func ParsePostCommandResponse(rsp *http.Response) (*PostCommandResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostCommandResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CommandResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostEventResponse parses an HTTP response from a PostEventWithResponse call
+func ParsePostEventResponse(rsp *http.Response) (*PostEventResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostEventResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostHeartbeatResponse parses an HTTP response from a PostHeartbeatWithResponse call
+func ParsePostHeartbeatResponse(rsp *http.Response) (*PostHeartbeatResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostHeartbeatResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetIdentityResponse parses an HTTP response from a GetIdentityWithResponse call
+func ParseGetIdentityResponse(rsp *http.Response) (*GetIdentityResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetIdentityResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IdentityStatus
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseGetBotVersionResponse parses an HTTP response from a GetBotVersionWithResponse call

@@ -10,10 +10,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Niboor/notekeeper/core/internal/app"
 	"github.com/Niboor/notekeeper/core/internal/config"
 	"github.com/Niboor/notekeeper/core/internal/db"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/server"
+	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/version"
 )
 
@@ -34,7 +37,7 @@ func main() {
 	case "version":
 		fmt.Println(version.Version)
 	case "admin":
-		err = fmt.Errorf("admin commands arrive with milestone M1")
+		err = admin(ctx, os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -65,16 +68,26 @@ func serve(ctx context.Context) error {
 	if err := cfg.RequireDatabase(); err != nil {
 		return err
 	}
+	if err := cfg.RequireAuth(); err != nil {
+		return err
+	}
 	log := newLogger(cfg.LogLevel)
 	pool, err := db.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
+	st := store.New(pool)
+	sv, err := app.NewServices(cfg, st, log)
+	if err != nil {
+		return err
+	}
+	hub := realtime.NewHub(cfg.DatabaseURL, log)
+	go hub.Run(ctx)
 
-	routers := server.NewRouters(server.Deps{
-		Config: cfg,
-		Log:    log,
+	routers, err := server.NewRouters(server.Deps{
+		Config: cfg, Log: log, Store: st,
+		Accounts: sv.Accounts, Bots: sv.Bots, Notes: sv.Notes, Ingest: sv.Ingest, Hub: hub,
 		Ready: func(ctx context.Context) error {
 			if err := pool.Ping(ctx); err != nil {
 				log.Warn("not ready: database unreachable", "error", err)
@@ -92,6 +105,9 @@ func serve(ctx context.Context) error {
 			return nil
 		},
 	})
+	if err != nil {
+		return err
+	}
 	log.Info("starting", "version", version.Version)
 	return httpx.Serve(ctx, log, cfg.ShutdownTimeout, routers.Listeners(cfg)...)
 }
@@ -104,5 +120,11 @@ func migrate(ctx context.Context) error {
 	if err := cfg.RequireDatabase(); err != nil {
 		return err
 	}
-	return db.Migrate(ctx, cfg.DatabaseURL)
+	// The migration Job runs under the schema-owning role (NK_MIGRATE_DATABASE_URL); the serving
+	// processes never have DDL rights (docs/design/01-data-model.md section 12).
+	url := cfg.DatabaseURL
+	if v := os.Getenv("NK_MIGRATE_DATABASE_URL"); v != "" {
+		url = v
+	}
+	return db.Migrate(ctx, url)
 }

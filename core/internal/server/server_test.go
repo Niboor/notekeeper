@@ -23,7 +23,11 @@ import (
 
 func testRouters(t *testing.T, cfg config.Config, ready Readiness) Routers {
 	t.Helper()
-	return NewRouters(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Ready: ready})
+	r, err := NewRouters(Deps{Config: cfg, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Ready: ready})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 func routes(t *testing.T, h http.Handler) []string {

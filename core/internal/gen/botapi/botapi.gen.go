@@ -14,19 +14,210 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for EventKind.
+const (
+	MessageCreated EventKind = "message_created"
+	MessageDeleted EventKind = "message_deleted"
+	MessageEdited  EventKind = "message_edited"
+)
+
+// Valid indicates whether the value is a known member of the EventKind enum.
+func (e EventKind) Valid() bool {
+	switch e {
+	case MessageCreated:
+		return true
+	case MessageDeleted:
+		return true
+	case MessageEdited:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventPartType.
+const (
+	Attachment       EventPartType = "attachment"
+	AttachmentFailed EventPartType = "attachment_failed"
+	Text             EventPartType = "text"
+	Unsupported      EventPartType = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the EventPartType enum.
+func (e EventPartType) Valid() bool {
+	switch e {
+	case Attachment:
+		return true
+	case AttachmentFailed:
+		return true
+	case Text:
+		return true
+	case Unsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventResultResult.
+const (
+	Appended EventResultResult = "appended"
+	Created  EventResultResult = "created"
+	Ignored  EventResultResult = "ignored"
+	Rejected EventResultResult = "rejected"
+	Removed  EventResultResult = "removed"
+	Updated  EventResultResult = "updated"
+)
+
+// Valid indicates whether the value is a known member of the EventResultResult enum.
+func (e EventResultResult) Valid() bool {
+	switch e {
+	case Appended:
+		return true
+	case Created:
+		return true
+	case Ignored:
+		return true
+	case Rejected:
+		return true
+	case Removed:
+		return true
+	case Updated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Command defines model for Command.
+type Command struct {
+	Args         *string    `json:"args,omitempty"`
+	Command      string     `json:"command"`
+	Conversation string     `json:"conversation"`
+	MessageId    *string    `json:"message_id,omitempty"`
+	ReplyTo      *string    `json:"reply_to,omitempty"`
+	Sender       string     `json:"sender"`
+	Timestamp    *time.Time `json:"timestamp,omitempty"`
+}
+
+// CommandResult defines model for CommandResult.
+type CommandResult struct {
+	Feedback Feedback `json:"feedback"`
+	Ok       bool     `json:"ok"`
+}
+
+// Event defines model for Event.
+type Event struct {
+	Conversation string `json:"conversation"`
+
+	// EventId Unique per platform event; the dedupe key
+	EventId string    `json:"event_id"`
+	Kind    EventKind `json:"kind"`
+
+	// MessageId For edits and deletes the ORIGINAL message id
+	MessageId string       `json:"message_id"`
+	Parts     *[]EventPart `json:"parts,omitempty"`
+	RelatesTo *struct {
+		ReplyTo *string `json:"reply_to,omitempty"`
+		Thread  *string `json:"thread,omitempty"`
+	} `json:"relates_to,omitempty"`
+
+	// Sender Verified by the bot from platform metadata
+	Sender string `json:"sender"`
+
+	// Timestamp Platform event time
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// EventKind defines model for Event.Kind.
+type EventKind string
+
+// EventPart defines model for EventPart.
+type EventPart struct {
+	Description *string             `json:"description,omitempty"`
+	Filename    *string             `json:"filename,omitempty"`
+	MediaType   *string             `json:"media_type,omitempty"`
+	Reason      *string             `json:"reason,omitempty"`
+	Size        *int64              `json:"size,omitempty"`
+	Text        *string             `json:"text,omitempty"`
+	Type        EventPartType       `json:"type"`
+	UploadId    *openapi_types.UUID `json:"upload_id,omitempty"`
+}
+
+// EventPartType defines model for EventPart.Type.
+type EventPartType string
+
+// EventResult defines model for EventResult.
+type EventResult struct {
+	Code     *string             `json:"code,omitempty"`
+	Feedback Feedback            `json:"feedback"`
+	NoteId   *openapi_types.UUID `json:"note_id,omitempty"`
+	Result   EventResultResult   `json:"result"`
+}
+
+// EventResultResult defines model for EventResult.Result.
+type EventResultResult string
+
+// Feedback defines model for Feedback.
+type Feedback struct {
+	// React Reaction to add to the source message, e.g. "ok"
+	React *string `json:"react,omitempty"`
+
+	// ReplyText Text to send back to the user
+	ReplyText *string `json:"reply_text,omitempty"`
+}
+
+// IdentityStatus defines model for IdentityStatus.
+type IdentityStatus struct {
+	Conversation *string    `json:"conversation,omitempty"`
+	Linked       bool       `json:"linked"`
+	LinkedAt     *time.Time `json:"linked_at,omitempty"`
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Code      *string `json:"code,omitempty"`
+	Detail    *string `json:"detail,omitempty"`
+	RequestId *string `json:"request_id,omitempty"`
+	Status    int     `json:"status"`
+	Title     string  `json:"title"`
+	Type      *string `json:"type,omitempty"`
+}
 
 // Version defines model for Version.
 type Version struct {
 	Version string `json:"version"`
 }
 
+// PostCommandJSONRequestBody defines body for PostCommand for application/json ContentType.
+type PostCommandJSONRequestBody = Command
+
+// PostEventJSONRequestBody defines body for PostEvent for application/json ContentType.
+type PostEventJSONRequestBody = Event
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// GetBotVersion Build information (M0 pipeline placeholder)
+	// PostCommand A chat command (link, unlink, help, ...)
+	// (POST /bot/v1/commands)
+	PostCommand(w http.ResponseWriter, r *http.Request)
+	// PostEvent A normalised chat event (created, edited or deleted message)
+	// (POST /bot/v1/events)
+	PostEvent(w http.ResponseWriter, r *http.Request)
+	// PostHeartbeat Liveness signal for the admin's bot status
+	// (POST /bot/v1/heartbeat)
+	PostHeartbeat(w http.ResponseWriter, r *http.Request)
+	// GetIdentity Whether a chat identity is linked (nothing about the user)
+	// (GET /bot/v1/identities/{external_user_id})
+	GetIdentity(w http.ResponseWriter, r *http.Request, externalUserId string)
+	// GetBotVersion Build information
 	// (GET /bot/v1/version)
 	GetBotVersion(w http.ResponseWriter, r *http.Request)
 }
@@ -35,7 +226,31 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
-// GetBotVersion Build information (M0 pipeline placeholder)
+// PostCommand A chat command (link, unlink, help, ...)
+// (POST /bot/v1/commands)
+func (_ Unimplemented) PostCommand(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostEvent A normalised chat event (created, edited or deleted message)
+// (POST /bot/v1/events)
+func (_ Unimplemented) PostEvent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostHeartbeat Liveness signal for the admin's bot status
+// (POST /bot/v1/heartbeat)
+func (_ Unimplemented) PostHeartbeat(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetIdentity Whether a chat identity is linked (nothing about the user)
+// (GET /bot/v1/identities/{external_user_id})
+func (_ Unimplemented) GetIdentity(w http.ResponseWriter, r *http.Request, externalUserId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetBotVersion Build information
 // (GET /bot/v1/version)
 func (_ Unimplemented) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -49,6 +264,74 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// PostCommand operation middleware
+func (siw *ServerInterfaceWrapper) PostCommand(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCommand(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostEvent operation middleware
+func (siw *ServerInterfaceWrapper) PostEvent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostEvent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostHeartbeat operation middleware
+func (siw *ServerInterfaceWrapper) PostHeartbeat(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostHeartbeat(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetIdentity operation middleware
+func (siw *ServerInterfaceWrapper) GetIdentity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "external_user_id" -------------
+	var externalUserId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "external_user_id", chi.URLParam(r, "external_user_id"), &externalUserId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "external_user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetIdentity(w, r, externalUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetBotVersion operation middleware
 func (siw *ServerInterfaceWrapper) GetBotVersion(w http.ResponseWriter, r *http.Request) {
@@ -180,8 +463,171 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/bot/v1/version", wrapper.GetBotVersion)
 	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/bot/v1/events", wrapper.PostEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/bot/v1/commands", wrapper.PostCommand)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/bot/v1/identities/{external_user_id}", wrapper.GetIdentity)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/bot/v1/heartbeat", wrapper.PostHeartbeat)
+	})
 
 	return r
+}
+
+type ProblemApplicationProblemPlusJSONResponse Problem
+
+type PostCommandRequestObject struct {
+	Body *PostCommandJSONRequestBody
+}
+
+type PostCommandResponseObject interface {
+	VisitPostCommandResponse(w http.ResponseWriter) error
+}
+
+type PostCommand200JSONResponse CommandResult
+
+func (response PostCommand200JSONResponse) VisitPostCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCommanddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostCommanddefaultApplicationProblemPlusJSONResponse) VisitPostCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEventRequestObject struct {
+	Body *PostEventJSONRequestBody
+}
+
+type PostEventResponseObject interface {
+	VisitPostEventResponse(w http.ResponseWriter) error
+}
+
+type PostEvent200JSONResponse EventResult
+
+func (response PostEvent200JSONResponse) VisitPostEventResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEventdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostEventdefaultApplicationProblemPlusJSONResponse) VisitPostEventResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostHeartbeatRequestObject struct {
+}
+
+type PostHeartbeatResponseObject interface {
+	VisitPostHeartbeatResponse(w http.ResponseWriter) error
+}
+
+type PostHeartbeat204Response struct {
+}
+
+func (response PostHeartbeat204Response) VisitPostHeartbeatResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostHeartbeatdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostHeartbeatdefaultApplicationProblemPlusJSONResponse) VisitPostHeartbeatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetIdentityRequestObject struct {
+	ExternalUserId string `json:"external_user_id"`
+}
+
+type GetIdentityResponseObject interface {
+	VisitGetIdentityResponse(w http.ResponseWriter) error
+}
+
+type GetIdentity200JSONResponse IdentityStatus
+
+func (response GetIdentity200JSONResponse) VisitGetIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetIdentitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetIdentitydefaultApplicationProblemPlusJSONResponse) VisitGetIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetBotVersionRequestObject struct {
@@ -207,7 +653,19 @@ func (response GetBotVersion200JSONResponse) VisitGetBotVersionResponse(w http.R
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// GetBotVersion Build information (M0 pipeline placeholder)
+	// PostCommand A chat command (link, unlink, help, ...)
+	// (POST /bot/v1/commands)
+	PostCommand(ctx context.Context, request PostCommandRequestObject) (PostCommandResponseObject, error)
+	// PostEvent A normalised chat event (created, edited or deleted message)
+	// (POST /bot/v1/events)
+	PostEvent(ctx context.Context, request PostEventRequestObject) (PostEventResponseObject, error)
+	// PostHeartbeat Liveness signal for the admin's bot status
+	// (POST /bot/v1/heartbeat)
+	PostHeartbeat(ctx context.Context, request PostHeartbeatRequestObject) (PostHeartbeatResponseObject, error)
+	// GetIdentity Whether a chat identity is linked (nothing about the user)
+	// (GET /bot/v1/identities/{external_user_id})
+	GetIdentity(ctx context.Context, request GetIdentityRequestObject) (GetIdentityResponseObject, error)
+	// GetBotVersion Build information
 	// (GET /bot/v1/version)
 	GetBotVersion(ctx context.Context, request GetBotVersionRequestObject) (GetBotVersionResponseObject, error)
 }
@@ -251,6 +709,118 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// PostCommand operation middleware
+func (sh *strictHandler) PostCommand(w http.ResponseWriter, r *http.Request) {
+	var request PostCommandRequestObject
+
+	var body PostCommandJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCommand(ctx, request.(PostCommandRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCommand")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCommandResponseObject); ok {
+		if err := validResponse.VisitPostCommandResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostEvent operation middleware
+func (sh *strictHandler) PostEvent(w http.ResponseWriter, r *http.Request) {
+	var request PostEventRequestObject
+
+	var body PostEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostEvent(ctx, request.(PostEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostEventResponseObject); ok {
+		if err := validResponse.VisitPostEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostHeartbeat operation middleware
+func (sh *strictHandler) PostHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var request PostHeartbeatRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostHeartbeat(ctx, request.(PostHeartbeatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostHeartbeat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostHeartbeatResponseObject); ok {
+		if err := validResponse.VisitPostHeartbeatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetIdentity operation middleware
+func (sh *strictHandler) GetIdentity(w http.ResponseWriter, r *http.Request, externalUserId string) {
+	var request GetIdentityRequestObject
+
+	request.ExternalUserId = externalUserId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetIdentity(ctx, request.(GetIdentityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetIdentity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetIdentityResponseObject); ok {
+		if err := validResponse.VisitGetIdentityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetBotVersion operation middleware
 func (sh *strictHandler) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 	var request GetBotVersionRequestObject
@@ -280,12 +850,32 @@ func (sh *strictHandler) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

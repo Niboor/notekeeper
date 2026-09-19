@@ -3,26 +3,179 @@ info:
   title: Notekeeper bot API
   version: 1.0.0
   description: |
-    Cluster-internal API used by chat bots (bot key authentication).
-    See docs/design/02-api.md section 2.
+    Cluster-internal API used by chat bots (bot key authentication). See docs/design/02-api.md
+    section 2 and docs/design/04-ingestion.md. Core owns all wording: responses carry the text
+    a bot should send, so bots contain none of their own (BOT-8).
+servers:
+  - url: /
 paths:
   /bot/v1/version:
     get:
       operationId: getBotVersion
-      summary: Build information (M0 pipeline placeholder)
+      summary: Build information
       security: []
       responses:
         '200':
           description: Version
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Version'
+              schema: {$ref: '#/components/schemas/Version'}
+  /bot/v1/events:
+    post:
+      operationId: postEvent
+      summary: A normalised chat event (created, edited or deleted message)
+      security:
+        - botAuth: [ingest]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Event'}
+      responses:
+        '200':
+          description: Outcome, replayed unchanged for a repeated event id
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EventResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/commands:
+    post:
+      operationId: postCommand
+      summary: A chat command (link, unlink, help, ...)
+      security:
+        - botAuth: [ingest]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Command'}
+      responses:
+        '200':
+          description: Outcome
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommandResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/identities/{external_user_id}:
+    get:
+      operationId: getIdentity
+      summary: Whether a chat identity is linked (nothing about the user)
+      security:
+        - botAuth: [ingest]
+      parameters:
+        - name: external_user_id
+          in: path
+          required: true
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: Link status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IdentityStatus'}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/heartbeat:
+    post:
+      operationId: postHeartbeat
+      summary: Liveness signal for the admin's bot status
+      security:
+        - botAuth: [ingest]
+      responses:
+        '204': {description: Recorded}
+        default: {$ref: '#/components/responses/Problem'}
 components:
+  securitySchemes:
+    botAuth:
+      type: http
+      scheme: bearer
+      description: 'Bot key: nkb.<client id>.<secret>. Scopes: ingest, deliver.'
+  responses:
+    Problem:
+      description: Error (RFC 9457)
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
   schemas:
     Version:
       type: object
       required: [version]
       properties:
-        version:
-          type: string
+        version: {type: string}
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        request_id: {type: string}
+    Event:
+      type: object
+      required: [event_id, kind, sender, conversation, message_id, timestamp]
+      properties:
+        event_id: {type: string, maxLength: 512, description: Unique per platform event; the dedupe key}
+        kind: {type: string, enum: [message_created, message_edited, message_deleted]}
+        sender: {type: string, maxLength: 512, description: Verified by the bot from platform metadata}
+        conversation: {type: string, maxLength: 512}
+        message_id: {type: string, maxLength: 512, description: For edits and deletes the ORIGINAL message id}
+        timestamp: {type: string, format: date-time, description: Platform event time}
+        relates_to:
+          type: object
+          properties:
+            reply_to: {type: string, maxLength: 512}
+            thread: {type: string, maxLength: 512}
+        parts:
+          type: array
+          maxItems: 20
+          items: {$ref: '#/components/schemas/EventPart'}
+    EventPart:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [text, attachment, attachment_failed, unsupported]}
+        text: {type: string, maxLength: 400000}
+        upload_id: {type: string, format: uuid}
+        filename: {type: string, maxLength: 512}
+        media_type: {type: string, maxLength: 256}
+        size: {type: integer, format: int64}
+        reason: {type: string, maxLength: 64}
+        description: {type: string, maxLength: 512}
+    Feedback:
+      type: object
+      properties:
+        react: {type: string, description: 'Reaction to add to the source message, e.g. "ok"'}
+        reply_text: {type: string, description: Text to send back to the user}
+    EventResult:
+      type: object
+      required: [result, feedback]
+      properties:
+        result: {type: string, enum: [created, appended, updated, removed, ignored, rejected]}
+        note_id: {type: string, format: uuid}
+        code: {type: string}
+        feedback: {$ref: '#/components/schemas/Feedback'}
+    Command:
+      type: object
+      required: [command, sender, conversation]
+      properties:
+        command: {type: string, maxLength: 32}
+        args: {type: string, maxLength: 2000}
+        sender: {type: string, maxLength: 512}
+        conversation: {type: string, maxLength: 512}
+        message_id: {type: string, maxLength: 512}
+        reply_to: {type: string, maxLength: 512}
+        timestamp: {type: string, format: date-time}
+    CommandResult:
+      type: object
+      required: [ok, feedback]
+      properties:
+        ok: {type: boolean}
+        feedback: {$ref: '#/components/schemas/Feedback'}
+    IdentityStatus:
+      type: object
+      required: [linked]
+      properties:
+        linked: {type: boolean}
+        linked_at: {type: string, format: date-time}
+        conversation: {type: string}

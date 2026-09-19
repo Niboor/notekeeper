@@ -147,6 +147,12 @@ func IsUniqueViolation(err error, constraint string) bool {
 	return false
 }
 
+// Actor identifies who performed an action, for the audit log.
+type Actor struct {
+	Kind string // user | admin | bot | system | anonymous
+	ID   *uuid.UUID
+}
+
 // AuditEntry is one append-only audit record (SEC-AUD-1). Detail holds small structured facts
 // and never content, tokens or filenames (SEC-AUD-2).
 type AuditEntry struct {
@@ -182,4 +188,21 @@ func uuidPtr(id *uuid.UUID) uuid.NullUUID {
 		return uuid.NullUUID{}
 	}
 	return uuid.NullUUID{UUID: *id, Valid: true}
+}
+
+// InUserRead runs fn in a read-only transaction scoped to the user through row-level security.
+// It takes no lock and records no changes, so reads never queue behind writers.
+func (s *Store) InUserRead(ctx context.Context, userID uuid.UUID, fn func(q *dbq.Queries) error) error {
+	pgtx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = pgtx.Rollback(ctx) }()
+	if _, err := pgtx.Exec(ctx, `select set_config('app.user_id', $1, true)`, userID.String()); err != nil {
+		return fmt.Errorf("set user context: %w", err)
+	}
+	if err := fn(dbq.New(pgtx)); err != nil {
+		return err
+	}
+	return pgtx.Commit(ctx)
 }

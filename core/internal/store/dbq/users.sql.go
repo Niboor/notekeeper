@@ -411,26 +411,27 @@ func (q *Queries) SetUserStatus(ctx context.Context, arg SetUserStatusParams) er
 }
 
 const updateProfile = `-- name: UpdateProfile :one
-update users set display_name = coalesce($2, display_name), timezone = coalesce($3, timezone),
-  settings = coalesce($4, settings), updated_at = $5, version = version + 1
-where id = $1 returning id, username, display_name, email, status, is_admin, password_hash, timezone, settings, change_seq, created_at, updated_at, version
+update users set display_name = coalesce($1, display_name),
+  timezone = coalesce($2, timezone), settings = coalesce($3::jsonb, settings),
+  updated_at = $4, version = version + 1
+where id = $5 returning id, username, display_name, email, status, is_admin, password_hash, timezone, settings, change_seq, created_at, updated_at, version
 `
 
 type UpdateProfileParams struct {
-	ID          uuid.UUID
-	DisplayName string
-	Timezone    string
+	DisplayName *string
+	Timezone    *string
 	Settings    []byte
 	UpdatedAt   time.Time
+	ID          uuid.UUID
 }
 
 func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateProfile,
-		arg.ID,
 		arg.DisplayName,
 		arg.Timezone,
 		arg.Settings,
 		arg.UpdatedAt,
+		arg.ID,
 	)
 	var i User
 	err := row.Scan(

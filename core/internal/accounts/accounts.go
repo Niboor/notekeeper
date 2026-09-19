@@ -83,6 +83,8 @@ type Principal struct {
 	Timezone    string
 	IsAdmin     bool
 	ClientKind  string
+	// TokenExpiry is when the access token used for this request lapses; event streams end then.
+	TokenExpiry time.Time
 }
 
 // Tokens is the outcome of a login, activation or refresh.
@@ -220,7 +222,7 @@ func (s *Service) principalOf(u dbq.User, session uuid.UUID) Principal {
 // Authenticate resolves an access token to its principal. Session state, user status and
 // admin rights are read from the database each time, so revocation is immediate (SEC-AUTH-6).
 func (s *Service) Authenticate(ctx context.Context, access string) (*Principal, error) {
-	sid, err := s.Keys.ParseAccess(access, s.Now())
+	sid, tokenExp, err := s.Keys.ParseAccessExpiry(access, s.Now())
 	if err != nil {
 		return nil, ErrUnauthenticated
 	}
@@ -236,7 +238,7 @@ func (s *Service) Authenticate(ctx context.Context, access string) (*Principal, 
 		return nil, ErrUnauthenticated
 	}
 	return &Principal{UserID: row.UserID, SessionID: row.ID, Username: row.Username, DisplayName: row.DisplayName,
-		Timezone: row.Timezone, IsAdmin: row.IsAdmin, ClientKind: row.ClientKind}, nil
+		Timezone: row.Timezone, IsAdmin: row.IsAdmin, ClientKind: row.ClientKind, TokenExpiry: tokenExp}, nil
 }
 
 // Refresh renews the tokens of a session (docs/design/03-auth.md section 2.3). A second request
@@ -331,6 +333,10 @@ func (s *Service) revoke(ctx context.Context, user uuid.UUID, sessions []uuid.UU
 				TargetKind: "session", TargetID: &id, Detail: map[string]any{"reason": reason}}); err != nil {
 				return err
 			}
+			// Open event streams of this session close at once (SEC-ISO-5); delivered on commit.
+			if err := q.NotifySessions(ctx, "s:"+id.String()); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -402,10 +408,7 @@ func (s *Service) RevokeSession(ctx context.Context, p Principal, id uuid.UUID) 
 		}
 		return err
 	}
-	if err := s.revoke(ctx, p.UserID, []uuid.UUID{id}, "revoked_by_user"); err != nil {
-		return err
-	}
-	return s.St.Notify(ctx, store.ChannelSessions, "s:"+id.String())
+	return s.revoke(ctx, p.UserID, []uuid.UUID{id}, "revoked_by_user")
 }
 
 // ChangePassword sets a new password after verifying the current one, keeps the current

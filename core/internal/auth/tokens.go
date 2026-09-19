@@ -119,14 +119,20 @@ func (k *Keyring) Access(session uuid.UUID, exp time.Time) string {
 
 // ParseAccess verifies an access token and returns its session id. Expired tokens fail.
 func (k *Keyring) ParseAccess(token string, now time.Time) (uuid.UUID, error) {
+	session, _, err := k.ParseAccessExpiry(token, now)
+	return session, err
+}
+
+// ParseAccessExpiry is ParseAccess that also returns when the token lapses.
+func (k *Keyring) ParseAccessExpiry(token string, now time.Time) (uuid.UUID, time.Time, error) {
 	session, exp, err := k.parse(accessPrefix, 'a', token)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, time.Time{}, err
 	}
 	if now.Unix() >= int64(exp) {
-		return uuid.Nil, ErrBadToken
+		return uuid.Nil, time.Time{}, ErrBadToken
 	}
-	return session, nil
+	return session, time.Unix(int64(exp), 0), nil
 }
 
 // Refresh derives the refresh token of a session for a refresh generation.

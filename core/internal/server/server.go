@@ -4,18 +4,26 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/Niboor/notekeeper/core/internal/accounts"
+	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/config"
 	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
 	"github.com/Niboor/notekeeper/core/internal/gen/publicapi"
 	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/ingest"
+	"github.com/Niboor/notekeeper/core/internal/notes"
+	"github.com/Niboor/notekeeper/core/internal/realtime"
+	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/version"
 )
 
@@ -24,15 +32,34 @@ type Deps struct {
 	Config config.Config
 	Log    *slog.Logger
 	Ready  Readiness
+
+	Store    *store.Store
+	Accounts *accounts.Service
+	Bots     *bots.Service
+	Notes    *notes.Service
+	Ingest   *ingest.Service
+	Hub      *realtime.Hub
 }
 
 // Routers holds the four handlers so that tests can exercise them without listening.
 type Routers struct {
 	User, Bot, Public, Ops http.Handler
+	hub                    *realtime.Hub
+}
+
+// userAPI implements the generated user API and the hand-written SSE handler.
+type userAPI struct {
+	st      *store.Store
+	accts   *accounts.Service
+	bots    *bots.Service
+	notes   *notes.Service
+	hub     *realtime.Hub
+	trusted []netip.Prefix
+	log     *slog.Logger
 }
 
 // NewRouters builds the handlers for the four listeners.
-func NewRouters(d Deps) Routers {
+func NewRouters(d Deps) (Routers, error) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	metrics := httpx.NewMetrics(reg)
@@ -51,68 +78,85 @@ func NewRouters(d Deps) Routers {
 		})
 		return r
 	}
+	trusted, err := httpx.ParsePrefixes(d.Config.TrustedProxies)
+	if err != nil {
+		return Routers{}, fmt.Errorf("NK_TRUSTED_PROXIES: %w", err)
+	}
 
+	// ---- user API ----
+	userSpec, err := userapi.GetSpec()
+	if err != nil {
+		return Routers{}, err
+	}
+	reqs, err := RequirementsFromSpec(userSpec)
+	if err != nil {
+		return Routers{}, err
+	}
+	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
+	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, hub: d.Hub, trusted: trusted, log: d.Log}
 	user := base("user", d.Config.AppHosts, false)
-	userapi.HandlerFromMux(userapi.NewStrictHandlerWithOptions(userHandler{}, nil, strictErrors()), user)
+	userapi.HandlerWithOptions(
+		userapi.NewStrictHandlerWithOptions(ua, []userapi.StrictMiddlewareFunc{stashHTTPUser}, userapi.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
+		userapi.ChiServerOptions{BaseRouter: user, Middlewares: []userapi.MiddlewareFunc{auth.wrap}, ErrorHandlerFunc: badRequest})
+	// Registered after the generated routes so that it replaces the generated placeholder.
+	user.Get("/api/v1/events", auth.wrap(http.HandlerFunc(ua.events)).ServeHTTP)
 
+	// ---- bot API ----
 	// The bot API is cluster-internal; callers are our own bots, whose request ids we trust
 	// so a chat message can be followed end to end (NFR-O1).
+	botSpec, err := botapi.GetSpec()
+	if err != nil {
+		return Routers{}, err
+	}
+	botScopes, err := BotScopesFromSpec(botSpec)
+	if err != nil {
+		return Routers{}, err
+	}
+	bauth := &botAuth{bots: d.Bots, scopes: botScopes, log: d.Log}
+	ba := &botAPI{bots: d.Bots, ingest: d.Ingest}
 	bot := base("bot", nil, true)
-	botapi.HandlerFromMux(botapi.NewStrictHandlerWithOptions(botHandler{}, nil, botStrictErrors()), bot)
+	botapi.HandlerWithOptions(
+		botapi.NewStrictHandlerWithOptions(ba, []botapi.StrictMiddlewareFunc{stashHTTPBot}, botapi.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
+		botapi.ChiServerOptions{BaseRouter: bot, Middlewares: []botapi.MiddlewareFunc{bauth.wrap}, ErrorHandlerFunc: badRequest})
 
+	// ---- public share API ---- (placeholder until milestone M4)
 	public := base("public", d.Config.ShareHosts, false)
-	publicapi.HandlerFromMux(publicapi.NewStrictHandlerWithOptions(publicHandler{}, nil, publicStrictErrors()), public)
+	publicapi.HandlerFromMux(publicapi.NewStrictHandlerWithOptions(publicHandler{}, nil, publicapi.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}), public)
 
-	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(reg, d.Ready)}
+	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(reg, d.Ready), hub: d.Hub}, nil
+}
+
+func stashHTTPUser(f userapi.StrictHandlerFunc, _ string) userapi.StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
+		return f(httpx.WithHTTP(ctx, w, r), w, r, args)
+	}
+}
+
+func stashHTTPBot(f botapi.StrictHandlerFunc, _ string) botapi.StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
+		return f(httpx.WithHTTP(ctx, w, r), w, r, args)
+	}
 }
 
 // Listeners returns the four listeners for cfg.
 func (r Routers) Listeners(cfg config.Config) []httpx.Listener {
+	var onShutdown func()
+	if r.hub != nil {
+		onShutdown = r.hub.Shutdown
+	}
 	return []httpx.Listener{
-		{Name: "user", Addr: cfg.UserAddr, Handler: r.User},
+		{Name: "user", Addr: cfg.UserAddr, Handler: r.User, OnShutdown: onShutdown},
 		{Name: "bot", Addr: cfg.BotAddr, Handler: r.Bot},
 		{Name: "public", Addr: cfg.PublicAddr, Handler: r.Public},
 		{Name: "ops", Addr: cfg.OpsAddr, Handler: r.Ops},
 	}
 }
 
-// ---- handlers: placeholders proving the generated pipeline; replaced from M1 on -------------
-
-type userHandler struct{}
-
-func (userHandler) GetVersion(context.Context, userapi.GetVersionRequestObject) (userapi.GetVersionResponseObject, error) {
-	return userapi.GetVersion200JSONResponse{Version: version.Version}, nil
-}
-
-type botHandler struct{}
-
-func (botHandler) GetBotVersion(context.Context, botapi.GetBotVersionRequestObject) (botapi.GetBotVersionResponseObject, error) {
-	return botapi.GetBotVersion200JSONResponse{Version: version.Version}, nil
-}
-
 type publicHandler struct{}
 
 func (publicHandler) GetPublicVersion(context.Context, publicapi.GetPublicVersionRequestObject) (publicapi.GetPublicVersionResponseObject, error) {
 	return publicapi.GetPublicVersion200JSONResponse{Version: version.Version}, nil
-}
-
-// Strict handlers report request and response errors as generic problem+json (SEC-API-5).
-func strictErrors() userapi.StrictHTTPServerOptions {
-	return userapi.StrictHTTPServerOptions{RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: internalError}
-}
-
-func botStrictErrors() botapi.StrictHTTPServerOptions {
-	return botapi.StrictHTTPServerOptions{RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: internalError}
-}
-
-func publicStrictErrors() publicapi.StrictHTTPServerOptions {
-	return publicapi.StrictHTTPServerOptions{RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: internalError}
-}
-
-func badRequest(w http.ResponseWriter, r *http.Request, _ error) {
-	httpx.WriteProblem(w, r, http.StatusBadRequest, "bad_request", "")
-}
-
-func internalError(w http.ResponseWriter, r *http.Request, _ error) {
-	httpx.WriteProblem(w, r, http.StatusInternalServerError, "internal_error", "")
 }

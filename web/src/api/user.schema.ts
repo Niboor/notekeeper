@@ -11,11 +11,430 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build information (M0 pipeline placeholder) */
+        /** Build information */
         get: operations["getVersion"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with username and password; sets the session cookies */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew the session tokens (called silently by clients)
+         * @description The refresh token comes from its cookie (web) or the request body (native clients).
+         */
+        post: operations["refreshSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the current session */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a password from an activation link and sign in */
+        post: operations["activate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's profile */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change display name, time zone or notice settings */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/api/v1/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the password; keeps this session and signs out the others */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active sessions of the user */
+        get: operations["listSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Sign out one session */
+        delete: operations["revokeSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out everywhere */
+        post: operations["revokeAllSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Linked chat identities */
+        get: operations["listIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/identities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a chat identity */
+        delete: operations["unlinkIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/pairing-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a one-time code to link a chat with `!link CODE` */
+        post: operations["createPairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bot instances the user can link to, with their online status */
+        get: operations["listBotInstances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inbox/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Inbox, newest first */
+        get: operations["listInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One note with its parts */
+        get: operations["getNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Server-Sent Events stream of change notifications
+         * @description Hand-written handler (not generated). `event: change` with `id: <seq>` per change,
+         *     `event: resync` when the client must refetch, `event: reconnect` before a server shutdown;
+         *     a comment line every 25 seconds. Resumes from `Last-Event-ID`.
+         */
+        get: operations["streamEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The change feed after a cursor */
+        get: operations["listChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Accounts with status and storage use (metadata only) */
+        get: operations["adminListUsers"];
+        put?: never;
+        /** Create a pending account; issue an activation link separately */
+        post: operations["adminCreateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Disable or enable an account, or set its quota */
+        patch: operations["adminUpdateUser"];
+        trace?: never;
+    };
+    "/api/v1/admin/users/{id}/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue an activation link (clears the password, signs the user out everywhere) */
+        post: operations["adminIssueActivationLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bot-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Registered bot instances */
+        get: operations["adminListBotInstances"];
+        put?: never;
+        /** Register a bot instance */
+        post: operations["adminCreateBotInstance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bot-instances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable or disable an instance */
+        patch: operations["adminUpdateBotInstance"];
+        trace?: never;
+    };
+    "/api/v1/admin/bot-instances/{id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a credential; the secret is shown once */
+        post: operations["adminCreateBotCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bot-instances/{id}/credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disable a credential */
+        delete: operations["adminDisableBotCredential"];
         options?: never;
         head?: never;
         patch?: never;
@@ -37,9 +456,253 @@ export interface components {
             detail?: string;
             request_id?: string;
         };
+        LoginRequest: {
+            username: string;
+            password: string;
+            /** @default true */
+            remember: boolean;
+            /**
+             * @default web
+             * @enum {string}
+             */
+            client_kind: "web" | "native";
+        };
+        RefreshRequest: {
+            refresh_token?: string;
+        };
+        ActivateRequest: {
+            token: string;
+            password: string;
+        };
+        AuthResult: {
+            user: components["schemas"]["Me"];
+            /**
+             * Format: date-time
+             * @description When the access token lapses
+             */
+            expires_at: string;
+            /** @description Only for native clients */
+            access_token?: string;
+            /** @description Only for native clients */
+            refresh_token?: string;
+        };
+        Me: {
+            /** Format: uuid */
+            id: string;
+            username: string;
+            display_name: string;
+            is_admin: boolean;
+            timezone: string;
+            settings: {
+                [key: string]: unknown;
+            };
+        };
+        UpdateMe: {
+            display_name?: string;
+            timezone?: string;
+            settings?: {
+                [key: string]: unknown;
+            };
+        };
+        ChangePasswordRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        Session: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            client_kind: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            current: boolean;
+        };
+        Identity: {
+            /** Format: uuid */
+            id: string;
+            bot_instance_name: string;
+            bot_type: string;
+            external_user_id: string;
+            reminder_target: boolean;
+            /** Format: date-time */
+            linked_at: string;
+        };
+        PairingCode: {
+            /** @example K7QM-2XPA */
+            code: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        BotInstanceSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            type: string;
+            online: boolean;
+        };
+        NotePart: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "text" | "attachment" | "failed_attachment" | "unsupported";
+            text?: string;
+            attachment?: components["schemas"]["AttachmentRef"];
+            failed?: components["schemas"]["FailedAttachment"];
+            /** @enum {string} */
+            attach_reason: "first" | "reply" | "thread" | "media-adjacency" | "app";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            text_edited_at?: string;
+            /** @description Present for parts that came from a chat */
+            source_bot_type?: string;
+        };
+        AttachmentRef: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            media_type: string;
+            /** Format: int64 */
+            size: number;
+        };
+        FailedAttachment: {
+            filename: string;
+            /** Format: int64 */
+            size?: number;
+            reason: string;
+        };
+        Note: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            category_id?: string | null;
+            /** @enum {string} */
+            state: "active" | "deleted";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            deleted_at?: string;
+            version: number;
+            parts: components["schemas"]["NotePart"][];
+        };
+        NotePage: {
+            items: components["schemas"]["Note"][];
+            next_cursor?: string;
+            /** Format: int64 */
+            total?: number;
+        };
+        Change: {
+            /** Format: int64 */
+            seq: number;
+            entity_type: string;
+            /** Format: uuid */
+            entity_id: string;
+            /** @enum {string} */
+            op: "upsert" | "delete";
+            version?: number;
+        };
+        ChangePage: {
+            items: components["schemas"]["Change"][];
+            /** @description Pass this back to get the next changes */
+            cursor: string;
+        };
+        AdminUser: {
+            /** Format: uuid */
+            id: string;
+            username: string;
+            display_name: string;
+            /** @enum {string} */
+            status: "pending" | "active" | "disabled" | "deleting";
+            is_admin: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            used_bytes: number;
+            /** Format: int64 */
+            quota_bytes?: number | null;
+        };
+        CreateUser: {
+            username: string;
+            display_name?: string;
+            email?: string;
+            timezone?: string;
+        };
+        AdminUpdateUser: {
+            disabled?: boolean;
+            /**
+             * Format: int64
+             * @description Set the storage quota
+             */
+            quota_bytes?: number;
+            /** @description Return to the deployment default quota */
+            reset_quota?: boolean;
+        };
+        ActivationLink: {
+            token: string;
+            /** @description Path to open on the app host, e.g. /activate#TOKEN */
+            path: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        AdminBotInstance: {
+            /** Format: uuid */
+            id: string;
+            type: string;
+            name: string;
+            identity_domain: string;
+            /** @enum {string} */
+            status: "active" | "disabled";
+            /** Format: date-time */
+            last_seen_at?: string;
+            /** Format: date-time */
+            created_at: string;
+            credentials?: components["schemas"]["BotCredentialInfo"][];
+        };
+        CreateBotInstance: {
+            type: string;
+            name: string;
+            identity_domain?: string;
+        };
+        BotCredentialInfo: {
+            /** Format: uuid */
+            id: string;
+            client_id: string;
+            scopes: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            disabled_at?: string;
+        };
+        BotCredential: {
+            /** Format: uuid */
+            id: string;
+            client_id: string;
+            /** @description The value the bot sends in Authorization; shown once */
+            bearer: string;
+        };
     };
-    responses: never;
-    parameters: never;
+    responses: {
+        /** @description Error (RFC 9457) */
+        Problem: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+    };
+    parameters: {
+        Id: string;
+        Limit: number;
+        Cursor: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -64,6 +727,658 @@ export interface operations {
                     "application/json": components["schemas"]["Version"];
                 };
             };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Renewed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    activate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Activated and signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMe"];
+            };
+        };
+        responses: {
+            /** @description Updated profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Session"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    revokeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    revokeAllSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default false */
+                    keep_current?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Identities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Identity"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    unlinkIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPairingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    bot_instance_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created; the code is shown only now */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairingCode"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listBotInstances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Instances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["BotInstanceSummary"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listInbox: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    streamEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+        };
+    };
+    listChanges: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from an earlier response; omit for the current position */
+                cursor?: string;
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Changes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePage"];
+                };
+            };
+            /** @description The cursor is older than the retained changes; refetch everything */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminListUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminUser"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUser"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminUpdateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUpdateUser"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminIssueActivationLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link, shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationLink"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminListBotInstances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Instances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminBotInstance"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminCreateBotInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBotInstance"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBotInstance"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminUpdateBotInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "active" | "disabled";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminCreateBotCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    scopes?: ("ingest" | "deliver")[];
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotCredential"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adminDisableBotCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
         };
     };
 }

@@ -15,6 +15,9 @@ type Listener struct {
 	Name    string
 	Addr    string
 	Handler http.Handler
+	// OnShutdown, if set, is called when graceful shutdown begins, before connections are
+	// waited for (used to end long-lived streams such as SSE with a reconnect hint).
+	OnShutdown func()
 }
 
 // Serve runs all listeners until ctx is cancelled, then shuts them down gracefully within
@@ -29,6 +32,9 @@ func Serve(ctx context.Context, log *slog.Logger, timeout time.Duration, listene
 			IdleTimeout:       120 * time.Second,
 			// No global read/write timeouts: streaming routes (uploads, downloads, SSE,
 			// long-polls) set per-request deadlines instead (docs/design/02 section 4).
+		}
+		if l.OnShutdown != nil {
+			srv.RegisterOnShutdown(l.OnShutdown)
 		}
 		g.Go(func() error {
 			log.Info("listening", "listener", l.Name, "addr", l.Addr)

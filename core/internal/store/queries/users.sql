@@ -43,9 +43,10 @@ update users set password_hash = $2, updated_at = $3, version = version + 1 wher
 update users set status = $2, updated_at = $3, version = version + 1 where id = $1;
 
 -- name: UpdateProfile :one
-update users set display_name = coalesce($2, display_name), timezone = coalesce($3, timezone),
-  settings = coalesce($4, settings), updated_at = $5, version = version + 1
-where id = $1 returning *;
+update users set display_name = coalesce(sqlc.narg('display_name'), display_name),
+  timezone = coalesce(sqlc.narg('timezone'), timezone), settings = coalesce(sqlc.narg('settings')::jsonb, settings),
+  updated_at = @updated_at, version = version + 1
+where id = @id returning *;
 
 -- name: ListUsers :many
 select u.id, u.username, u.display_name, u.status, u.is_admin, u.created_at,

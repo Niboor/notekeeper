@@ -17,10 +17,7 @@ import (
 const tokenActivation = "activation"
 
 // Actor identifies who performed an administrative action, for the audit log.
-type Actor struct {
-	Kind string // "admin" or "system" (operator CLI)
-	ID   *uuid.UUID
-}
+type Actor = store.Actor
 
 // CreateUserInput describes a new account. There is no password: the user sets it through an
 // activation link (AUTH-U8), so the admin never sees or chooses one.
@@ -309,4 +306,20 @@ func (s *Service) SetQuota(ctx context.Context, actor Actor, userID uuid.UUID, q
 // Me returns the current user's profile.
 func (s *Service) Me(ctx context.Context, p Principal) (dbq.User, error) {
 	return s.St.Q().GetUser(ctx, p.UserID)
+}
+
+// UpdateProfile changes the display name, time zone and settings; nil arguments are left alone.
+func (s *Service) UpdateProfile(ctx context.Context, p Principal, displayName, timezone *string, settings []byte) (dbq.User, error) {
+	if displayName != nil {
+		if n := len([]rune(*displayName)); n < 1 || n > 100 {
+			return dbq.User{}, fmt.Errorf("%w: display name", ErrInvalidInput)
+		}
+	}
+	if timezone != nil {
+		if _, err := time.LoadLocation(*timezone); err != nil || *timezone == "" {
+			return dbq.User{}, fmt.Errorf("%w: unknown timezone", ErrInvalidInput)
+		}
+	}
+	return s.St.Q().UpdateProfile(ctx, dbq.UpdateProfileParams{ID: p.UserID, DisplayName: displayName, Timezone: timezone,
+		Settings: settings, UpdatedAt: s.Now()})
 }

@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -25,8 +26,29 @@ type Config struct {
 	AppHosts   []string
 	ShareHosts []string
 
+	// Public base URLs (scheme and host): used to build links and derive the allowed hosts.
+	AppURL   string
+	ShareURL string
+
 	LogLevel        string
 	ShutdownTimeout time.Duration
+
+	// Sessions and tokens (docs/design/03-auth.md).
+	TokenKeys               string // "kid:base64key,..."; the first signs, all verify
+	AccessTokenTTL          time.Duration
+	SessionIdleLifetime     time.Duration
+	SessionAbsoluteLifetime time.Duration // 0 = unlimited
+	RefreshGrace            time.Duration
+	ActivationTTL           time.Duration
+
+	// Password hashing cost (SEC-BASE-1) and the number of hashes computed at once (SEC-API-4).
+	Argon2MemoryKiB   uint32
+	Argon2Iterations  uint32
+	Argon2Parallelism uint8
+	Argon2Concurrency int
+
+	// Ingress addresses whose X-Forwarded-For is trusted for per-address throttling.
+	TrustedProxies []string
 }
 
 // Load reads the configuration from the process environment.
@@ -49,7 +71,74 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.ShutdownTimeout = d
+
+	c.AppURL = strings.TrimRight(getenv("NK_APP_URL"), "/")
+	c.ShareURL = strings.TrimRight(getenv("NK_SHARE_URL"), "/")
+	if len(c.AppHosts) == 0 {
+		c.AppHosts = hostOf(c.AppURL)
+	}
+	if len(c.ShareHosts) == 0 {
+		c.ShareHosts = hostOf(c.ShareURL)
+	}
+	c.TokenKeys = getenv("NK_TOKEN_KEYS")
+	c.TrustedProxies = list(getenv("NK_TRUSTED_PROXIES"))
+	for _, f := range []struct {
+		dst *time.Duration
+		key string
+		def time.Duration
+	}{
+		{&c.AccessTokenTTL, "NK_ACCESS_TOKEN_TTL", 15 * time.Minute},
+		{&c.SessionIdleLifetime, "NK_SESSION_IDLE_LIFETIME", 90 * 24 * time.Hour},
+		{&c.SessionAbsoluteLifetime, "NK_SESSION_ABSOLUTE_LIFETIME", 365 * 24 * time.Hour},
+		{&c.RefreshGrace, "NK_REFRESH_GRACE", 60 * time.Second},
+		{&c.ActivationTTL, "NK_ACTIVATION_TTL", 7 * 24 * time.Hour},
+	} {
+		if *f.dst, err = duration(getenv, f.key, f.def); err != nil {
+			return Config{}, err
+		}
+	}
+	mem, err := number(getenv, "NK_ARGON2_MEMORY_KIB", 64*1024)
+	if err != nil {
+		return Config{}, err
+	}
+	iter, err := number(getenv, "NK_ARGON2_ITERATIONS", 3)
+	if err != nil {
+		return Config{}, err
+	}
+	par, err := number(getenv, "NK_ARGON2_PARALLELISM", 2)
+	if err != nil {
+		return Config{}, err
+	}
+	conc, err := number(getenv, "NK_ARGON2_CONCURRENCY", 4)
+	if err != nil {
+		return Config{}, err
+	}
+	c.Argon2MemoryKiB, c.Argon2Iterations, c.Argon2Parallelism, c.Argon2Concurrency = uint32(mem), uint32(iter), uint8(par), int(conc)
 	return c, nil
+}
+
+// RequireAuth fails when the token keys are missing or still a documented placeholder
+// (SEC-OPS-1, SEC-OPS-7): Core must not start with a secret anyone could know.
+func (c Config) RequireAuth() error {
+	if c.TokenKeys == "" {
+		return fmt.Errorf("NK_TOKEN_KEYS is required (kid:base64key with at least 32 random bytes)")
+	}
+	if strings.Contains(strings.ToLower(c.TokenKeys), "change-me") || strings.Contains(strings.ToLower(c.TokenKeys), "changeme") {
+		return fmt.Errorf("NK_TOKEN_KEYS still contains a placeholder value")
+	}
+	return nil
+}
+
+func number(getenv func(string) string, key string, def uint64) (uint64, error) {
+	v := getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseUint(v, 10, 32)
+	if err != nil || n == 0 {
+		return 0, fmt.Errorf("%s: must be a positive number", key)
+	}
+	return n, nil
 }
 
 // RequireDatabase fails when no database URL is configured.
@@ -65,6 +154,18 @@ func env(getenv func(string) string, key, def string) string {
 		return v
 	}
 	return def
+}
+
+// hostOf returns the lower-case hostname of a URL as a one-element list, or nil.
+func hostOf(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return nil
+	}
+	return []string{strings.ToLower(u.Hostname())}
 }
 
 func list(v string) []string {
