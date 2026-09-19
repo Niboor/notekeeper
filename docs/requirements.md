@@ -134,7 +134,7 @@ flowchart LR
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | CORE-N1 | Must | unimplemented | Notes are created with text and/or attachments. A note always has at least one part. |
-| CORE-N2 | Must | unimplemented | New notes created via a bot are placed in the Inbox of the linked user, at the top. |
+| CORE-N2 | Must | unimplemented | New notes created via a bot are placed in the Inbox of the linked user, at the position given by CORE-N18 (the top for live messages). |
 | CORE-N3 | Must | unimplemented | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
 | CORE-N4 | Must | unimplemented | Note order within a category / the Inbox is user-controlled and persistent. |
 | CORE-N5 | Must | unimplemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
@@ -291,7 +291,7 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-3 | Must | unimplemented | **Message events**: the bot reports normalised events, each carrying: bot instance, external identity of the sender, conversation ID, platform message ID, platform timestamp, and the event kind: `message_created`, `message_edited` (references original message ID + new content), `message_deleted`. |
 | BOT-4 | Must | unimplemented | A message event's content is a list of typed parts: `text` (plain text or Markdown), `attachment` (see BOT-6), or `unsupported` (fallback text description, e.g. "location shared"). |
 | BOT-5 | Must | unimplemented | Events include **relationship hints** when the platform provides them: "replies to message X", "in thread T". Core uses them for grouping (§6.3). |
-| BOT-6 | Must | unimplemented | Attachment upload: the bot uploads binary content (already decrypted, if the platform encrypts it) with filename and media type, and refers to it from the message event. Uploads are resumable/streamed. |
+| BOT-6 | Must | unimplemented | Attachment upload: the bot uploads binary content (already decrypted, if the platform encrypts it) with filename and media type, and refers to it from the message event. Uploads are streamed; resumable uploads are not required (a failed upload is simply retried, and ingestion is idempotent, BOT-7). |
 | BOT-7 | Must | unimplemented | **Idempotent ingestion**: the tuple (bot instance, conversation, platform message ID, event kind/edit ID) is a natural dedupe key. Replaying an event is safe and yields the same result. Delivery is at-least-once. |
 | BOT-8 | Must | unimplemented | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message (English in v1, localisable per NFR-Q3) for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
 | BOT-9 | Must | unimplemented | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
