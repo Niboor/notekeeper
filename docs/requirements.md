@@ -1,6 +1,6 @@
 # Notekeeper — Requirements
 
-Status: draft v0.1 — requirements only, no implementation or technology decisions beyond the stated constraints.
+Status: draft v0.1 — requirements only. Technology choices appear only where a constraint forces them (Postgres, Kubernetes, Matrix E2EE, native-client auth).
 
 ## 1. Purpose and vision
 
@@ -241,7 +241,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | ID | Pri | Requirement |
 |---|---|---|
 | GRP-1 | Must | **Explicit relations win.** A message that replies to a message already belonging to a note, or is in a platform thread that belongs to a note, is appended to that note as a new part. This is the deterministic way for a user to say "this belongs together", and it works at any time (not limited by a time window). |
-| GRP-2 | Must | **Media adjacency.** Absent an explicit relation, a *media-only* message is combined with the sender's immediately adjacent message in the same conversation if it arrives within the **grouping window**: (a) merged into the sender's previous note in that conversation if that note's last part is within the window and adding this message does not violate GRP-4; and conversely (b) a *text-only* message is merged into the sender's previous media-only note if that note's last part is within the window and it has no text yet. |
+| GRP-2 | Must | **Media adjacency.** Absent an explicit relation, a message is grouped with the sender's adjacent message in the same conversation when it falls within the **grouping window**, in either direction: (a) a *media-only* message is merged into the sender's previous note in that conversation if that note's last part is within the window and adding it does not violate GRP-4; (b) a *text-only* message is merged into the sender's previous media-only note if that note's last part is within the window and it has no text yet. |
 | GRP-3 | Must | Consecutive **media-only** messages (e.g. several photos/pages sent in a burst) within the window form one note. |
 | GRP-4 | Must | Two separate **text-only** messages are *not* merged by timing alone — quickly sent todo items must stay separate notes. A note receives at most one auto-grouped text body (a caption before or after the media); further text needs an explicit relation (GRP-1). |
 | GRP-5 | Must | The grouping window is measured from the last part added to the note, is configurable (deployment default, per-user override), and defaults to a short period (proposed: 60 seconds). |
@@ -251,6 +251,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | GRP-9 | Should | The grouping policy is an isolated, replaceable module (strategy) so it can be tuned without touching bots or API contracts. |
 | GRP-10 | Should | Users can fix wrong outcomes afterwards by merging/splitting in the app (CORE-N14). |
 | GRP-11 | Could | Optional chat-side override, e.g. a command or marker that forces "new note" or "start a batch of several messages". |
+| GRP-12 | Could | **Capture-time routing:** optionally choose the destination from chat (e.g. a `#work` / `#work/this-week` prefix or tag) so the note skips the Inbox. Default remains the Inbox. |
 
 ### 6.4 Edits and deletions from the chat side (owned by Core)
 
@@ -466,3 +467,4 @@ These have the working assumption stated; please confirm or correct.
 10. **Undo scope.** Is undo of dismissal enough (Must) or do you also want general undo of moves and edits (CORE-N12 is only a Should)?
 11. **Search** and **due dates/reminders** are listed as Should / out of scope; do you want either promoted into v1?
 12. **Group chats.** Should the bot ever work in multi-person rooms (e.g. a shared household room), or DM only?
+13. **Capture-time routing.** Should you be able to target a page/category directly from chat (GRP-12), or is "everything lands in the Inbox" enough for v1?
