@@ -1,6 +1,8 @@
 # Notekeeper — Requirements
 
-Status: draft v0.1 — requirements only. Technology choices appear only where a constraint forces them (Postgres, Kubernetes, Matrix E2EE, native-client auth).
+Status: draft v0.2 — requirements only. Technology choices appear only where a constraint forces them (Postgres, Kubernetes, Matrix E2EE, native-client auth).
+
+Priorities: **Must** / **Should** / **Could**. Requirement IDs are stable identifiers; gaps in numbering are intentional (removed requirements are not renumbered). Decisions taken after review are logged in §13.
 
 ## 1. Purpose and vision
 
@@ -27,16 +29,26 @@ Guiding principles:
 - A generic **bot integration contract** and one implementation: a **Matrix bot**.
 - User accounts, authentication, and linking of chat identities to accounts.
 - Deployment on Kubernetes with PostgreSQL as the only stateful dependency.
+- **Global search** over all of a user's notes.
+- **Reminders** on notes, delivered to the user's chat through the bots and shown in the app (Should; see §4.6).
+- **Administration**: a single admin who creates accounts and registers bots.
 
 ### 2.2 Out of scope for v1 (but must not be precluded)
 
 - Android client (see §9) and any other native client.
 - Additional bots (Telegram, Signal, WhatsApp, e-mail, ...).
-- Reminders / due dates / push notifications; messages from Core back to chat.
+- Browser/mobile push notifications (reminders are delivered in chat and in-app only).
 - Sharing notes or pages between users, collaboration.
 - Checklists as a structured note type (todo lists are plain text for now).
 - End-to-end encryption of notes at rest inside Notekeeper.
 - Offline editing (but the API must be sync-friendly, see NFR-API).
+- External identity providers (OIDC/SSO) and anything depending on outbound e-mail: authentication is local passwords only.
+- Import of chat history: only messages sent after linking are captured.
+- Group / multi-person chat rooms: bots work in direct messages only.
+- Choosing a page/category from chat: every note lands in the Inbox.
+- Undo of anything but dismissal (earlier text versions are recoverable from note history instead).
+- Automatic purging of the Trash: dismissed notes are kept until the user deletes them permanently.
+- Object storage for attachments (not available now; the storage layer must allow adding it later).
 
 ### 2.3 Glossary
 
@@ -53,6 +65,10 @@ Guiding principles:
 | **Bot instance** | One deployed, credentialed bot (e.g. "my Matrix bot on homeserver X"). |
 | **External identity** | A user's identity on a chat platform (e.g. `@robin:example.org`). |
 | **Source reference** | The bot instance + conversation + message ID a note part originated from. |
+| **Admin** | The single user who administers the deployment (creates accounts, registers bots). Also a normal user. |
+| **Activation link** | Single-use, expiring link handed to a new user (or a user who lost their password) to set their own password. |
+| **Reminder** | A point in time at which a note should nudge the user. |
+| **Delivery** | A queued outbound message from Core to a user through a bot instance (e.g. a due reminder). |
 
 ## 3. System overview
 
@@ -73,8 +89,8 @@ flowchart LR
 
     Element <--> MB
     Other <--> OB
-    MB -->|ingest API, bot credentials| Core
-    OB -->|ingest API, bot credentials| Core
+    MB <-->|bot API, bot credentials: events in, deliveries out| Core
+    OB <-->|bot API, bot credentials: events in, deliveries out| Core
     Web -->|user API, user auth| Core
     Android -.->|user API, user auth| Core
     Core --> DB
@@ -85,12 +101,12 @@ flowchart LR
 
 | Component | Responsibility |
 |---|---|
-| **Core** | Single source of truth. Users, auth, pages/categories/notes, trash, attachments, message grouping and edit handling, realtime change feed. Exposes the public HTTP API. |
+| **Core** | Single source of truth. Users, auth, pages/categories/notes, trash, attachments, message grouping and edit handling, global search, reminder scheduling and the outbound delivery queue, realtime change feed. Exposes the public HTTP API. |
 | **Web app** | Browser UI. A client of the user-facing API only; no privileged access. |
-| **Bot(s)** | Translate between a chat platform and the bot-facing part of the Core API. Contain platform-specific logic only (protocol, encryption, message formats). |
+| **Bot(s)** | Translate between a chat platform and the bot-facing part of the Core API. Contain platform-specific logic only (protocol, encryption, message formats). They also send outbound messages (e.g. reminders) that Core queues for them. |
 | **PostgreSQL** | All persistent state of Core (and any durable state the bots need). |
 
-**Key design decision — where does "smart" logic live?** Grouping of messages into notes, edit propagation and deduplication live in the **Core**, not in the bots. Bots forward normalised events and platform hints (replies, threads, edits, timestamps); Core decides what they mean. This keeps behaviour consistent across chat platforms and keeps bots thin, so adding a bot is cheap.
+**Key design decision — where does "smart" logic live?** Grouping of messages into notes, edit propagation and deduplication live in the **Core**, not in the bots. Bots forward normalised events and platform hints (replies, threads, edits, timestamps); Core decides what they mean. This keeps behaviour consistent across chat platforms and keeps bots thin, so adding a bot is cheap. Likewise Core decides *when* a reminder fires and *to whom*; the bot only delivers it.
 
 ## 4. Core
 
@@ -116,12 +132,12 @@ flowchart LR
 | CORE-N7 | Must | A deleted note can be **restored** to its previous location; if that category no longer exists, it is restored to the Inbox. |
 | CORE-N8 | Must | Undo of a dismissal is a server-side restore, so it works from any device and from the Trash view, not just as a transient client-side action. |
 | CORE-N9 | Must | Deleted notes can be listed (Trash), newest-deleted first, with their previous page/category shown. |
-| CORE-N10 | Should | Permanently deleting a note (and its attachments) from the Trash on explicit user action. |
-| CORE-N11 | Should | Trash retention: deleted notes are kept until permanently deleted, or optionally auto-purged after a per-user configurable period. Default: keep indefinitely. |
-| CORE-N12 | Should | Undo of a move (last drag) in addition to undo of dismissal. |
-| CORE-N13 | Should | Full-text search over active and (optionally) deleted notes, per user. |
+| CORE-N10 | Must | Permanently deleting a note (and its attachments) from the Trash on explicit user action. Required because Trash content counts toward the user's storage quota (CORE-A3). |
+| CORE-N11 | Must | Trash retention is unlimited: dismissed notes are kept until the user permanently deletes them. There is no automatic purge. |
+| CORE-N13 | Must | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, not tied to a single language (users write in several), typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
 | CORE-N14 | Should | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | Bulk operations (dismiss/move multiple notes). |
+| CORE-N16 | Could | Search inside attachment contents (PDF text layer, OCR of images), e.g. to find a ticket by event name. |
 
 ### 4.3 Pages and categories — functional requirements
 
@@ -140,11 +156,13 @@ flowchart LR
 | ID | Pri | Requirement |
 |---|---|---|
 | CORE-A1 | Must | Attachments are stored by Core and served only to the owning user (authenticated, authorised requests; no public or guessable URLs). |
-| CORE-A2 | Must | Attachment storage sits behind an abstraction. v1 implementation stores blobs in PostgreSQL (consistent with "everything in Postgres"); an S3-compatible object store must be swappable in later without API changes. |
-| CORE-A3 | Must | Configurable maximum attachment size (default: 25 MiB) and per-user storage quota; violations produce a clear error that the bot can relay to the user. |
+| CORE-A2 | Must | Attachment storage sits behind a storage-backend interface (write stream, read stream with byte ranges, delete, size). v1 has exactly one backend: **PostgreSQL** (no object storage is available). The backend is recorded per attachment, so a second backend (e.g. S3-compatible) can be added later, and existing blobs moved, without changes to the API or note data model. |
+| CORE-A3 | Must | Configurable maximum attachment size (default: 25 MiB) and per-user storage quota (deployment default, adjustable per user by the admin; Trash counts toward it). Violations produce a clear error that the bot can relay to the user. |
 | CORE-A4 | Must | Attachments keep filename and media type. Images get generated thumbnails/previews for the UI. |
 | CORE-A5 | Should | Deduplicate identical blobs per user (content hash). |
 | CORE-A6 | Should | Uploads and downloads are streamed/chunk-friendly so large files do not need to be fully buffered in memory. |
+| CORE-A7 | Should | An operator tool moves blobs between storage backends online, without downtime or API changes. |
+| CORE-A8 | Must | The PostgreSQL backend must: stream uploads and downloads with memory bounded independently of file size; support random access for range requests; tie blob lifetime transactionally to its attachment (no orphaned blobs after deletion or a failed upload); be covered by standard PostgreSQL backup/restore (dump, PITR, replication); and work behind a connection pooler and on managed PostgreSQL. *Design note, to confirm at design time:* chunked rows in an ordinary table are preferred over PostgreSQL Large Objects (cascading delete, no orphan cleanup, logical-replication and pooler friendly); Large Objects are acceptable only if every requirement above demonstrably holds. |
 
 ### 4.5 Realtime and sync
 
@@ -153,8 +171,27 @@ flowchart LR
 | CORE-S1 | Must | Clients see changes made elsewhere (new note from a bot, edit, move on another device) without manual reload (push channel such as SSE or WebSocket). |
 | CORE-S2 | Must | Realtime delivery works with multiple Core replicas (no in-process-only pub/sub). |
 | CORE-S3 | Must | A **change feed** endpoint returns all changes (including deletions/tombstones) since an opaque cursor, so clients can (re)sync incrementally after being offline or reconnecting. |
-| CORE-S4 | Must | Mutations use optimistic concurrency (version/ETag). Conflicting concurrent edits are detected, not silently overwritten. Moves/reorders are handled so that two devices reordering different notes do not conflict. |
+| CORE-S4 | Must | Mutations carry the version the client based them on. For content (note text) **the latest edit wins**: nothing is lost because every overwritten text version is kept in the note's history (EDT-3), and a client whose base version was stale is told, so it can show that the note changed. Structural operations (move, reorder, dismiss, restore) are applied so that two devices working on different notes never conflict. |
 | CORE-S5 | Must | Mutating requests accept an idempotency key or client-generated ID so retries are safe. |
+
+### 4.6 Reminders (Should)
+
+A reminder makes a note nudge the user at a chosen time. Core sends it to the user's chat through a bot and shows it in the app. Reminders are a Should for v1 (built after the capture/organise core), but the outbound part of the bot contract (BOT-11..13) is designed from the start so nothing has to be reworked.
+
+| ID | Pri | Requirement |
+|---|---|---|
+| CORE-R1 | Should | A note can have one or more reminders, each an absolute point in time. Reminders are created, changed and cleared in the app (WEB-18). |
+| CORE-R2 | Should | Each user has an IANA timezone (defaulted from the browser at first login) used to interpret quick options such as "tomorrow morning" and to display times. Stored instants are unambiguous and correct across daylight-saving changes. |
+| CORE-R3 | Should | When a reminder is due, Core queues a **delivery** for every channel the user enabled for reminders: each linked chat identity marked as reminder target, plus the in-app notification. Default: the first linked chat identity; in-app only if none is linked. |
+| CORE-R4 | Should | Deliveries are durable (stored in PostgreSQL before sending), at-least-once, and retried with backoff on transient failure. They are never dropped because a bot is temporarily down: they are sent as soon as it is back and flagged as late (e.g. more than 5 minutes past due). |
+| CORE-R5 | Should | Scheduling holds no in-process timers: any Core replica can fire due reminders and each reminder is claimed by exactly one (e.g. row-level claiming with `SKIP LOCKED`). Target: p95 within 60 s of the due time when the channel is available. |
+| CORE-R6 | Should | A reminder message contains the note text (truncated), the names/count of attachments and a deep link to the note in the web app. Attachments are not re-sent in v1. |
+| CORE-R7 | Should | Dismissing a note suspends its pending reminders. Restoring it re-arms those still in the future; reminders that came due while it was dismissed are not sent. |
+| CORE-R8 | Should | A reminder can be snoozed (preset durations) or marked done from the app. Fired reminders remain visible on the note (e.g. "reminded Fri 09:00"). |
+| CORE-R9 | Should | In-app: due reminders show as a notification indicator, and the user can see a list of upcoming reminders. |
+| CORE-R10 | Could | Recurring reminders (daily/weekly/monthly/custom). |
+| CORE-R11 | Could | Reminder actions from chat: replying to a reminder with `snooze 1h` / `done`, or creating a reminder from chat (e.g. replying to a note's message with `!remind tomorrow 9am`). Plain messages never create reminders, so capture stays unchanged. |
+| CORE-R12 | Could | Browser/mobile push notifications for in-app reminders (Web Push, later FCM). |
 
 ## 5. Accounts and authentication
 
@@ -163,19 +200,20 @@ flowchart LR
 | ID | Pri | Requirement |
 |---|---|---|
 | AUTH-U1 | Must | The system supports multiple users with strict data isolation. Every data access is scoped to the authenticated user; this is enforced centrally, not per endpoint by convention. |
-| AUTH-U2 | Must | A user account has: unique ID, e-mail (login identifier), display name, created timestamp, status (active/disabled). |
-| AUTH-U3 | Must | Sign-up policy is configurable: **closed** (admin-created / invite only) or open. Default: closed. |
+| AUTH-U2 | Must | A user account has: unique ID, unique **username** (login identifier), display name, optional e-mail (informational only; no feature depends on e-mail delivery), created timestamp, status (active/disabled). |
+| AUTH-U3 | Must | Sign-up is **closed**, always: there is no self-registration. Accounts are created only by the admin (AUTH-U6). |
 | AUTH-U4 | Must | Users can change their password, view and revoke active sessions/devices, and delete their account (deleting all data, including attachments). |
 | AUTH-U5 | Should | Users can export all their data (notes, pages, attachments) in an open format. |
-| AUTH-U6 | Should | A minimal admin capability: create/disable users, reset passwords, list bot instances. Can be CLI/API-only in v1. |
+| AUTH-U6 | Must | The **admin** can, in the web app (WEB-19) and via the API: create users; issue an activation link for a user (new account or lost password); disable/enable a user; delete a user together with all their data; set a user's storage quota; see per-user storage usage; register and disable bot instances and rotate their credentials. No app feature lets the admin read other users' notes. |
+| AUTH-U7 | Must | There is **exactly one admin**. The admin is bootstrapped at first start (from configuration/secret or an operator CLI command) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
+| AUTH-U8 | Must | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which also revokes the user's existing sessions. |
 
 ### 5.2 Authenticating users (web now, Android later)
 
 | ID | Pri | Requirement |
 |---|---|---|
-| AUTH-C1 | Must | Local authentication with e-mail + password. Passwords are stored only as salted hashes using a modern password hash (e.g. argon2id). |
-| AUTH-C2 | Should | Optional delegation to an external OpenID Connect provider, so an existing IdP can be used instead of / next to local passwords. |
-| AUTH-C3 | Must | The auth mechanism is suitable for both browsers and native mobile apps: short-lived access tokens plus revocable, rotating refresh tokens, obtained via a standard flow (OAuth 2.0 authorization code + PKCE for native/public clients). No design that only works with browser cookies. |
+| AUTH-C1 | Must | Local authentication with username + password only; no external identity providers and no dependency on e-mail infrastructure. Passwords are stored only as salted hashes using a modern password hash (e.g. argon2id); a minimum length is enforced. |
+| AUTH-C3 | Must | The auth mechanism is suitable for both browsers and native mobile apps: short-lived access tokens plus revocable, rotating refresh tokens, obtained via a standard flow (OAuth 2.0 authorization code + PKCE against Core's own login page, so a native client never handles the password). No design that only works with browser cookies. |
 | AUTH-C4 | Must | Web sessions are protected against CSRF and XSS-based token theft (e.g. HttpOnly, SameSite cookies or equivalent), and all traffic is over TLS. |
 | AUTH-C5 | Must | Auth state is not held in Core process memory: any replica can serve any request (sessions/refresh tokens live in Postgres or are self-contained signed tokens with a revocation mechanism). |
 | AUTH-C6 | Must | Login is rate-limited and brute-force resistant. |
@@ -191,7 +229,7 @@ Bots are **not users** and do not hold user passwords. There are two separate co
 
 | ID | Pri | Requirement |
 |---|---|---|
-| AUTH-B1 | Must | A **bot instance** is registered in Core (by an admin, or self-service in v1 if single-tenant) with a type (`matrix`, ...), a name, and a rotatable credential (client ID + secret, or equivalent). Credentials are stored hashed; multiple credentials can be valid during rotation. |
+| AUTH-B1 | Must | A **bot instance** is registered in Core by the admin with a type (`matrix`, ...), a name, and a rotatable credential (client ID + secret, or equivalent). Credentials are stored hashed; multiple credentials can be valid during rotation. There is no limit on the number of bot instances, of any type. One bot instance serves any number of users, and one user can be linked to any number of bot instances. |
 | AUTH-B2 | Must | Bot credentials carry a narrow scope (`bot:ingest`) that permits only the bot-facing API. They can never call user-facing endpoints, and a bot can act only for users who have **linked** an external identity to that bot instance. |
 | AUTH-B3 | Must | **Linking flow**: (a) the user, logged in to the web app, requests a link for a bot type/instance and receives a short-lived (e.g. 10 min), single-use pairing code; (b) the user sends that code to the bot in chat (e.g. `!link <code>`); (c) the bot submits the code plus the sender's external identity to Core; (d) Core binds the external identity to the user and the bot replies with a confirmation. |
 | AUTH-B4 | Must | An external identity (`bot type` + `platform user ID`, e.g. homeserver-qualified) maps to at most one Notekeeper user. A user may link many external identities, across many bot instances and platforms. |
@@ -219,7 +257,9 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-8 | Must | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. |
 | BOT-9 | Must | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
 | BOT-10 | Should | Core's notion of "what the bot has already delivered" (e.g. last platform timestamp per conversation) is queryable, so a bot that lost its own state can resync. |
-| BOT-11 | Could | Outbound channel Core → bot (webhook or long-poll) for future features such as reminders. Not needed in v1 but the contract must leave room for it. |
+| BOT-11 | Should | **Delivery API (Core → bot, pull-based).** A bot fetches the queued outbound deliveries addressed to its bot instance (long-poll or streaming), claims each with a lease, and reports the outcome: delivered, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired deliveries are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. Required for reminders (§4.6). |
+| BOT-12 | Should | A delivery names its target: external identity plus conversation ID. Core learns the conversation from linking and message events (BOT-2/BOT-3) and keeps the most recent direct-message conversation per identity. |
+| BOT-13 | Should | Each delivery has a unique ID, which the bot uses to make sending idempotent where the platform allows (e.g. a Matrix transaction ID), so a restart between sending and acknowledging does not visibly duplicate the message. |
 
 ### 6.2 Bot behaviour requirements (all bots)
 
@@ -251,7 +291,6 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | GRP-9 | Should | The grouping policy is an isolated, replaceable module (strategy) so it can be tuned without touching bots or API contracts. |
 | GRP-10 | Should | Users can fix wrong outcomes afterwards by merging/splitting in the app (CORE-N14). |
 | GRP-11 | Could | Optional chat-side override, e.g. a command or marker that forces "new note" or "start a batch of several messages". |
-| GRP-12 | Could | **Capture-time routing:** optionally choose the destination from chat (e.g. a `#work` / `#work/this-week` prefix or tag) so the note skips the Inbox. Default remains the Inbox. |
 
 ### 6.4 Edits and deletions from the chat side (owned by Core)
 
@@ -259,9 +298,9 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 |---|---|---|
 | EDT-1 | Must | Every note part created from a chat message stores its source reference, so later events can find it. |
 | EDT-2 | Must | When the chat message is **edited**, the corresponding note part is updated in place; the note's modification time changes and clients are notified (CORE-S1). For text parts, the new text replaces the old text. |
-| EDT-3 | Must | Edit history of a part is retained (at least previous text versions with timestamps), so an edit can't irrecoverably lose information. |
+| EDT-3 | Must | Every version of a part's text is retained with timestamp and origin (chat or app), for chat edits and app edits alike, so that under latest-wins nothing is irrecoverably lost. History is viewable and restorable in the app (WEB-13). |
 | EDT-4 | Must | When the chat message is **deleted/redacted** on the platform, the part is removed from the note. If it was the last part, the note is moved to the Trash (not permanently deleted). |
-| EDT-5 | Must | **Precedence with in-app edits:** if the user has changed that part's text in the web app, a later source edit does not silently overwrite it. The app version is kept, and the source edit is stored and flagged on the note ("changed in chat — accept?"). |
+| EDT-5 | Must | **The latest edit wins**, regardless of origin: a chat edit replaces the part's text even if it was edited in the app before, and vice versa. "Latest" is when the edit was *made* (platform event timestamp for chat edits, server time for app edits), not when it arrives: a chat edit delivered late (e.g. after bot downtime) that is older than the part's last app edit goes into history only and does not overwrite. Clocks are assumed reasonably synchronised. |
 | EDT-6 | Must | Edits/deletes of messages that Core does not know (sent before linking, ignored, unsupported) are ignored without error. |
 | EDT-7 | Must | Edits and deletes apply also to notes in the Trash or in categories (the note stays where it is). |
 | EDT-8 | Should | Edit events that arrive for a message which changed its attachments (where the platform allows it) update/replace the attachment part consistently. |
@@ -272,8 +311,8 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 
 | ID | Pri | Requirement |
 |---|---|---|
-| MX-1 | Must | The bot has its own Matrix account on a configured homeserver. A user talks to it in a **direct message** room; only DMs (or rooms where the bot is explicitly invited by a linked user) are processed. |
-| MX-2 | Must | The bot auto-accepts room invites (rate-limited), but processes messages only from linked identities (AUTH-B6); unlinked users receive linking instructions. |
+| MX-1 | Must | The bot has its own Matrix account on a configured homeserver. It works in **direct-message rooms only**: rooms with exactly two joined members, the bot and one user. Group rooms are out of scope. |
+| MX-2 | Must | The bot accepts invites to direct-message rooms only (rate-limited) and declines other invites. If a third member joins a DM room, the bot stops processing it and says so once. Messages are processed only from linked identities; unlinked users receive linking instructions (AUTH-B6). |
 | MX-3 | Must | **End-to-end-encrypted rooms must work**, since Element creates encrypted DMs by default: the bot participates in Olm/Megolm, verifies/cross-signs as needed, decrypts messages and encrypted attachments (`m.file` / `m.image` / `m.audio` / `m.video` with encryption info), and handles key requests/backfill. |
 | MX-4 | Must | Message types handled: `m.text`, `m.notice` (ignored — used by the bot itself), `m.emote` (treated as text), `m.image`, `m.file`, `m.audio`, `m.video`, `m.location` (as a text/link part). Unknown types become `unsupported` parts with a description rather than being dropped. |
 | MX-5 | Must | Formatted messages (`formatted_body` HTML) are converted to the Core's text format (Markdown subset); plain `body` is the fallback. Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. |
@@ -281,8 +320,9 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | MX-7 | Must | Feedback: a reaction on the source message on success (default ✅); a short text reply for errors (unlinked, too large, quota) — see BOT-B3. |
 | MX-8 | Must | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`. Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). |
 | MX-9 | Must | Catch-up after downtime via the Matrix sync token stored durably (BOT-B2, BOT-B5). |
-| MX-10 | Should | Bot ignores its own messages and messages older than the point where the identity was linked (no backfilling of the entire room history, unless explicitly requested — see open questions). |
+| MX-10 | Must | Only messages sent after the identity was linked (or after the bot joined the room, whichever is later) are processed. History import is out of scope: older room history is never backfilled into notes. |
 | MX-11 | Could | Support for bot-side "typing"/read-receipt to signal processing, if it reduces uncertainty for the user. |
+| MX-12 | Should | **Reminder delivery** (BOT-11..13): the bot posts the reminder as a message in the linked DM (plain text plus formatted body, with the deep link), derives the Matrix transaction ID from the delivery ID, and reports a permanent failure if the room is gone or the user has left. |
 
 ### 7.2 Matrix-specific non-functional requirements
 
@@ -309,12 +349,14 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-9 | Must | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). |
-| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink, with the pairing flow from AUTH-B3), bot status, grouping window. |
-| WEB-13 | Must | Indication when a note was changed in chat after being edited in the app (EDT-5), with accept/dismiss. |
-| WEB-14 | Should | Search across notes (CORE-N13) and filter by page, category, has-attachment. |
+| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. |
+| WEB-13 | Should | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
+| WEB-14 | Must | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | Merge/split notes (CORE-N14). |
 | WEB-16 | Should | Keyboard shortcuts for common actions (dismiss, move, focus Inbox). |
 | WEB-17 | Could | Alternative layouts for a page (list, compact) — exact look is deferred (see below). |
+| WEB-18 | Should | Reminders on notes: set, change, snooze and clear a reminder with a date/time picker and quick options; a visible indicator on cards with a pending reminder; list of upcoming reminders; in-app notification when one is due (CORE-R1..R9). |
+| WEB-19 | Must | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
 
 ### 8.2 Web app non-functional requirements
 
@@ -344,7 +386,9 @@ No Android requirements are in scope for v1. To keep the option open:
 
 ## 10. End-to-end flows
 
-**F1 — Link a chat account.** User logs in to the web app → Settings → "Connect Matrix" → sees a code → sends `!link 7GQ4-K2XM` to the bot in Element → bot redeems the code with Core, identity is linked → bot replies "Linked to robin@…" → the web app shows the link.
+**F0 — Create an account.** The admin opens Admin → Users → "New user" and enters a username → Core creates the account without a password and shows a one-time activation link → the admin sends it to the person by any channel → they open it, choose a password and land in their empty account.
+
+**F1 — Link a chat account.** User logs in to the web app → Settings → "Connect Matrix" → sees a code → sends `!link 7GQ4-K2XM` to the bot in Element → bot redeems the code with Core, identity is linked → bot replies "Linked to your account" → the web app shows the link.
 
 **F2 — Send a text note.** User types "buy milk, eggs" in the bot DM → bot receives it (decrypting if needed) → bot posts `message_created` to Core → Core resolves identity → creates a note in the Inbox → responds `note_created` → bot reacts ✅ → web app (open on another device) shows the note in the Inbox within seconds.
 
@@ -352,13 +396,17 @@ No Android requirements are in scope for v1. To keep the option open:
 
 **F4 — Two quick todo items.** User sends "call dentist", then "renew passport" 5 s later. → Two notes (GRP-4). They can be merged manually if desired (CORE-N14).
 
-**F5 — Edit in chat.** User edits "buy milk, eggs" to "buy milk, eggs, bread" in Element → bot posts `message_edited` → Core updates the part → note is updated everywhere. If the user had already edited the note in the app, the app version is kept and a change proposal is shown (EDT-5).
+**F5 — Edit in chat.** User edits "buy milk, eggs" to "buy milk, eggs, bread" in Element → bot posts `message_edited` → Core updates the part → note is updated everywhere. Whichever edit is latest wins (EDT-5); the earlier text stays available in the note's history (EDT-3).
 
 **F6 — Organise.** In the web app, the user opens the "Chores" page, drags the note from the Inbox into the "This week" column. Order and location are persisted; other devices update.
 
 **F7 — Dismiss and undo.** User clicks dismiss on a note → it disappears and a toast "Note dismissed — Undo" appears → clicking Undo restores it to its previous column and position. Later, the user opens the Trash and restores another note from last week.
 
 **F8 — Revoke a bot link.** The user removes the Matrix link in Settings → the next message from that Matrix ID is rejected, and the bot answers with linking instructions.
+
+**F9 — Reminder.** In the app the user sets a reminder on the "concert Friday" note for Friday 09:00 → at that time a scheduler in any Core replica claims the due reminder and queues a delivery for the user's Matrix identity → the bot, long-polling for deliveries, claims it, posts a message with the note text and a link in the DM, and reports it delivered → the app marks the reminder as sent. If the bot was down at 09:00, the message goes out when it returns, flagged as late.
+
+**F10 — Search.** From any view the user presses the search shortcut, types "concert" → results from all pages, the Inbox (and the Trash if enabled) with their locations → selecting one opens the note in its column.
 
 ## 11. Non-functional requirements (system-wide)
 
@@ -367,7 +415,7 @@ No Android requirements are in scope for v1. To keep the option open:
 | ID | Pri | Requirement |
 |---|---|---|
 | NFR-D1 | Must | **Stateless services.** Core and the web frontend hold no state between requests that isn't in PostgreSQL. Any replica can serve any request; pods can be killed at any time without data loss. |
-| NFR-D2 | Must | **PostgreSQL is the only stateful dependency** (data, attachments per CORE-A2, sessions, bot cursors/keys). No requirement for Redis, a message queue, or persistent volumes in v1. Cross-replica coordination (realtime fan-out, locks, job claiming) uses Postgres (e.g. `LISTEN/NOTIFY`, advisory locks, `SKIP LOCKED`). |
+| NFR-D2 | Must | **PostgreSQL is the only stateful dependency** (data, attachments per CORE-A2, sessions, search index, reminder schedule and delivery queue, bot cursors/keys). No requirement for Redis, a message queue, an external search engine or persistent volumes in v1. Cross-replica coordination (realtime fan-out, locks, job claiming, reminder scheduling) uses Postgres (e.g. `LISTEN/NOTIFY`, advisory locks, `SKIP LOCKED`). |
 | NFR-D3 | Must | Runs on Kubernetes: container images per component, configuration by environment/config files, secrets from Kubernetes Secrets, liveness/readiness/startup probes, graceful shutdown (drain in-flight requests and streams). |
 | NFR-D4 | Must | Schema changes via versioned migrations, applied in a controlled way (init container or Job), backwards-compatible across one release so rolling updates need no downtime. |
 | NFR-D5 | Must | Components are independently deployable and scalable: Core, web app, and each bot are separate deployables. A bot outage never affects the web app; a Core outage never loses chat messages (bots retry, chat platform retains history). |
@@ -400,19 +448,19 @@ No Android requirements are in scope for v1. To keep the option open:
 |---|---|---|
 | NFR-R1 | Must | **No note is silently lost.** After Core has acknowledged an event, it is durably stored; if Core is unavailable, bots retry with backoff and continue from their cursor. |
 | NFR-R2 | Must | Delivery is at-least-once with idempotent handling, so duplicates never produce duplicate notes. |
-| NFR-R3 | Must | Deleting is always soft first (Trash); nothing is permanently deleted without explicit user action or explicit retention settings. |
+| NFR-R3 | Must | Deleting is always soft first (Trash); nothing is permanently deleted without an explicit user action (or account deletion by the admin, AUTH-U6). |
 | NFR-R4 | Must | Backup and restore of PostgreSQL is possible with standard tooling (e.g. `pg_dump`, WAL archiving/PITR); a restore procedure is documented and includes attachments (hence attachment storage must be part of that backup, cf. CORE-A2). |
 | NFR-R5 | Should | Target availability for a personal/small-team deployment: ≥ 99.5 % monthly for Core; short outages are acceptable because capture is buffered by chat platforms. |
 
 ### 11.5 Performance and scale
 
-Targets assume personal or small-group use (proposed sizing; revisit if the open question on user count changes).
+Targets assume friends-and-family use (see §12).
 
 | ID | Pri | Requirement |
 |---|---|---|
 | NFR-P1 | Must | Ingest latency from bot receiving a message to the note visible in the web app: p95 ≤ 3 s (excluding attachment transfer time). |
 | NFR-P2 | Must | API read latency p95 ≤ 300 ms for standard queries (page with 500 notes, trash listing, search) at the sizing below. |
-| NFR-P3 | Must | Sizing: up to 100 users, 50 000 notes per user, 20 GB attachments in total, with a single Postgres instance and 2 replicas of Core. |
+| NFR-P3 | Must | Sizing: up to 50 users, 50 000 notes per user (typical usage far lower), 50 GB attachments in total, with a single Postgres instance and 2 replicas of Core. |
 | NFR-P4 | Should | Lists are paginated / lazily loaded (Trash, large categories); the change feed is paginated. |
 
 ### 11.6 Observability and operations
@@ -445,26 +493,38 @@ Targets assume personal or small-group use (proposed sizing; revisit if the open
 
 ## 12. Assumptions
 
-1. The primary user is the author; the system is nonetheless multi-user from day one (accounts, isolation) because bots and clients must authenticate per user.
-2. Each Matrix user talks to the bot in a private/DM room. The bot is one shared service that many users may link to, or one bot per user — both work with the contract in §6.
+1. Users are friends and family of the operator; sign-up is closed and there is a single admin, who is also a normal user.
+2. Bots are deployed by the operator. Each bot instance may serve many users; users may use many bots; users talk to bots in direct messages only.
 3. A single Notekeeper deployment is operated by one party (self-hosted); there is no multi-organisation tenancy.
-4. Notes are primarily text plus a few files (tickets, photos, PDFs); very large media is uncommon.
-5. Users have reliable connectivity when organising notes; offline use is a later concern.
+4. Notes are primarily text plus a few files (tickets, photos, PDFs); very large media is uncommon. Object storage is unavailable, so attachments live in PostgreSQL.
+5. No e-mail sending and no identity provider are available; every flow (activation, password reset, notifications) works without them.
+6. Users have reliable connectivity when organising notes; offline use is a later concern.
+7. Server clocks and homeserver clocks are reasonably synchronised (NTP), which "latest edit wins" relies on.
 
-## 13. Open questions
+## 13. Decisions log
 
-These have the working assumption stated; please confirm or correct.
+Answers given after the first draft, and where they are reflected.
 
-1. **Who are the users?** Just you, a few family/friends, or a public service? Affects sign-up policy, quotas, admin features, and sizing (assumption: small group; sign-up closed).
-2. **Where does the Inbox live relative to pages?** Assumption: one global Inbox per user, reachable from every page (WEB-2). Alternative: per-page inboxes, where a bot must choose a page.
-3. **One shared bot or one per user?** Assumption: one shared Matrix bot account serving many linked users, with the linking flow in AUTH-B3. If it is only ever you, linking could be simplified to static configuration.
-4. **Attachment storage in Postgres.** Fine at this scale (CORE-A2), but backups/DB size grow. Is an S3-compatible store acceptable if needed later?
-5. **Grouping policy (GRP-2..4).** The proposed policy merges a file with an adjacent text/other file within 60 s but never merges two text-only messages by timing alone. Does that match how you actually send things? E.g. do you ever send *text, then file, then more text* for one note?
-6. **Edits in the app vs. in chat (EDT-5).** Is "app edit wins, chat edit shown as a proposal" acceptable, or should the latest edit from either side simply win?
-7. **Trash retention (CORE-N11).** Keep forever by default, or auto-purge after some period (e.g. 30/90 days)?
-8. **History import.** Should the bot be able to import earlier messages from your existing notes room (a one-time import)? Currently excluded (MX-10).
-9. **Login method.** Local passwords only, or do you have an OIDC provider (Keycloak, Authentik, Google, ...) you'd like to use from day one?
-10. **Undo scope.** Is undo of dismissal enough (Must) or do you also want general undo of moves and edits (CORE-N12 is only a Should)?
-11. **Search** and **due dates/reminders** are listed as Should / out of scope; do you want either promoted into v1?
-12. **Group chats.** Should the bot ever work in multi-person rooms (e.g. a shared household room), or DM only?
-13. **Capture-time routing.** Should you be able to target a page/category directly from chat (GRP-12), or is "everything lands in the Inbox" enough for v1?
+| # | Topic | Decision | Reflected in |
+|---|---|---|---|
+| 1 | Users | Friends and family, closed sign-up, single admin who creates accounts | AUTH-U3, U6, U7, U8, WEB-19, F0 |
+| 2 | Inbox | One global Inbox per user | WEB-2 |
+| 3 | Bots | A bot serves many users; any number of bots allowed | AUTH-B1, NFR-X2 |
+| 4 | Attachment storage | PostgreSQL only for now, abstracted so object storage can be added later | CORE-A2, A7, A8 |
+| 5 | Grouping | Proposed policy accepted | GRP-2..5 |
+| 6 | Edit conflicts | Latest edit wins; every version kept in history | EDT-3, EDT-5, CORE-S4, WEB-13 |
+| 7 | Trash | Keep forever; permanent delete on explicit action only | CORE-N10, N11 |
+| 8 | History import | None | MX-10, §2.2 |
+| 9 | Login | Local passwords only, no OIDC, no e-mail dependency | AUTH-C1, U8 |
+| 10 | Undo | Dismissal only | CORE-N8, §2.2 |
+| 11 | Search / reminders | Global search is a Must; reminders (delivered to chat and in-app) are a Should | CORE-N13, WEB-14, §4.6, BOT-11..13, MX-12 |
+| 12 | Group chats | DM only | MX-1, MX-2 |
+| 13 | Routing from chat | None; everything lands in the Inbox | §2.2 |
+
+## 14. Open questions
+
+1. **Reminder creation from chat.** In v1 reminders are created in the app only. Do you want `!remind ...` from chat (CORE-R11, currently a Could) soon after?
+2. **Recurring reminders** (CORE-R10, Could): needed for things like chores, or are one-off reminders enough?
+3. **Reminder targets.** Assumed: each user picks which linked chat identities receive reminders, default the first one linked. Should it instead default to all of them?
+4. **Reminder content.** Assumed: text plus a link to the note. Should the actual attachment (e.g. the ticket PDF) be re-sent into the chat?
+5. **Languages.** Which languages will you and your users write notes in? Search is specified as language-agnostic; this decides how much tuning it needs and whether the UI must be translatable from day one.
