@@ -48,7 +48,7 @@ Makefile        entry point for build, test, lint (see §9)
 
 ### 3.2 API contract and `oapi-codegen`
 
-The OpenAPI documents in `api/` are written first. There are three: **user API**, **bot API** and **public API** (share pages). `oapi-codegen` generates Go types, routing and strict server interfaces, and the TypeScript client is generated with `openapi-typescript` and `openapi-fetch`. A Kotlin client can be generated later.
+The OpenAPI documents in `api/` are written first. There are three: **user API**, **bot API** and **public API** (share pages). `oapi-codegen` generates Go types, chi routing and strict server interfaces, and the TypeScript client is generated with `openapi-typescript` and `openapi-fetch`. A Kotlin client can be generated later.
 
 Known caveats and how we handle them:
 
@@ -59,6 +59,7 @@ Known caveats and how we handle them:
 5. **Everything must still be in the spec** (SEC-ISO-1). A CI test walks the router and fails if any route has no operation in the spec, so hand-written routes cannot slip in unnoticed.
 6. **Generated code is committed** and CI fails if regenerating changes it (`make generate` then `git diff --exit-code`). The generator version is pinned.
 7. **Guardrail for streaming:** a test uploads and downloads a large file with a small `GOMEMLIMIT` and asserts that memory stays flat (CORE-A8). If this test cannot be made to pass with the generated code, we revisit the tool. **Huma** is the fallback (code-first, built-in SSE and streaming responses), with the spec generated, committed and diffed in CI.
+8. **Spike result (M0, September 2026, oapi-codegen v2.8.0, `GOMEMLIMIT=64MiB`):** the strict server hands the handler `r.Body` directly, and a chunked upload into PostgreSQL held peak RSS at **26 MiB** for one 100 MB upload, four concurrent 100 MB uploads, a full download and a `Range` request (206, bytes verified). With the validator middleware's `ExcludeRequestBody` it was 28 MiB; **with full body validation it reached 917 MiB**, confirming caveat 2. `Range` support needs the `*http.Request` inside the response visitor, which the generated visitor signature does not pass: a strict middleware stores the request in the context and the handler returns a custom response object that calls `http.ServeContent`. The tool stays.
 
 ### 3.3 Realtime, jobs and PostgreSQL usage
 
@@ -150,3 +151,10 @@ Entry point is the `Makefile` (NFR-Q5); `make help` lists every target.
 | Public attachment access from `<img>` tags cannot carry a header | Resolved in the design: the share page fetches attachments with the token header into blob URLs, so no token or signature is ever in a URL; no `Range` on the share page (design/README.md D2) |
 
 Points deliberately left to the technical design document: database schema, position/ordering strategy for notes, exact token and cookie format, the public attachment URL scheme, the grouping module structure, and the API resource model.
+
+## 11. Version pins and notes from M0
+
+- **Go** 1.26.4 (`go.work` and `go.mod` files); one workspace with three modules: `core`, `bots/sdk`, `bots/matrix`, so Core stays free of the bot's cgo dependencies.
+- **Developer tools** are pinned in the `Makefile` and installed into `.bin/` by `make tools` (sqlc, goose, oapi-codegen, golangci-lint, govulncheck, gitleaks, kubeconform, kube-linter, osv-scanner). `trivy` is run through its container image when image scanning is added.
+- **Node** 22 or newer, npm; no pnpm. **TypeScript is pinned to 5.9**: `openapi-typescript` requires `^5` and `typescript-eslint` `<6.1`, so TypeScript 7 cannot be used yet.
+- Module path prefix is `notekeeper/…` (workspace-local); rename when a repository host is chosen.
