@@ -10,11 +10,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"notekeeper/core/internal/config"
-	"notekeeper/core/internal/db"
-	"notekeeper/core/internal/httpx"
-	"notekeeper/core/internal/server"
-	"notekeeper/core/internal/version"
+	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/db"
+	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/server"
+	"github.com/Niboor/notekeeper/core/internal/version"
 )
 
 func main() {

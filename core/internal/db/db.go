@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
-	"notekeeper/core/migrations"
+	"github.com/Niboor/notekeeper/core/migrations"
 )
 
 // Open creates a connection pool and verifies the database is reachable.

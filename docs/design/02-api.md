@@ -34,7 +34,7 @@ Authentication: session cookies for the web app; bearer access tokens for native
 | `POST /categories`, `PATCH /categories/{id}`, `DELETE /categories/{id}` | Category management; `PATCH` can rename, reorder (`before_id`/`after_id`) and move to another page | CORE-P2, CORE-P3 |
 | `GET /pages/{id}/board` | Categories of a page with the first N notes of each and counts, in one call | WEB-1, WEB-N3 |
 | `GET /categories/{id}/notes`, `GET /inbox/notes` | Paginated notes of a category, or of the Inbox (newest first) | CORE-N4, WEB-2 |
-| `POST /notes` | Create a note in the app (`id`, parts) | WEB-9 |
+| `POST /notes` | Create a note in the app: `{id, category_id \| null, before_id?, after_id?, parts}`. `category_id` null puts it in the Inbox (ordered by created time); for a category the default position is the top of the column, or between the given neighbours. Parts are text (Markdown, including task lists) and previously uploaded attachments; `attach_reason` is `app` | WEB-9 |
 | `GET /notes/{id}` | A note with parts, reminders and share-link summary | WEB-8 |
 | `PATCH /notes/{id}/parts/{partId}` | Edit a text part: `{text, base_version}`; latest wins, `stale` flag in the response | CORE-S4, EDT-5 |
 | `POST /notes/{id}/parts`, `DELETE /notes/{id}/parts/{partId}` | Add a text or attachment part; remove a part | WEB-9 |

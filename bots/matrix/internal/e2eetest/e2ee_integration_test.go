@@ -23,7 +23,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
-	"notekeeper/bots/matrix/internal/syncack"
+	"github.com/Niboor/notekeeper/bots/matrix/internal/syncack"
 )
 
 // actor is a Matrix user with its own Olm/Megolm state in its own PostgreSQL database. In the

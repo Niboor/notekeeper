@@ -15,10 +15,10 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 
-	"notekeeper/core/internal/config"
-	"notekeeper/core/internal/gen/botapi"
-	"notekeeper/core/internal/gen/publicapi"
-	"notekeeper/core/internal/gen/userapi"
+	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
+	"github.com/Niboor/notekeeper/core/internal/gen/publicapi"
+	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
 )
 
 func testRouters(t *testing.T, cfg config.Config, ready Readiness) Routers {
@@ -65,9 +65,9 @@ func TestRoutesMatchSpecs(t *testing.T) {
 		handler http.Handler
 		spec    func() (*openapi3.T, error)
 	}{
-		"user":   {r.User, userapi.GetSwagger},
-		"bot":    {r.Bot, botapi.GetSwagger},
-		"public": {r.Public, publicapi.GetSwagger},
+		"user":   {r.User, userapi.GetSpec},
+		"bot":    {r.Bot, botapi.GetSpec},
+		"public": {r.Public, publicapi.GetSpec},
 	} {
 		got, want := routes(t, tc.handler), specOps(t, tc.spec)
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {

@@ -11,12 +11,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
-	"notekeeper/core/internal/config"
-	"notekeeper/core/internal/gen/botapi"
-	"notekeeper/core/internal/gen/publicapi"
-	"notekeeper/core/internal/gen/userapi"
-	"notekeeper/core/internal/httpx"
-	"notekeeper/core/internal/version"
+	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
+	"github.com/Niboor/notekeeper/core/internal/gen/publicapi"
+	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
+	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/version"
 )
 
 // Deps are the collaborators the handlers need. They grow with each milestone.

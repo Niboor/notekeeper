@@ -1,4 +1,4 @@
-module notekeeper/bots/matrix
+module github.com/Niboor/notekeeper/bots/matrix
 
 go 1.26.4
 

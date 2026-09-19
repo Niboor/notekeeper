@@ -6,7 +6,7 @@ import (
 	"context"
 	"net/http"
 
-	"notekeeper/bots/sdk/botclient"
+	"github.com/Niboor/notekeeper/bots/sdk/botclient"
 )
 
 // New returns a bot API client that authenticates with the bot key (AUTH-B1) and tags every

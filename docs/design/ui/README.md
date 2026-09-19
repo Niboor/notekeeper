@@ -3,23 +3,33 @@
 Visual design of the web app. Structure and behaviour are in [../07-web-app.md](../07-web-app.md); this
 directory holds the look.
 
-## Direction proposals (open)
+## Decision
 
-`proposals/` contains one prototype with three visual directions, each in light and dark, responsive
-from desktop to phone. It is static HTML and JavaScript with made-up data; it exists only to choose a
-direction.
+**Paper** is the visual direction (decisions log entry 39): warm and calm, an off-white paper background,
+notes set in a book serif, rounded cards with a soft shadow, terracotta accent, light and dark themes,
+mobile as tabs. **Quiet** (cool, flat, hairline borders, teal accent) is kept in `proposals/` as a possible
+alternative theme; Ink was dropped.
+
+## The prototype
+
+`proposals/` is one static HTML and JavaScript prototype with made-up data. It is used to judge the look
+and to specify interactions before they are built. It really works:
+
+- drag and drop with the mouse, including holding over a page tab to switch pages;
+- keyboard drag (Space, arrows, Space, Esc) with the spoken announcements shown as a caption;
+- **Move to** menu, dismiss with undo;
+- adding notes into the Inbox or any column (bottom "Add a note" row, New note button, the `N` key, a floating
+  button on phones), including turning `- [ ]` lines into a checklist;
+- light and dark themes, responsive down to a phone.
 
 ```bash
 python3 -m http.server 4173 --directory docs/design/ui/proposals
-# then open http://localhost:4173/?d=paper|quiet|ink&t=light|dark
+# open http://localhost:4173/?d=paper&t=light   (or d=quiet, t=dark)
 ```
 
-| Direction | Character |
-|---|---|
-| `paper` | Warm and calm. Off-white paper, notes set in a book serif, rounded cards with a soft shadow, terracotta accent. |
-| `quiet` | Cool, flat and efficient. System sans, hairline borders, no shadows, small-caps lane titles, teal accent. |
-| `ink` | Editorial and typographic. Black on white, notes are ruled lines instead of boxes, monospace metadata, vermilion accent. |
+All text and background colour pairs meet WCAG 2.1 AA contrast in every direction and theme (checked by script).
 
-All token pairs used for text meet WCAG 2.1 AA contrast in both themes (checked by script). Once a
-direction is chosen, this directory will hold the tokens, the component inventory and the remaining
-screens (Trash, search, settings, admin, login, share page).
+## Still to design
+
+Trash, search results, note editing, settings, admin, login and activation, the share page. Their look
+follows the Paper tokens; the prototype will grow to cover them when the web app reaches those screens.

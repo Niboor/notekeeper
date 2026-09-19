@@ -1,4 +1,4 @@
-module notekeeper/core
+module github.com/Niboor/notekeeper/core
 
 go 1.26.0
 

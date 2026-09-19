@@ -390,14 +390,14 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-6 | Must | unimplemented | **Dismiss** button on every note (one click, no confirmation dialog), followed by a transient **Undo** affordance (toast) of at least ~10 seconds. |
 | WEB-7 | Must | unimplemented | **Trash view**: list of deleted notes with restore and permanent-delete actions (CORE-N10), and indication of where each came from. |
 | WEB-8 | Must | unimplemented | Notes render: text (formatted, links clickable), image attachments shown inline (lazy-loaded, scaled by the browser) with a full-size viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
-| WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
+| WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app, into the Inbox or into any existing category (at the top of that column), with text (including checklist items) and attachments. |
 | WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | unimplemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
 | WEB-12 | Must | unimplemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
 | WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
-| WEB-16 | Should | unimplemented | Keyboard shortcuts for common actions (dismiss, move, focus Inbox). |
+| WEB-16 | Should | unimplemented | Keyboard shortcuts for common actions (new note, search, dismiss, move, focus Inbox). |
 | WEB-17 | Could | unimplemented | Alternative layouts for a page (list, compact) — exact look is deferred (see below). |
 | WEB-18 | Should | unimplemented | Reminders on notes: set, change, snooze and clear a reminder with a date/time picker and quick options; a visible indicator on cards with a pending reminder; list of upcoming reminders; in-app notification when one is due (CORE-R1..R9). |
 | WEB-19 | Must | unimplemented | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
@@ -597,6 +597,9 @@ Answers given after the first draft, and where they are reflected.
 | 36 | Inbox ordering | The Inbox is sorted by created time (no manual order); manual order exists inside categories. Resolves the conflict between CORE-N4 and CORE-N18 | CORE-N2, CORE-N4, CORE-N18 |
 | 37 | Olm library | The Matrix bot uses libolm from the system (cgo), as the mautrix bridges do, not pure-Go goolm; `make test-bot` therefore needs libolm and a C compiler installed | NFR-Q5, tech-stack.md §4 |
 | 38 | Matrix sync token | Found in the M0 spike: mautrix-go saves its sync token before processing events, so the bot commits it only after processing (`syncack`), otherwise a failure mid-batch loses messages | BOT-B2, NFR-R1, design/06 §3 |
+| 39 | Visual direction | **Paper** chosen (warm, calm, book serif for notes, terracotta accent); **Quiet** kept as a possible alternative theme; Ink removed | docs/design/ui/ |
+| 40 | Creating notes in the app | Notes can be created directly into the Inbox or any existing column, from a column's "Add a note" row, a New note button and the N key | WEB-9, WEB-16, design/02 §1.2, design/07 |
+| 41 | Repository | github.com/Niboor/notekeeper; Go module paths use it. Integrating with the operator's own Kubernetes stack is out of scope (only generic example manifests, NFR-D6) | tech-stack.md §11 |
 
 ## 14. Open questions
 

@@ -8,7 +8,7 @@
   <script>
     // load the stylesheet of the chosen direction before first paint
     const d = new URLSearchParams(location.search).get('d');
-    const dir = ['paper', 'quiet', 'ink'].includes(d) ? d : 'paper';
+    const dir = ['paper', 'quiet'].includes(d) ? d : 'paper';
     document.write(`<link rel="stylesheet" href="${dir}.css">`);
   </script>
 </head>
