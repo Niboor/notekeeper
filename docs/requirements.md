@@ -30,6 +30,7 @@ Guiding principles:
 - User accounts, authentication, and linking of chat identities to accounts.
 - Deployability on Kubernetes with PostgreSQL as the only stateful dependency, documented with example manifests.
 - **Global search** over all of a user's notes.
+- **Read-only share links** that anyone can open without an account, always with an expiry (§4.7).
 - **Reminders** on notes, delivered to the user's chat through the bots and shown in the app (Should; see §4.6).
 - **Administration**: a single admin who creates accounts and registers bots.
 
@@ -37,9 +38,10 @@ Guiding principles:
 
 - Android client (see §9) and any other native client.
 - Additional bots (Telegram, Signal, WhatsApp, e-mail, ...).
-- Browser/mobile push notifications (reminders are delivered in chat and in-app only).
-- Sharing notes or pages between users, collaboration.
-- Checklists as a structured note type (todo lists are plain text for now).
+- Push notifications sent by Notekeeper itself: reminders arrive as chat messages, so the chat app's own notifications alert the user.
+- Search inside attachment contents (PDF text, OCR).
+- Sharing with other accounts, and collaboration (read-only public share links *are* in scope, §4.7).
+- Checklists as a separate structured note type: checklists are Markdown task lists inside note text (CORE-N17), without per-item reminders or ordering rules.
 - End-to-end encryption of notes at rest inside Notekeeper.
 - Offline editing (but the API must be sync-friendly, see NFR-API).
 - External identity providers (OIDC/SSO) and anything depending on outbound e-mail: authentication is local passwords only.
@@ -70,6 +72,7 @@ Guiding principles:
 | **Admin** | The single user who administers the deployment (creates accounts, registers bots). Also a normal user. |
 | **Activation link** | Single-use, expiring link handed to a new user (or a user who lost their password) to set their own password. |
 | **Reminder** | A point in time at which a note should nudge the user. |
+| **Share link** | An unguessable, expiring URL that gives anyone read-only access to one note, without an account. |
 | **Delivery** | A queued outbound message from Core to a user through a bot instance (e.g. a due reminder). |
 
 ## 3. System overview
@@ -132,7 +135,7 @@ flowchart LR
 | CORE-N2 | Must | unimplemented | New notes created via a bot are placed in the Inbox of the linked user, at the top. |
 | CORE-N3 | Must | unimplemented | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
 | CORE-N4 | Must | unimplemented | Note order within a category / the Inbox is user-controlled and persistent. |
-| CORE-N5 | Must | unimplemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. |
+| CORE-N5 | Must | unimplemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
 | CORE-N6 | Must | unimplemented | Deleting ("dismissing") a note is a **soft delete**: state becomes `deleted`, `deleted_at` is set, and the note remembers its previous location. |
 | CORE-N7 | Must | unimplemented | A deleted note can be **restored** to its previous location; if that category no longer exists, it is restored to the Inbox. |
 | CORE-N8 | Must | unimplemented | Undo of a dismissal is a server-side restore, so it works from any device and from the Trash view, not just as a transient client-side action. |
@@ -142,7 +145,8 @@ flowchart LR
 | CORE-N13 | Must | unimplemented | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English** (inflections and plurals, e.g. "ticket"/"tickets"). Further languages, Dutch first, can be added later without changing the API; language is not a per-note setting the user has to maintain. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
 | CORE-N14 | Should | unimplemented | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | unimplemented | Bulk operations (dismiss/move multiple notes). |
-| CORE-N16 | Could | unimplemented | Search inside attachment contents (PDF text layer, OCR of images), e.g. to find a ticket by event name. |
+| CORE-N17 | Should | unimplemented | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
+| CORE-N18 | Must | unimplemented | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. A new note is inserted into the Inbox at the position matching its created time among the notes already there (the top for live messages), so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
 
 ### 4.3 Pages and categories — functional requirements
 
@@ -163,11 +167,12 @@ flowchart LR
 | CORE-A1 | Must | unimplemented | Attachments are stored by Core and served only to the owning user (authenticated, authorised requests; no public or guessable URLs). |
 | CORE-A2 | Must | unimplemented | Attachment storage sits behind a storage-backend interface (write stream, read stream with byte ranges, delete, size). v1 has exactly one backend: **PostgreSQL** (no object storage is available). The backend is recorded per attachment, so a second backend (e.g. S3-compatible) can be added later, and existing blobs moved, without changes to the API or note data model. |
 | CORE-A3 | Must | unimplemented | Configurable maximum attachment size (default: 25 MiB) and per-user storage quota (deployment default, adjustable per user by the admin; Trash counts toward it). Violations produce a clear error that the bot can relay to the user. |
-| CORE-A4 | Must | unimplemented | Attachments keep filename and media type. Images get generated thumbnails/previews for the UI. |
+| CORE-A4 | Must | unimplemented | Attachments keep filename and media type. Images get generated thumbnails/previews for the UI. Thumbnail generation is asynchronous: the note appears with its attachment immediately (placeholder until the thumbnail is ready), and thumbnailing never counts toward NFR-P1. |
 | CORE-A5 | Should | unimplemented | Deduplicate identical blobs per user (content hash). |
 | CORE-A6 | Should | unimplemented | Uploads and downloads are streamed/chunk-friendly so large files do not need to be fully buffered in memory. |
 | CORE-A7 | Should | unimplemented | An operator tool moves blobs between storage backends online, without downtime or API changes. |
 | CORE-A8 | Must | unimplemented | The PostgreSQL backend must: stream uploads and downloads with memory bounded independently of file size; support random access for range requests; tie blob lifetime transactionally to its attachment (no orphaned blobs after deletion or a failed upload); be covered by standard PostgreSQL backup/restore (dump, PITR, replication); and work behind a connection pooler and on managed PostgreSQL. *Design note, to confirm at design time:* chunked rows in an ordinary table are preferred over PostgreSQL Large Objects (cascading delete, no orphan cleanup, logical-replication and pooler friendly); Large Objects are acceptable only if every requirement above demonstrably holds. |
+| CORE-A9 | Must | unimplemented | **Failed attachments never drop content.** If an attachment cannot be stored (too large, quota exceeded, blocked type, storage error), the accompanying message is not dropped: its text is always captured, and the attachment is recorded as a **failed part** (filename, size, reason) visible on the note. A message consisting only of a failed attachment still produces a note holding the failed part, so nothing is silently lost (NFR-R1). The bot is told the reason and relays it (CORE-A3). |
 
 ### 4.5 Realtime and sync
 
@@ -196,8 +201,27 @@ A reminder makes a note nudge the user at a chosen time. Core sends it to the us
 | CORE-R9 | Should | unimplemented | In-app: due reminders show as a notification indicator, and the user can see a list of upcoming reminders. |
 | CORE-R10 | Should | unimplemented | **Recurring reminders** (daily, weekly, monthly, custom interval, optionally on chosen weekdays). Recurrence is evaluated in the user's timezone, so "09:00" stays 09:00 across daylight-saving changes. Occurrences missed during an outage collapse into one late delivery rather than a burst. A recurring reminder can be ended or skipped once. |
 | CORE-R11 | Should | unimplemented | **Reminder actions from chat.** (a) `!remind <when>` as a reply to a message that belongs to a note sets a reminder on that note; (b) `!remind <when> <text>` creates a new Inbox note with that text and a reminder; (c) replying to a reminder message with `!snooze <duration>` snoozes it, and `!done` marks it done. Time expressions are understood in **English** (e.g. "tomorrow 9am", "in 2 hours", "friday 18:30") relative to the user's timezone. If the expression cannot be understood, nothing is created and the bot replies with what went wrong and an example. Ordinary messages never create reminders, so plain capture is unchanged. |
-| CORE-R12 | Could | unimplemented | Browser/mobile push notifications for in-app reminders (Web Push, later FCM). |
 | CORE-R13 | Should | unimplemented | Reminder time expressions are parsed by Core (not by the bots), so behaviour is identical across chat platforms and covers all supported languages in one place (English in v1). |
+
+### 4.7 Read-only share links
+
+A user can share a single note with someone who has no account, through an unguessable link that expires. The recipient sees the note read-only.
+
+| ID | Pri | State | Requirement |
+|---|---|---|---|
+| CORE-SH1 | Must | unimplemented | A user can create one or more share links for a note they own. Anyone holding the link can open it **without an account or login**; no credentials are requested. |
+| CORE-SH2 | Must | unimplemented | Every link **expires**. Creating a link requires choosing an expiry from presets (e.g. 1 hour, 1 day, 7 days, 30 days; default 7 days). The deployment sets a maximum lifetime (default 30 days) that cannot be exceeded. There are no permanent links. After expiry the link stops working, and expired link records are purged after a short grace period. |
+| CORE-SH3 | Must | unimplemented | The owner can list all their active links, per note and overall (note excerpt, created, expires, last access, view count), and **revoke** any of them. Revocation takes effect immediately. |
+| CORE-SH4 | Must | unimplemented | A link shows the note's **current** content, so edits stay visible through the link until it expires: text rendered as in the app (task lists shown read-only), images displayed, other attachments downloadable, and the note's created date. It shows nothing else: no page or category, source (chat platform, identity), reminders, history, owner identity or other notes. The app states this clearly when a link is created. |
+| CORE-SH5 | Must | unimplemented | A link stops working immediately if the note is dismissed, permanently deleted, or if the owner's account is disabled or deleted. Restoring the note from the Trash re-enables the link until its original expiry. Moving the note between pages/categories does not affect the link. |
+| CORE-SH6 | Must | unimplemented | Link tokens are unguessable (at least 128 bits from a CSPRNG), stored only as hashes and compared in constant time. Unknown, expired and revoked links produce the same generic response, so tokens cannot be probed. |
+| CORE-SH7 | Must | unimplemented | Public endpoints are strictly read-only, accept no credentials, set no cookies, and can reach only the shared note and its attachments. Attachment URLs issued under a link are scoped to that link and lapse with it. |
+| CORE-SH8 | Must | unimplemented | Shared content is served so that it cannot interact with an authenticated session of the app (separate origin or equivalent isolation), with `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, non-cacheable responses, and the safe content-type/header handling of WEB-N5. |
+| CORE-SH9 | Must | unimplemented | Public endpoints are rate-limited per IP and per link, and a per-link request/bandwidth ceiling stops one link from exhausting the server. |
+| CORE-SH10 | Should | unimplemented | The public page is lightweight and mobile friendly, and text and attachment downloads work without JavaScript. English in v1 (NFR-Q3). |
+| CORE-SH11 | Should | unimplemented | The operator can disable share links entirely by configuration; existing links then stop working. |
+| CORE-SH12 | Should | unimplemented | Link creation and revocation are audit-logged (no note content in logs). Access is counted for CORE-SH3 (last access, view count). |
+| CORE-SH13 | Could | unimplemented | Optional password on a link; extending the expiry of an existing link; sharing a whole page read-only; a `!share` chat command. |
 
 ## 5. Accounts and authentication
 
@@ -213,6 +237,7 @@ A reminder makes a note nudge the user at a chosen time. Core sends it to the us
 | AUTH-U6 | Must | unimplemented | The **admin** can, in the web app (WEB-19) and via the API: create users; issue an activation link for a user (new account or lost password); disable/enable a user; delete a user together with all their data; set a user's storage quota; see per-user storage usage; register and disable bot instances and rotate their credentials. No app feature lets the admin read other users' notes. |
 | AUTH-U7 | Must | unimplemented | There is **exactly one admin**. The admin is bootstrapped at first start (from configuration/secret or an operator CLI command) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
 | AUTH-U8 | Must | unimplemented | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which also revokes the user's existing sessions. |
+| AUTH-U9 | Must | unimplemented | **Complete deletion.** Deleting a user (by the admin or themselves) removes their notes, pages, attachments, text history, reminders, queued and pending deliveries, share links (which stop working immediately), sessions and tokens, pairing codes and chat-identity links, and queues a lifecycle notice for every bot instance that served them (BOT-16). Afterwards Core holds nothing about the user except a content-free audit entry. Database backups are outside this guarantee; their retention is documented. |
 
 ### 5.2 Authenticating users (web now, Android later)
 
@@ -263,11 +288,12 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-8 | Must | unimplemented | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message (English in v1, localisable per NFR-Q3) for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
 | BOT-9 | Must | unimplemented | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
 | BOT-10 | Should | unimplemented | Core's notion of "what the bot has already delivered" (e.g. last platform timestamp per conversation) is queryable, so a bot that lost its own state can resync. |
-| BOT-11 | Should | unimplemented | **Delivery API (Core → bot, pull-based).** A bot fetches the queued outbound deliveries addressed to its bot instance (long-poll or streaming), claims each with a lease, and reports the outcome: delivered, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired deliveries are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. Required for reminders (§4.6). |
+| BOT-11 | Must | unimplemented | **Outbound pull channel (Core → bot).** A bot fetches the queued outbound items addressed to its bot instance, namely deliveries such as reminders (§4.6) and lifecycle notices (BOT-16), via long-poll or streaming, claims each with a lease, and reports the outcome: done, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired items are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. The channel is part of the minimal contract; reminder deliveries on it are a Should. |
 | BOT-12 | Should | unimplemented | A delivery names its target: external identity plus conversation ID. Core learns the conversation from linking and message events (BOT-2/BOT-3) and keeps the most recent direct-message conversation per identity. |
 | BOT-13 | Should | unimplemented | Each delivery has a unique ID, which the bot uses to make sending idempotent where the platform allows (e.g. a Matrix transaction ID), so a restart between sending and acknowledging does not visibly duplicate the message. After sending, the bot reports the platform message ID(s) it created, so that a user's reply to a reminder (`!snooze`, `!done`) can be mapped back to that delivery. |
 | BOT-14 | Should | unimplemented | **Command events.** Beyond `link`/`unlink`/`help`, the bot forwards recognised chat commands (`remind`, `snooze`, `done`) to Core as platform-neutral command events: command name, raw argument text, sender identity, conversation, and the replied-to message ID. Core interprets them and returns the outcome plus a localised reply text for the bot to show. |
 | BOT-15 | Should | unimplemented | **Attachment download for deliveries.** A delivery lists its attachments (filename, media type, size) and the bot can download them through the bot API, but only attachments referenced by deliveries addressed to that bot instance; bot credentials never grant general read access to a user's attachments (AUTH-B2). |
+| BOT-16 | Must | unimplemented | **Lifecycle notices.** When an identity is unlinked (AUTH-B5) or its user is deleted (AUTH-U9), Core queues a notice for the bot instance on the BOT-11 channel, so the bot can discard everything it holds for that identity. |
 
 ### 6.2 Bot behaviour requirements (all bots)
 
@@ -279,6 +305,7 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-B4 | Must | unimplemented | Bots are horizontally safe: running two replicas by mistake must not double-create notes (dedupe by BOT-7) — although a single active replica / leader election per bot instance is acceptable. |
 | BOT-B5 | Must | unimplemented | Bots persist any durable state they need (sync cursors, platform crypto keys) in PostgreSQL or another declared durable store, never on ephemeral container storage. |
 | BOT-B6 | Should | unimplemented | Bots expose health, readiness and metrics endpoints and structured logs. |
+| BOT-B7 | Must | unimplemented | On a lifecycle notice (BOT-16) a bot deletes all per-identity and per-conversation state it stores (cursors, room mappings, cached content) and stops processing that conversation. |
 
 ### 6.3 Message → note grouping (owned by Core)
 
@@ -323,7 +350,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | MX-2 | Must | unimplemented | The bot accepts invites to direct-message rooms only (rate-limited) and declines other invites. If a third member joins a DM room, the bot stops processing it and says so once. Messages are processed only from linked identities; unlinked users receive linking instructions (AUTH-B6). |
 | MX-3 | Must | unimplemented | **End-to-end-encrypted rooms must work**, since Element creates encrypted DMs by default: the bot participates in Olm/Megolm, verifies/cross-signs as needed, decrypts messages and encrypted attachments (`m.file` / `m.image` / `m.audio` / `m.video` with encryption info), and handles key requests/backfill. |
 | MX-4 | Must | unimplemented | Message types handled: `m.text`, `m.notice` (ignored — used by the bot itself), `m.emote` (treated as text), `m.image`, `m.file`, `m.audio`, `m.video`, `m.location` (as a text/link part). Unknown types become `unsupported` parts with a description rather than being dropped. |
-| MX-5 | Must | unimplemented | Formatted messages (`formatted_body` HTML) are converted to the Core's text format (Markdown subset); plain `body` is the fallback. Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. |
+| MX-5 | Must | unimplemented | Formatted messages (`formatted_body` HTML) are converted to the Core's text format (Markdown subset); plain `body` is the fallback. Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. Task-list syntax (`- [ ]`, `- [x]`) is preserved (CORE-N17). |
 | MX-6 | Must | unimplemented | Edits (`m.replace` relations) map to `message_edited`; redactions map to `message_deleted`. Replies (`m.in_reply_to`) and threads (`m.thread`) map to relationship hints (BOT-5). |
 | MX-7 | Must | unimplemented | Feedback: a reaction on the source message on success (default ✅); a short text reply for errors (unlinked, too large, quota) — see BOT-B3. |
 | MX-8 | Must | unimplemented | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`; with reminders also `!remind`, `!snooze`, `!done` (CORE-R11, BOT-14). Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). A known command with invalid arguments is answered with an error and never turns into a note. |
@@ -331,6 +358,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | MX-10 | Must | unimplemented | Only messages sent after the identity was linked (or after the bot joined the room, whichever is later) are processed. History import is out of scope: older room history is never backfilled into notes. |
 | MX-11 | Could | unimplemented | Support for bot-side "typing"/read-receipt to signal processing, if it reduces uncertainty for the user. |
 | MX-12 | Should | unimplemented | **Reminder delivery** (BOT-11..15): the bot posts the reminder as a message in the linked DM (plain text plus formatted body, with the deep link), then re-sends each attachment as Matrix media (encrypted upload in encrypted rooms), falling back to a name plus link if the homeserver refuses it. It derives the Matrix transaction ID from the delivery ID, reports the sent event IDs (BOT-13), and reports a permanent failure if the room is gone or the user has left. |
+| MX-13 | Should | unimplemented | On a lifecycle notice the bot leaves and forgets the DM room (with a short final message if the user unlinked themselves). |
 
 ### 7.2 Matrix-specific non-functional requirements
 
@@ -356,15 +384,17 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-8 | Must | unimplemented | Notes render: text (formatted, links clickable), image attachments as thumbnails with a viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
 | WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
-| WEB-11 | Must | unimplemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). |
+| WEB-11 | Must | unimplemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
 | WEB-12 | Must | unimplemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. |
 | WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
-| WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, has reminder. Backed by CORE-N13. |
+| WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
 | WEB-16 | Should | unimplemented | Keyboard shortcuts for common actions (dismiss, move, focus Inbox). |
 | WEB-17 | Could | unimplemented | Alternative layouts for a page (list, compact) — exact look is deferred (see below). |
 | WEB-18 | Should | unimplemented | Reminders on notes: set, change, snooze and clear a reminder with a date/time picker and quick options; a visible indicator on cards with a pending reminder; list of upcoming reminders; in-app notification when one is due (CORE-R1..R9). |
 | WEB-19 | Must | unimplemented | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
+| WEB-20 | Should | unimplemented | Checklist checkboxes on cards can be toggled directly, without entering edit mode (CORE-N17). |
+| WEB-21 | Must | unimplemented | **Sharing UI.** A "Share" action on every note: choose an expiry, create the link, copy it (and use the device share sheet where the browser offers one), see existing links for the note and revoke them. A settings view lists all active links (CORE-SH3). Notes with an active link show an indicator. |
 
 ### 8.2 Web app non-functional requirements
 
@@ -388,7 +418,7 @@ No Android requirements are in scope for v1. To keep the option open:
 | AND-1 | unimplemented | All functionality is available through the public, versioned, documented API (OpenAPI); the web app has no private endpoints. |
 | AND-2 | unimplemented | Native-friendly auth (AUTH-C3): OAuth 2.0 code + PKCE, refresh tokens, per-device session listing/revocation. |
 | AND-3 | unimplemented | Sync-friendly API (CORE-S3, S4, S5): change feed with tombstones, stable client-generatable IDs, versions, idempotent writes — so offline-first operation can be added without redesigning the API. |
-| AND-4 | unimplemented | Push updates suitable for mobile: the realtime channel (CORE-S1) works over plain HTTP(S)/WebSocket, and the design leaves room for a mobile push provider (FCM) later. |
+| AND-4 | unimplemented | The realtime channel (CORE-S1) works over plain HTTP(S)/WebSocket so a mobile client can use it. Notekeeper itself sends no push notifications: reminders arrive as chat messages, and the chat app's notification settings decide how the user is alerted. |
 | AND-5 | unimplemented | Attachment endpoints support range requests, conditional requests and thumbnails so they can be cached and downloaded efficiently on mobile networks. |
 | AND-6 | unimplemented | A future Android **share target** ("share to Notekeeper") is just another note-creation client and needs no special backend support beyond the user-facing note-creation API (with attachments). |
 | AND-7 | unimplemented | API stability policy: backwards-compatible changes only within a major version, and an explicit deprecation period, because installed mobile apps cannot be force-updated. |
@@ -416,6 +446,8 @@ No Android requirements are in scope for v1. To keep the option open:
 **F9 — Reminder.** In the app the user sets a reminder on the "concert Friday" note for Friday 09:00 → at that time a scheduler in any Core replica claims the due reminder and queues a delivery for the user's Matrix identity → the bot, long-polling for deliveries, claims it, posts a message with the note text and a link in the DM, and reports it delivered → the app marks the reminder as sent. If the bot was down at 09:00, the message goes out when it returns, flagged as late.
 
 **F10 — Search.** From any view the user presses the search shortcut, types "concert" → results from all pages, the Inbox (and the Trash if enabled) with their locations → selecting one opens the note in its column.
+
+**F11 — Share a note.** The user opens a note, chooses Share → "7 days" → the app shows a link → the user pastes it into any chat or e-mail → the recipient opens it without an account and sees the note read-only, with its attachments → after 7 days, or when the owner revokes it or dismisses the note, the link stops working.
 
 ## 11. Non-functional requirements (system-wide)
 
@@ -445,7 +477,7 @@ No Android requirements are in scope for v1. To keep the option open:
 |---|---|---|---|
 | NFR-S1 | Must | unimplemented | TLS for all external traffic; secrets never logged or committed; credentials stored hashed (users, bots) or encrypted (Matrix keys). |
 | NFR-S2 | Must | unimplemented | Least privilege between components: bots only reach the bot-facing API (and their own durable state); Web/Android only reach the user-facing API. Network policies restrict database access to Core (and the bots for their own tables/schema). |
-| NFR-S3 | Must | unimplemented | Multi-tenant isolation is tested (automated tests asserting that user A can never read/modify/enumerate user B's notes, pages, attachments or links). Consider database row-level security as defence in depth. |
+| NFR-S3 | Must | unimplemented | Multi-tenant isolation is tested (automated tests asserting that user A can never read/modify/enumerate user B's notes, pages, attachments or links). Consider database row-level security as defence in depth. Public share endpoints are covered too: tests assert that a link exposes only its own note and attachments. |
 | NFR-S4 | Must | unimplemented | Inputs are validated and size-limited (message length, attachments, number of parts). Rate limits on all public endpoints, with stricter limits on auth, pairing-code redemption and ingestion. |
 | NFR-S5 | Must | unimplemented | **Privacy note (accepted trade-off):** notes originate from E2EE chat but are stored readable by the Notekeeper server. Documentation must state this clearly. Optional encryption at rest of attachments/DB is a Should. |
 | NFR-S6 | Should | unimplemented | Audit log for security-relevant events; dependency and image vulnerability scanning in CI. |
@@ -467,7 +499,7 @@ Targets assume friends-and-family use (see §12).
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| NFR-P1 | Must | unimplemented | Ingest latency from bot receiving a message to the note visible in the web app: p95 ≤ 3 s (excluding attachment transfer time). |
+| NFR-P1 | Must | unimplemented | Ingest latency from bot receiving a message to the note visible in the web app: p95 ≤ 3 s (excluding attachment transfer and thumbnail generation, CORE-A4). |
 | NFR-P2 | Must | unimplemented | API read latency p95 ≤ 300 ms for standard queries (page with 500 notes, trash listing, search) at the sizing below. |
 | NFR-P3 | Must | unimplemented | Sizing: up to 50 users, 50 000 notes per user (typical usage far lower), 50 GB attachments in total, with a single Postgres instance and 2 replicas of Core. |
 | NFR-P4 | Should | unimplemented | Lists are paginated / lazily loaded (Trash, large categories); the change feed is paginated. |
@@ -535,6 +567,11 @@ Answers given after the first draft, and where they are reflected.
 | 18 | Languages | English only in v1: UI, bot messages, search and reminder time input. Dutch can be added later | CORE-N13, CORE-R11, NFR-Q3 |
 | 19 | Metrics / tracing | Prometheus metrics are a Must; OpenTelemetry tracing dropped | NFR-O2 |
 | 20 | Kubernetes | Example manifests are sufficient; no Helm chart, no full cluster management | NFR-D6, §2.2 |
+| 21 | PDF/attachment content search | Not required | §2.2 |
+| 22 | Checklists | Markdown task lists as interactive checkboxes (Should) | CORE-N17, WEB-20 |
+| 23 | Share links | Must: read-only, openable without an account, always expiring | §4.7, WEB-21 |
+| 24 | Push notifications | Not a Notekeeper requirement; reminders reach the chat, whose notifications alert the user | CORE-R12 removed, AND-4, §2.2 |
+| 25 | Review gaps | All seven fixed: conditional reminder filter, failed attachments never drop text, platform timestamps for notes, no overwrite of drafts, async thumbnails, complete user deletion, no push contradiction | WEB-14, CORE-A9, CORE-N18, WEB-11, CORE-A4, AUTH-U9, BOT-16, BOT-B7 |
 
 ## 14. Open questions
 
