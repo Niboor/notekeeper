@@ -17,3 +17,6 @@ web/test-results/
 .env
 .env.local
 *.local
+
+# local tool configuration
+/.claude/
