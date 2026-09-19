@@ -90,15 +90,25 @@ At-least-once. The item id is the idempotency key the bot uses for the platform 
 
 ### 5.1 Firing
 
-`FireDueReminders` runs every 10 seconds (well inside the 60-second p95 target, CORE-R5):
+`FireDueReminders` runs every 10 seconds (well inside the 60-second p95 target, CORE-R5). It works in two steps so that the claim is **durable** (a bare `FOR UPDATE SKIP LOCKED` only holds until its transaction ends) and so that the lock order stays *user row first* ([README](README.md) §3).
+
+**Step 1: claim** with a lease, the same pattern as the outbox:
 
 ```sql
-select r.* from reminders r join notes n on n.id = r.note_id
-where r.state = 'pending' and r.due_at <= now() and n.state = 'active'
-order by r.due_at limit 100 for update of r skip locked;
+update reminders set claimed_until = now() + interval '60 seconds'
+where id in (
+  select r.id from reminders r
+  where r.state = 'pending' and r.due_at <= now()
+    and (r.claimed_until is null or r.claimed_until < now())
+    and exists (select 1 from notes n where n.id = r.note_id and n.state = 'active')
+  order by r.due_at limit 100
+  for update skip locked)
+returning id, user_id;
 ```
 
-Per reminder, in one transaction (after locking the owner's user row):
+Two replicas can never claim the same reminder (CORE-R5). This transaction commits immediately.
+
+**Step 2: fire each claimed reminder in its own transaction**, which first locks the owner's user row (`FOR UPDATE`, taking the next `change_seq`), then **re-reads the reminder** (`where id = $1 and state = 'pending' and due_at <= now()`); if the user edited, snoozed, dismissed or deleted it in the meantime, the row no longer qualifies and nothing is sent. Then:
 
 1. Build the delivery content once: note text excerpt (first 300 characters), note link, attachment list, `late = now() − due_at > 5 minutes`.
 2. For each **reminder-target identity** (CORE-R3) insert a `reminder` outbox item; insert an in-app notification; if there is no target identity, only the notification.
@@ -121,7 +131,7 @@ App: `POST /reminders/{id}:snooze` sets `due_at` and `pending`; `:done` sets `do
 | Situation | Behaviour |
 |---|---|
 | Two replicas run `FireDueReminders` at once | `SKIP LOCKED` gives each reminder to exactly one (CORE-R5) |
-| Core crashes mid-fire | The transaction rolls back; the reminder is still due and fires next tick |
+| Core crashes mid-fire | The firing transaction rolls back; the 60-second claim lease expires and the reminder fires on a later tick (so a crash can delay a reminder by up to a minute) |
 | Bot is down at the due time | The item waits; when the bot returns it is claimed and sent, flagged `late` (CORE-R4) |
 | Bot sent the message but crashed before acknowledging | Lease expires, item re-offered; the transaction id makes the Matrix send idempotent |
 | Note is dismissed after the item was queued | The item is still delivered: it was already due when queued; dismissal only affects reminders not yet fired |

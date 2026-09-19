@@ -131,7 +131,8 @@ Entry point is the `Makefile` (NFR-Q5); `make help` lists every target.
 | `make test-e2e` | Whole stack in docker-compose, with Playwright driving the web app, and a second mautrix client acting as the Element user against Synapse | Docker |
 | `make lint` | `golangci-lint`, ESLint, `tsc`, `kube-linter` on the examples | — |
 | `make generate` | Regenerate code from the OpenAPI specs and SQL | — |
-| `make check` | Everything CI runs, including `govulncheck`, `osv-scanner`, `trivy` on images and `gitleaks` | Docker |
+| `make docs-check` | Regenerate the requirement → design → test traceability table and fail on drift (`docs/design/tools/traceability.py`) | Python 3 |
+| `make check` | Everything CI runs, including `govulncheck`, `osv-scanner`, `trivy` on images, `gitleaks` and `docs-check` | Docker |
 
 - **Go tests:** the standard `testing` package with `testcontainers-go`; unit tests carry no container dependency.
 - **Web tests:** Vitest and Testing Library for unit tests, Playwright for end-to-end.

@@ -158,6 +158,8 @@ create table notes (
   updated_at    timestamptz not null default now(),
   version       integer not null default 1,
   unique (user_id, id),
+  -- SET NULL with a column list (PostgreSQL 15+): only category_id is nulled, never user_id, which is part of the key.
+  -- Do not "simplify" to plain SET NULL: that would try to null user_id. A trigger clears position (see below).
   foreign key (user_id, category_id) references categories (user_id, id) on delete set null (category_id),
   check ((category_id is null) = (position is null))
 );
@@ -226,7 +228,7 @@ App-origin versions written by the same session within 60 seconds are coalesced 
 
 ```sql
 create table changes (
-  user_id      uuid not null,
+  user_id      uuid not null references users(id) on delete cascade,   -- gone with the user (AUTH-U9)
   seq          bigint not null,
   entity_type  text not null,     -- 'note','page','category','reminder','share_link','notification','identity','session'
   entity_id    uuid not null,
@@ -349,6 +351,7 @@ create table reminders (
   state         text not null default 'pending'
                 check (state in ('pending','fired','suspended','done','cancelled')),
   last_fired_at timestamptz,
+  claimed_until timestamptz,                        -- lease held by the scheduler while firing (§ in 05)
   created_at    timestamptz not null default now(),
   version       integer not null default 1,
   foreign key (user_id, note_id) references notes (user_id, id) on delete cascade
@@ -414,6 +417,7 @@ A link is valid **only as a live condition** evaluated on every request: `revoke
 ```sql
 create table ingest_events (                         -- dedupe for at-least-once delivery (BOT-7)
   bot_instance_id uuid not null, event_id text not null,
+  user_id uuid not null references users(id) on delete cascade,   -- its stored result mentions the user's note ids
   received_at timestamptz not null default now(),
   result jsonb not null,                             -- response replayed on a duplicate
   primary key (bot_instance_id, event_id)
