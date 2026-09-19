@@ -5,7 +5,7 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 ## 1. How to read this document
 
 - The main requirements say what the system **does**. This document says what must **not be possible**, whoever tries and however they try.
-- Every item is written as a negative ("X must not be possible") so that it translates directly into an **abuse-case test**: perform the attack, expect it to fail. A security requirement is only `fully tested` when such a test exists (§9).
+- Every item in §4 is written as a negative ("X must not be possible") so that it translates directly into an **abuse-case test**: perform the attack, expect it to fail. A security requirement is only `fully tested` when such a test exists (§9).
 - This document is **normative**, like `requirements.md`, and uses the same priorities (Must / Should / Could) and the same **State** column (`unimplemented`, `implemented`, `fully tested`).
 - Where a requirement already exists in `requirements.md`, the *Related* column points to it rather than restating it. Where an item here adds something new, it is the authoritative statement.
 - IDs are stable; gaps in numbering are intentional.
@@ -48,7 +48,7 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 
 ## 3. Access matrix
 
-The intended permissions, as the reference for authorisation tests (SEC-ISO-1). "own" means resources owned by that actor's user. Anything not listed as allowed is denied.
+The intended permissions **at the application level**, as the reference for authorisation tests (SEC-ISO-1). They do not bind the operator, who can read everything at the database level (R1). "own" means resources owned by that actor's user. Anything not listed as allowed is denied.
 
 | Resource / action | Anonymous | Share-link holder | User (own) | User (other's) | Admin | Bot instance |
 |---|---|---|---|---|---|---|
@@ -107,9 +107,10 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-ADM-1 | Must | unimplemented | The admin reading other users' notes, attachments, history or share-link content through any application feature or API. Admin endpoints return metadata only (username, status, quota use). | AUTH-U6 |
-| SEC-ADM-2 | Must | unimplemented | The admin impersonating a user ("log in as"), or seeing or choosing a user's password. No such feature exists. | AUTH-U8 |
+| SEC-ADM-2 | Must | unimplemented | The admin taking over or impersonating a user **silently**. There is no "log in as" feature and the admin never chooses a password, but issuing an activation link (the only reset mechanism, AUTH-U8) lets the admin set a password themselves. That path must therefore be loud: issuing a link revokes the user's sessions, is audit-logged (SEC-ADM-3), and triggers a notice (SEC-ADM-5). | AUTH-U8 |
 | SEC-ADM-3 | Must | unimplemented | An admin action leaving no trace: every admin action is written to the audit log. | AUTH-B8, NFR-S6 |
 | SEC-ADM-4 | Must | unimplemented | Admin functions being reachable by a non-admin, by a bot credential, or through a share link. | SEC-ISO-1 |
+| SEC-ADM-5 | Must | unimplemented | A user not being told that an activation link was issued for their account: Core queues a chat notice ("an activation link was issued for your account") to every linked identity over the BOT-11 channel, and shows the same notice in the app at next login. | AUTH-U8, BOT-11 |
 
 ### 4.4 Bots and identity linking (SEC-BOT)
 
@@ -122,6 +123,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-BOT-5 | Must | unimplemented | Linking an identity that did not itself send the code: the sender identity comes from the platform's verified event metadata, never from message text; and a bot instance can only assert identities of its own platform and configured homeserver namespace. | AUTH-B3 |
 | SEC-BOT-6 | Must | unimplemented | An external identity being linked to two users, or a link silently moving to another user: re-linking requires an explicit unlink first. | AUTH-B4 |
 | SEC-BOT-7 | Must | unimplemented | An unlinked or revoked identity creating, editing or deleting notes, or its messages being stored or their content logged. | AUTH-B5, AUTH-B6 |
+| SEC-BOT-13 | Must | unimplemented | A **disabled** user's identities ingesting notes, edits or deletes, or receiving deliveries: ingest is rejected, queued deliveries are suspended (not deleted) and resume if the account is re-enabled, and sessions are revoked. | AUTH-U6 |
 | SEC-BOT-8 | Must | unimplemented | A leaked or misbehaving bot credential staying valid: the admin can disable a bot instance instantly, and rotation needs no downtime. Secrets are stored hashed and never logged. | AUTH-B1 |
 | SEC-BOT-9 | Must | unimplemented | Replayed or forged ingest events changing state twice, or carrying implausible timestamps that reorder a user's Inbox (clamped per CORE-N18). | BOT-7, CORE-N18 |
 | SEC-BOT-10 | Must | unimplemented | A bot flooding Core or a user: per-bot-instance and per-user rate and size limits apply to ingest and deliveries, on top of user quotas. | NFR-S4, CORE-A3 |
@@ -142,6 +144,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-SHR-8 | Must | unimplemented | A single link (or many links) exhausting bandwidth or CPU: per-link and per-IP limits apply. | CORE-SH9 |
 | SEC-SHR-9 | Must | unimplemented | Creating links for a note the caller does not own. | SEC-ISO-4 |
 | SEC-SHR-10 | Should | unimplemented | The public page being used to pass content off as coming from the operator: it shows a clear notice that the content was shared by a Notekeeper user and is not verified. | — |
+| SEC-SHR-11 | Must | unimplemented | Minting share links in bulk (for example from a stolen session): creation is rate-limited and each user has a cap on simultaneously active links. | CORE-SH1 |
 
 ### 4.6 Content and attachments (SEC-CNT)
 
@@ -221,13 +224,13 @@ These are known limits. They are stated so that nobody assumes otherwise.
 
 | # | Risk | Why it is accepted / mitigation |
 |---|---|---|
-| R1 | The **operator** (anyone with database or cluster access) can read all notes and attachments. | Notes are stored readable by the server (NFR-S5). Mitigate with operator hygiene, backups encryption (SEC-DATA-7) and least privilege. |
+| R1 | The **operator** can read all notes and attachments. In this deployment the operator and the single admin are the same party (AUTH-U7 bootstraps from the operator's configuration), and anyone with database or cluster access sees everything. | Notes are stored readable by the server (NFR-S5), and users must be told so. SEC-ADM-1 only ensures the *application* never makes reading content easy or untraced. Mitigate with operator hygiene, encrypted backups (SEC-DATA-7) and least privilege. |
 | R2 | The **Matrix homeserver** is trusted for who a message is from. A malicious homeserver could forge messages as a user and thereby create notes. | Inherent to Matrix. The bot instance is bound to one configured homeserver, and in encrypted rooms message authenticity is also protected by the Megolm session. |
 | R3 | A **compromised chat account** can create notes for that user and receive their reminders (including attachments). It cannot read existing notes, because the bot API offers no query commands. | Revoke the link (AUTH-B5). Adding chat-side query commands later would widen this risk and requires a fresh review. |
 | R4 | A **share link** can be forwarded by whoever holds it, and the content can be copied. | Links are read-only, expire (CORE-SH2) and can be revoked (CORE-SH3). |
 | R5 | **Malware** in attachments is not scanned by default. | Files are never executed by Notekeeper and are served as downloads (SEC-CNT-3). Optional scanning is a Should (SEC-CNT-9). |
 | R6 | **Availability** depends on a single PostgreSQL instance and the operator. | Consistent with the sizing in NFR-P3; chat platforms retain messages while the system is down (NFR-R1). |
-| R7 | The **admin** can disable or delete accounts. | The admin is trusted to operate the service, but not to read content (SEC-ADM-1). |
+| R7 | The **admin can take over any account** by issuing an activation link, and can disable or delete accounts. | Takeover is detectable, not impossible: sessions are revoked, the action is audit-logged and the user is notified (SEC-ADM-2, SEC-ADM-5). |
 
 ## 6. Cryptographic and configuration baselines
 
