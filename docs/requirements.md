@@ -2,7 +2,7 @@
 
 Status: draft v0.2 — requirements only. Technology choices appear only where a constraint forces them (Postgres, Kubernetes, Matrix E2EE, native-client auth).
 
-Priorities: **Must** / **Should** / **Could**. Every requirement also has a **State**: `unimplemented`, `implemented` or `fully tested` (implemented and covered by automated tests, at the level defined in NFR-Q1 and NFR-Q2, that demonstrate the requirement). Exceptions: WEB-N7 is a note and has no state; for the Android constraints (AND-*) the state tracks whether the current design honours the constraint. All requirements start as `unimplemented`; the state is updated in the same commit that changes the implementation or its tests. Requirement IDs are stable identifiers; gaps in numbering are intentional (removed requirements are not renumbered). Decisions taken after review are logged in §13.
+Priorities: **Must** / **Should** / **Could**. Every requirement also has a **State**: `unimplemented`, `implemented` or `fully tested` (implemented and covered by automated tests, at the level defined in NFR-Q1 and NFR-Q2, that demonstrate the requirement). Exceptions: WEB-N7 is a note and has no state; for the Android constraints (AND-*) the state tracks whether the current design honours the constraint. All requirements start as `unimplemented`; the state is updated in the same commit that changes the implementation or its tests. Requirement IDs are stable identifiers; gaps in numbering are intentional (removed requirements are not renumbered). Decisions taken after review are logged in §13. Security requirements, phrased as what must *not* be possible, are in [security-requirements.md](security-requirements.md); they are normative and use the same priorities and States.
 
 ## 1. Purpose and vision
 
@@ -473,6 +473,8 @@ No Android requirements are in scope for v1. To keep the option open:
 
 ### 11.3 Security and privacy
 
+These are the general security requirements. The detailed "must not be possible" list, access matrix and accepted risks are in [security-requirements.md](security-requirements.md).
+
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | NFR-S1 | Must | unimplemented | TLS for all external traffic; secrets never logged or committed; credentials stored hashed (users, bots) or encrypted (Matrix keys). |
@@ -572,6 +574,7 @@ Answers given after the first draft, and where they are reflected.
 | 23 | Share links | Must: read-only, openable without an account, always expiring | §4.7, WEB-21 |
 | 24 | Push notifications | Not a Notekeeper requirement; reminders reach the chat, whose notifications alert the user | CORE-R12 removed, AND-4, §2.2 |
 | 25 | Review gaps | All seven fixed: conditional reminder filter, failed attachments never drop text, platform timestamps for notes, no overwrite of drafts, async thumbnails, complete user deletion, no push contradiction | WEB-14, CORE-A9, CORE-N18, WEB-11, CORE-A4, AUTH-U9, BOT-16, BOT-B7 |
+| 26 | Security requirements | Kept in a separate file, written as abuse cases that must fail | [security-requirements.md](security-requirements.md) |
 
 ## 14. Open questions
 
