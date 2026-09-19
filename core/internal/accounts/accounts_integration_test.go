@@ -489,8 +489,8 @@ func TestSessionListAndRevocation(t *testing.T) {
 
 func TestSessionLabel(t *testing.T) {
 	cases := map[string]string{
-		"Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0":                                                    "Firefox on Linux",
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36 Edg/128":       "Edge on Windows",
+		"Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0":                                                           "Firefox on Linux",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36 Edg/128":                "Edge on Windows",
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile Safari/604.1": "Safari on iOS",
 		"": "Browser",
 	}

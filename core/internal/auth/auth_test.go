@@ -29,9 +29,9 @@ func TestPasswordPolicy(t *testing.T) {
 		ok bool
 	}{
 		{"short", false},
-		{"123456789", false},          // 9 characters
-		{"password123", false},        // on the common list
-		{"PASSWORD123", false},        // list is case-insensitive
+		{"123456789", false},   // 9 characters
+		{"password123", false}, // on the common list
+		{"PASSWORD123", false}, // list is case-insensitive
 		{"correct horse battery", true},
 		{"ünïcödé-pässwörd", true},
 		{"éééééééééé", true}, // ten runes even though more bytes

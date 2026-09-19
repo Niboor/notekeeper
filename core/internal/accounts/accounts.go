@@ -371,13 +371,13 @@ func (s *Service) RevokeAllSessions(ctx context.Context, p Principal, keepCurren
 
 // SessionInfo is one row of the session list.
 type SessionInfo struct {
-	ID          uuid.UUID
-	Label       string
-	ClientKind  string
-	CreatedAt   time.Time
-	LastUsedAt  time.Time
-	ExpiresAt   time.Time
-	Current     bool
+	ID         uuid.UUID
+	Label      string
+	ClientKind string
+	CreatedAt  time.Time
+	LastUsedAt time.Time
+	ExpiresAt  time.Time
+	Current    bool
 }
 
 // ListSessions lists the user's active sessions.
