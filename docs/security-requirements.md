@@ -44,7 +44,6 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 2. Bot ⇄ Core (bot API), and chat platform ⇄ bot.
 3. Core/bots ⇄ PostgreSQL.
 4. Clients (browser, future Android) ⇄ Core.
-5. Core ⇄ attachment processing (thumbnailing of untrusted files).
 
 ## 3. Access matrix
 
@@ -155,7 +154,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-CNT-2 | Must | unimplemented | Dangerous URL schemes in notes: links with `javascript:`, `data:` or `vbscript:` are never rendered as active links (allowlist: `http`, `https`, `mailto`, `tel`). | WEB-N5 |
 | SEC-CNT-3 | Must | unimplemented | An uploaded file executing in the browser: HTML, SVG, JS and unknown types are served as downloads (`Content-Disposition: attachment`, `application/octet-stream`); `X-Content-Type-Options: nosniff` and a restrictive `Content-Security-Policy` (`sandbox`) on every attachment response; images render only via `<img>`, never inline SVG. | WEB-N5 |
 | SEC-CNT-4 | Must | unimplemented | Filename tricks: header injection (CR/LF), path traversal, or use of a filename as a storage path. Filenames are metadata only, sanitised whenever placed in a header. | CORE-A4 |
-| SEC-CNT-5 | Must | unimplemented | An image or document bomb (huge dimensions, decompression bomb, malformed HEIC/PDF) taking down Core: thumbnailing runs in a resource-limited (time, memory, pixel count) process, ideally sandboxed without network access, and a failure yields a placeholder, never a failed note. | CORE-A4, CORE-A9 |
+| SEC-CNT-5 | Must | unimplemented | Untrusted media being parsed, decoded or transcoded by Notekeeper's own components (thumbnailers, image or PDF libraries): attachments are stored and served byte for byte, so no media parser is reachable from user uploads. Any future feature that processes media must be designed as its own sandboxed component first. | CORE-A4 |
 | SEC-CNT-6 | Must | unimplemented | Exceeding size limits or quota through concurrent or split uploads: quota checks are atomic with the write. | CORE-A3 |
 | SEC-CNT-7 | Must | unimplemented | Reminder or delivery text pinging people or triggering bot behaviour: note text is sent as inert content (no `@room`/mentions, formatted text escaped, no leading command prefix acted on). | CORE-R6 |
 | SEC-CNT-8 | Must | unimplemented | Core or a bot fetching arbitrary URLs supplied by users or chat content (SSRF). Bots fetch media only from the configured homeserver via `mxc://` URIs. Any future link-preview feature must use a separate, network-restricted fetcher. | MX-3 |
@@ -182,7 +181,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-DATA-2 | Must | unimplemented | Secrets stored recoverably where hashing suffices: passwords (argon2id), activation, pairing, refresh and share tokens, and bot secrets are stored only as hashes. Secrets that must be recoverable (Matrix device keys, bot account credentials) are encrypted at rest with a key from a Kubernetes Secret. | AUTH-C1, MX-N1 |
 | SEC-DATA-3 | Must | unimplemented | Client-to-Core traffic over plain HTTP. | NFR-S1 |
 | SEC-DATA-4 | Should | unimplemented | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
-| SEC-DATA-5 | Must | unimplemented | Data surviving deletion: after deleting a note, attachment or user, blobs, thumbnails, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
+| SEC-DATA-5 | Must | unimplemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
 | SEC-DATA-6 | Must | unimplemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on user data and attachments; the ingress example does not cache). | — |
 | SEC-DATA-7 | Should | unimplemented | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
 | SEC-DATA-8 | Must | unimplemented | A data export containing anything but the requesting user's own data. | AUTH-U5 |
@@ -204,7 +203,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 |---|---|---|---|---|
 | SEC-OPS-1 | Must | unimplemented | Secrets in container images, git or ConfigMaps. The example manifests use Secret references only, and startup fails if a placeholder secret is unchanged. | NFR-S1, NFR-D6 |
 | SEC-OPS-2 | Must | unimplemented | Containers running as root, privileged, with writable root filesystems, extra capabilities or privilege escalation: the example manifests set `runAsNonRoot`, `readOnlyRootFilesystem`, drop all capabilities and use the runtime default seccomp profile. | NFR-D6 |
-| SEC-OPS-3 | Must | unimplemented | Unnecessary network paths: only Core and the bots reach PostgreSQL; bots reach only their chat platform and Core; the thumbnailer has no network access. Example NetworkPolicies demonstrate this. | NFR-S2 |
+| SEC-OPS-3 | Must | unimplemented | Unnecessary network paths: only Core and the bots reach PostgreSQL; bots reach only their chat platform and Core. Example NetworkPolicies demonstrate this. | NFR-S2 |
 | SEC-OPS-4 | Must | unimplemented | Metrics, health, debug or profiling endpoints being reachable from the internet: they are served on a separate internal port and not routed by the ingress. | NFR-O2, NFR-O4 |
 | SEC-OPS-5 | Must | unimplemented | The application's runtime database role altering the schema or reading other components' private tables (bot crypto state): migrations use a separate, more privileged role; each component has its own least-privilege role. | NFR-D4, NFR-S2 |
 | SEC-OPS-6 | Must | unimplemented | Known-vulnerable dependencies or images shipping unnoticed: CI scans dependencies and images, versions are pinned, base images are minimal. | NFR-S6 |
@@ -256,7 +255,6 @@ These are known limits. They are stated so that nobody assumes otherwise.
 | **Negative abuse-case tests**, one or more per item above, named after the ID (e.g. `SEC-AUTH-7_refresh_reuse_revokes_family`) | All Must items |
 | **Renderer/sanitiser tests** with a corpus of XSS payloads and hostile filenames, run against both the app and the public share page | SEC-CNT-1..4 |
 | **Response-header tests** asserting the required headers on each response class (app, API, attachments, public pages) | SEC-API-6, SEC-API-8, SEC-SHR-5, SEC-SHR-6, SEC-CNT-3 |
-| **Hostile-file tests** for the thumbnailer (bombs, malformed images/PDFs) with resource limits | SEC-CNT-5 |
 | **Deletion tests** checking that no rows, blobs or index entries remain for a deleted user, note or attachment | SEC-DATA-5 |
 | **Log scanning tests** running the integration suite and asserting that no secret or note content marker appears in output | SEC-DATA-1, SEC-SHR-7, SEC-MX-3 |
 | **Manifest and image scanning** (policy checks on the example manifests, dependency and image vulnerability scans) in CI | SEC-OPS-1..3, SEC-OPS-6 |
