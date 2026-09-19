@@ -15,7 +15,7 @@ Everything is documented under [docs/](docs/):
 
 ## Working on it
 
-Requirements: Go, Node.js, Docker (for integration tests), Python 3, `make`.
+Requirements: Go, Node.js, Docker (for integration tests), Python 3, `make`, and for the Matrix bot a C compiler plus the libolm library and headers (Arch: `sudo pacman -S libolm`; Debian/Ubuntu: `libolm-dev`).
 
 ```bash
 make help        # list targets

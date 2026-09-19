@@ -541,7 +541,7 @@ Targets assume friends-and-family use (see §12).
 | NFR-Q2 | Must | unimplemented | CI runs unit, integration (real PostgreSQL) and end-to-end API tests; the Matrix bot is testable against a local homeserver in CI. |
 | NFR-Q3 | Should | unimplemented | The UI and everything bots say in chat are **English only** in v1, but user-facing strings are externalised (message catalogue, no hard-coded text in logic; Core supplies bot-facing text per BOT-8) and dates, times and numbers are formatted per locale, so other languages, Dutch first, can be added later without changing application logic. |
 | NFR-Q4 | Should | unimplemented | Developer documentation: architecture, API, bot-writing guide (how to add a new chat platform), deployment, backup/restore. |
-| NFR-Q5 | Must | implemented | **Tests are easy to run, in tiers, through `make` targets**, all listed by `make help`: `make test` (unit tests of every component, no Docker or network needed) with `make test-core`, `make test-bot` and `make test-web` per component; `make test-integration` (per-component integration tests against a real PostgreSQL, Docker required); `make test-e2e` (the whole stack in docker-compose: Core, bot, a Matrix homeserver and the web app driven by a browser); `make lint`; and `make check`, which runs everything CI runs. |
+| NFR-Q5 | Must | implemented | **Tests are easy to run, in tiers, through `make` targets**, all listed by `make help`: `make test` (unit tests of every component; no Docker or network needed, only the language toolchains and, for the Matrix bot, a C compiler and the libolm library with its headers) with `make test-core`, `make test-bot` and `make test-web` per component; `make test-integration` (per-component integration tests against a real PostgreSQL, Docker required); `make test-e2e` (the whole stack in docker-compose: Core, bot, a Matrix homeserver and the web app driven by a browser); `make lint`; and `make check`, which runs everything CI runs. |
 
 ## 12. Assumptions
 
@@ -595,6 +595,7 @@ Answers given after the first draft, and where they are reflected.
 | 34 | Tech stack | Go (Core and Matrix bot), React SPA, PostgreSQL 16+; see [tech-stack.md](tech-stack.md) | tech-stack.md |
 | 35 | Technical design | Written as [design/](design/README.md): schema, APIs, auth, ingestion, realtime and outbox, Matrix bot, web app, deployment and tests, with a requirement-to-design traceability table | design/ |
 | 36 | Inbox ordering | The Inbox is sorted by created time (no manual order); manual order exists inside categories. Resolves the conflict between CORE-N4 and CORE-N18 | CORE-N2, CORE-N4, CORE-N18 |
+| 37 | Olm library | The Matrix bot uses libolm from the system (cgo), as the mautrix bridges do, not pure-Go goolm; `make test-bot` therefore needs libolm and a C compiler installed | NFR-Q5, tech-stack.md §4 |
 
 ## 14. Open questions
 

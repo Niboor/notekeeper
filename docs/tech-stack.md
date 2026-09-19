@@ -156,5 +156,6 @@ Points deliberately left to the technical design document: database schema, posi
 
 - **Go** 1.26.4 (`go.work` and `go.mod` files); one workspace with three modules: `core`, `bots/sdk`, `bots/matrix`, so Core stays free of the bot's cgo dependencies.
 - **Developer tools** are pinned in the `Makefile` and installed into `.bin/` by `make tools` (sqlc, goose, oapi-codegen, golangci-lint, govulncheck, gitleaks, kubeconform, kube-linter, osv-scanner). `trivy` is run through its container image when image scanning is added.
+- **libolm** (system package, with headers) and a C compiler for the Matrix bot; `goolm` was considered and not chosen (decisions log entry 37).
 - **Node** 22 or newer, npm; no pnpm. **TypeScript is pinned to 5.9**: `openapi-typescript` requires `^5` and `typescript-eslint` `<6.1`, so TypeScript 7 cannot be used yet.
 - Module path prefix is `notekeeper/…` (workspace-local); rename when a repository host is chosen.
