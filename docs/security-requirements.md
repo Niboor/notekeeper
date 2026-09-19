@@ -34,7 +34,7 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 | **Compromised chat account** | An attacker controlling a linked Matrix account (can send messages as the user). |
 | **Bot instance** | Holds bot credentials; may be buggy or compromised. |
 | **Third party in a chat room** | Someone who joins a DM room or forwards messages to the bot. |
-| **Admin** | The single admin; trusted to operate, **not** to read other users' notes. |
+| **Admin** | The single admin, who is also the operator (R1). Trusted to run the service; the *application* gives them no way to read other users' notes, and can take over an account only detectably (SEC-ADM-2). |
 | **Network attacker** | Can observe or tamper with traffic between components and clients. |
 | **Malicious content** | A crafted note, file, filename or chat message from any of the above. |
 
