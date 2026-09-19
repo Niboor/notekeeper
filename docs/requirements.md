@@ -119,6 +119,9 @@ flowchart LR
 - A **Note** belongs to the Inbox (no category) or to exactly one Category, at an explicit position. It has a state: `active` or `deleted`.
 - A **Note** has one or more ordered **Note parts**. Each part is text and/or an attachment, and optionally has a **Source reference**.
 - **Attachments** are binary blobs (images, PDFs, ...) with filename, media type, size.
+- A note part keeps a **version history** of its text (EDT-3).
+- A **Reminder** belongs to a note; when due it produces **Deliveries** (§4.6), each addressed to a channel of the user.
+- A **Bot instance** is registered by the admin; a **Link** binds one external identity on a bot instance to one user (§5.3).
 - All entities have stable, globally unique, client-generatable IDs (UUIDs), creation/modification timestamps and a version counter.
 
 ### 4.2 Notes — functional requirements
@@ -193,8 +196,8 @@ A reminder makes a note nudge the user at a chosen time. Core sends it to the us
 | CORE-R9 | Should | unimplemented | In-app: due reminders show as a notification indicator, and the user can see a list of upcoming reminders. |
 | CORE-R10 | Should | unimplemented | **Recurring reminders** (daily, weekly, monthly, custom interval, optionally on chosen weekdays). Recurrence is evaluated in the user's timezone, so "09:00" stays 09:00 across daylight-saving changes. Occurrences missed during an outage collapse into one late delivery rather than a burst. A recurring reminder can be ended or skipped once. |
 | CORE-R11 | Should | unimplemented | **Reminder actions from chat.** (a) `!remind <when>` as a reply to a message that belongs to a note sets a reminder on that note; (b) `!remind <when> <text>` creates a new Inbox note with that text and a reminder; (c) replying to a reminder message with `!snooze <duration>` snoozes it, and `!done` marks it done. Time expressions are understood in **English** (e.g. "tomorrow 9am", "in 2 hours", "friday 18:30") relative to the user's timezone. If the expression cannot be understood, nothing is created and the bot replies with what went wrong and an example. Ordinary messages never create reminders, so plain capture is unchanged. |
-| CORE-R13 | Should | unimplemented | Reminder time expressions are parsed by Core (not by the bots), so behaviour is identical across chat platforms and covers all supported languages in one place (English in v1). |
 | CORE-R12 | Could | unimplemented | Browser/mobile push notifications for in-app reminders (Web Push, later FCM). |
+| CORE-R13 | Should | unimplemented | Reminder time expressions are parsed by Core (not by the bots), so behaviour is identical across chat platforms and covers all supported languages in one place (English in v1). |
 
 ## 5. Accounts and authentication
 
@@ -233,10 +236,10 @@ Bots are **not users** and do not hold user passwords. There are two separate co
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | AUTH-B1 | Must | unimplemented | A **bot instance** is registered in Core by the admin with a type (`matrix`, ...), a name, and a rotatable credential (client ID + secret, or equivalent). Credentials are stored hashed; multiple credentials can be valid during rotation. There is no limit on the number of bot instances, of any type. One bot instance serves any number of users, and one user can be linked to any number of bot instances. |
-| AUTH-B2 | Must | unimplemented | Bot credentials carry a narrow scope (`bot:ingest`) that permits only the bot-facing API. They can never call user-facing endpoints, and a bot can act only for users who have **linked** an external identity to that bot instance. |
+| AUTH-B2 | Must | unimplemented | Bot credentials carry narrow scopes (e.g. `bot:ingest`, and `bot:deliver` for outbound deliveries) that permit only the bot-facing API. They can never call user-facing endpoints, and a bot can act only for users who have **linked** an external identity to that bot instance. |
 | AUTH-B3 | Must | unimplemented | **Linking flow**: (a) the user, logged in to the web app, requests a link for a bot type/instance and receives a short-lived (e.g. 10 min), single-use pairing code; (b) the user sends that code to the bot in chat (e.g. `!link <code>`); (c) the bot submits the code plus the sender's external identity to Core; (d) Core binds the external identity to the user and the bot replies with a confirmation. |
 | AUTH-B4 | Must | unimplemented | An external identity (`bot type` + `platform user ID`, e.g. homeserver-qualified) maps to at most one Notekeeper user. A user may link many external identities, across many bot instances and platforms. |
-| AUTH-B5 | Must | unimplemented | Users can list and revoke their links in the web app. Revocation takes effect immediately; further messages from that identity are rejected and the bot tells the sender the identity is unlinked. |
+| AUTH-B5 | Must | unimplemented | Users can list and revoke their links in the web app. Revocation takes effect immediately; further messages from that identity are rejected and the bot tells the sender the identity is unlinked. Notes already created stay; later edits/deletes arriving from a revoked identity are ignored. |
 | AUTH-B6 | Must | unimplemented | Messages from unlinked identities are never stored. The bot replies once (rate-limited) with linking instructions. |
 | AUTH-B7 | Must | unimplemented | Ingest requests are attributed: every note part records which bot instance and external identity created it. |
 | AUTH-B8 | Should | unimplemented | Audit log of bot-related security events (link created/revoked, credential rotated, rejected requests). |
@@ -289,7 +292,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | GRP-2 | Must | unimplemented | **Media adjacency.** Absent an explicit relation, a message is grouped with the sender's adjacent message in the same conversation when it falls within the **grouping window**, in either direction: (a) a *media-only* message is merged into the sender's previous note in that conversation if that note's last part is within the window and adding it does not violate GRP-4; (b) a *text-only* message is merged into the sender's previous media-only note if that note's last part is within the window and it has no text yet. |
 | GRP-3 | Must | unimplemented | Consecutive **media-only** messages (e.g. several photos/pages sent in a burst) within the window form one note. |
 | GRP-4 | Must | unimplemented | Two separate **text-only** messages are *not* merged by timing alone — quickly sent todo items must stay separate notes. A note receives at most one auto-grouped text body (a caption before or after the media); further text needs an explicit relation (GRP-1). |
-| GRP-5 | Must | unimplemented | The grouping window is measured from the last part added to the note, is configurable (deployment default, per-user override), and defaults to a short period (proposed: 60 seconds). |
+| GRP-5 | Must | unimplemented | The grouping window is measured from the last part added to the note, is configurable (deployment default, per-user override), and defaults to a short period (proposed: 60 seconds). The window is evaluated on **platform event timestamps**, not arrival time, so a burst delivered after bot downtime is grouped exactly as it would have been live. |
 | GRP-6 | Must | unimplemented | The note is created immediately on the first message (no waiting for a possible companion) and **updated in place** as related messages arrive. Users see the note in the Inbox instantly; realtime updates (CORE-S1) make later parts appear. |
 | GRP-7 | Must | unimplemented | Auto-grouping (GRP-2..4) only ever targets `active` notes. A deleted note never receives auto-grouped parts; a new note is created instead. An explicit relation (GRP-1) to a message of a deleted note also creates a new note, which records the relation. |
 | GRP-8 | Must | unimplemented | Grouping decisions are deterministic and explainable: each part records why it was attached (`first`, `reply`, `thread`, `media-adjacency`). |
@@ -349,7 +352,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-4 | Must | unimplemented | Moving a note to a category on **another page** is possible (e.g. via a "move to..." menu; dragging onto a page in the navigation is a nice extra). |
 | WEB-5 | Must | unimplemented | Every drag-and-drop action has a **non-drag alternative** (keyboard and menu "move to...") for accessibility and for touch devices where drag is awkward. |
 | WEB-6 | Must | unimplemented | **Dismiss** button on every note (one click, no confirmation dialog), followed by a transient **Undo** affordance (toast) of at least ~10 seconds. |
-| WEB-7 | Must | unimplemented | **Trash view**: list of deleted notes with restore and (optionally) permanent-delete actions, and indication of where each came from. |
+| WEB-7 | Must | unimplemented | **Trash view**: list of deleted notes with restore and permanent-delete actions (CORE-N10), and indication of where each came from. |
 | WEB-8 | Must | unimplemented | Notes render: text (formatted, links clickable), image attachments as thumbnails with a viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
 | WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
@@ -367,12 +370,13 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| WEB-N1 | Must | unimplemented | **Responsive**: fully usable on a phone-sized viewport, since the app must be reachable "from every device I own". Installable as a PWA is desirable (Should). |
+| WEB-N1 | Must | unimplemented | **Responsive**: fully usable on a phone-sized viewport, since the app must be reachable "from every device I own". |
 | WEB-N2 | Must | unimplemented | Only the public user-facing API is used, so the same functionality is available to a future Android client. |
 | WEB-N3 | Must | unimplemented | Interaction feels instant: user actions are reflected within 100 ms (optimistic UI); initial page load ≤ 2 s on a typical broadband connection for a page with up to 500 notes. |
 | WEB-N4 | Should | unimplemented | Accessible (WCAG 2.1 AA): keyboard operable, screen-reader labelled, sufficient contrast, respects reduced-motion and dark mode. |
 | WEB-N5 | Must | unimplemented | All user-supplied content (note text, filenames, formatted chat content) is sanitised before rendering; attachments are served with safe content types and headers to prevent XSS. |
 | WEB-N6 | Must | unimplemented | Supports current versions of major evergreen browsers (Firefox, Chromium-based, Safari). |
+| WEB-N8 | Should | unimplemented | Installable as a PWA (manifest, service worker for the app shell), so the web app can serve as the "app" on phones until a native client exists. |
 | WEB-N7 | — | — | *Exact visual design (columns vs other arrangements, theming) is intentionally undefined and will be specified separately.* |
 
 ## 9. Android client (future — constraints on the design now)
