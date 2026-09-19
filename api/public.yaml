@@ -1,0 +1,29 @@
+openapi: 3.0.3
+info:
+  title: Notekeeper public share API
+  version: 1.0.0
+  description: |
+    Read-only access to one shared note, authorised by the share token in the
+    X-Share-Token header. Served only on the share hostname.
+    See docs/design/02-api.md section 3.
+paths:
+  /api/public/v1/version:
+    get:
+      operationId: getPublicVersion
+      summary: Build information (M0 pipeline placeholder)
+      security: []
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+components:
+  schemas:
+    Version:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string

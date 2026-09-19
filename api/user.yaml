@@ -1,0 +1,39 @@
+openapi: 3.0.3
+info:
+  title: Notekeeper user API
+  version: 1.0.0
+  description: |
+    API used by the web app (and later the Android client). Session cookies for the web,
+    bearer tokens for native clients. See docs/design/02-api.md.
+paths:
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      summary: Build information (M0 pipeline placeholder)
+      security: []
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+components:
+  schemas:
+    Version:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+    Problem:
+      type: object
+      description: RFC 9457 problem details
+      required: [title, status]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        request_id: {type: string}

@@ -1,0 +1,30 @@
+# Notekeeper
+
+Notes from your chats, organised. A chat bot (Matrix first) forwards messages to a web app
+where they land in an Inbox and can be sorted into categories on pages, dismissed with undo,
+searched, reminded, and shared through expiring read-only links.
+
+Everything is documented under [docs/](docs/):
+
+| Document | Contents |
+|---|---|
+| [requirements.md](docs/requirements.md) | Functional and non-functional requirements, with implementation state |
+| [security-requirements.md](docs/security-requirements.md) | What must not be possible; access matrix; accepted risks |
+| [tech-stack.md](docs/tech-stack.md) | Technology choices |
+| [design/](docs/design/README.md) | Technical design, and a requirement-to-design-to-test traceability table |
+
+## Working on it
+
+Requirements: Go, Node.js, Docker (for integration tests), Python 3, `make`.
+
+```bash
+make help        # list targets
+make tools       # install pinned developer tools into .bin/
+make web-install # install web dependencies
+make up          # start PostgreSQL for development
+make test        # unit tests of every component (no Docker, no network)
+make check       # everything CI runs
+```
+
+Layout: `api/` OpenAPI specs, `core/` backend, `bots/` chat bots and their shared client,
+`web/` web app, `deploy/` example deployment files, `docs/` documentation.

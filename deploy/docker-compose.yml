@@ -1,0 +1,23 @@
+# Development stack. More services (Synapse, Core, web, Matrix bot) are added by later
+# milestones for `make test-e2e`. This is an example, not a production deployment (NFR-D6).
+name: notekeeper
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: notekeeper
+      POSTGRES_USER: nk
+      POSTGRES_PASSWORD: nk-dev-only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nk -d notekeeper"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  dbdata:

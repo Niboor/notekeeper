@@ -1,0 +1,5 @@
+package: botclient
+output: bots/sdk/botclient/botclient.gen.go
+generate:
+  client: true
+  models: true

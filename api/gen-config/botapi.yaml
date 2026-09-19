@@ -1,0 +1,7 @@
+package: botapi
+output: core/internal/gen/botapi/botapi.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true

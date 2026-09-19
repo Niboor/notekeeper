@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info:
+  title: Notekeeper bot API
+  version: 1.0.0
+  description: |
+    Cluster-internal API used by chat bots (bot key authentication).
+    See docs/design/02-api.md section 2.
+paths:
+  /bot/v1/version:
+    get:
+      operationId: getBotVersion
+      summary: Build information (M0 pipeline placeholder)
+      security: []
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+components:
+  schemas:
+    Version:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string

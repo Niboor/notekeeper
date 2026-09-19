@@ -1,0 +1,19 @@
+# tools installed by `make tools`
+/.bin/
+
+# Go
+*.test
+*.out
+coverage.out
+
+# web
+node_modules/
+web/dist/
+web/coverage/
+web/playwright-report/
+web/test-results/
+
+# local environment
+.env
+.env.local
+*.local
