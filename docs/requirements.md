@@ -596,6 +596,7 @@ Answers given after the first draft, and where they are reflected.
 | 35 | Technical design | Written as [design/](design/README.md): schema, APIs, auth, ingestion, realtime and outbox, Matrix bot, web app, deployment and tests, with a requirement-to-design traceability table | design/ |
 | 36 | Inbox ordering | The Inbox is sorted by created time (no manual order); manual order exists inside categories. Resolves the conflict between CORE-N4 and CORE-N18 | CORE-N2, CORE-N4, CORE-N18 |
 | 37 | Olm library | The Matrix bot uses libolm from the system (cgo), as the mautrix bridges do, not pure-Go goolm; `make test-bot` therefore needs libolm and a C compiler installed | NFR-Q5, tech-stack.md §4 |
+| 38 | Matrix sync token | Found in the M0 spike: mautrix-go saves its sync token before processing events, so the bot commits it only after processing (`syncack`), otherwise a failure mid-batch loses messages | BOT-B2, NFR-R1, design/06 §3 |
 
 ## 14. Open questions
 

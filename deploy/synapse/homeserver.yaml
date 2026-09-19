@@ -1,0 +1,41 @@
+# Synapse configuration for DEVELOPMENT AND TESTS ONLY (never for production):
+# open registration without verification, rate limits effectively off, SQLite, no federation.
+server_name: "localhost"
+pid_file: /data/homeserver.pid
+report_stats: false
+suppress_key_server_warning: true
+trusted_key_servers: []
+signing_key_path: /data/localhost.signing.key
+media_store_path: /data/media_store
+log_config: /data/log.config
+
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: false
+    bind_addresses: ['0.0.0.0']
+    resources:
+      - names: [client]
+        compress: false
+
+database:
+  name: sqlite3
+  args:
+    database: /data/homeserver.db
+
+enable_registration: true
+enable_registration_without_verification: true
+
+rc_message: {per_second: 1000, burst_count: 10000}
+rc_registration: {per_second: 1000, burst_count: 10000}
+rc_login:
+  address: {per_second: 1000, burst_count: 10000}
+  account: {per_second: 1000, burst_count: 10000}
+  failed_attempts: {per_second: 1000, burst_count: 10000}
+rc_joins:
+  local: {per_second: 1000, burst_count: 10000}
+rc_invites:
+  per_room: {per_second: 1000, burst_count: 10000}
+  per_user: {per_second: 1000, burst_count: 10000}
+rc_key_requests: {per_second: 1000, burst_count: 10000}

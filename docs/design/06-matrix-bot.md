@@ -22,20 +22,22 @@ State stored by the bot (own schema, own database role, SEC-OPS-5): mautrix's cr
 1. Read configuration and Secrets: homeserver URL, bot account credentials, the **pickle key** for encrypting device keys at rest (MX-N1), Core URL and bot key, database URL.
 2. Connect to PostgreSQL and take a **session-level advisory lock** `pg_try_advisory_lock(hash('matrix-bot:' || instance name))` on a **dedicated connection** that stays open. If the lock is not obtained the process stays passive (not ready) and retries every 5 seconds. If the lock connection ever drops the process **exits immediately** and Kubernetes restarts it: a process that might have lost the lock must not keep syncing (MX-N2, SEC-MX-4).
 3. Deployment strategy is `Recreate` with one replica, so a rolling update never runs two instances; the advisory lock is the safety net if someone scales it anyway.
-4. Log in (access token from the Secret if present, else password login stored device), open the mautrix `CryptoHelper` with the SQL crypto store on PostgreSQL and the pickle key. Olm is **libolm via cgo**, as in the mautrix bridges (tech-stack §4).
+4. Open the mautrix `CryptoHelper` with the SQL crypto store on PostgreSQL (via `dbutil` and the `pgx` driver) and the pickle key, with `LoginAs` set: the helper looks up the device id it stored, logs in again as **that same device**, and restarts therefore keep the device identity (verified in the M0 spike). Olm is **libolm via cgo**, as in the mautrix bridges (tech-stack §4).
 5. Start the sync loop, the outbox loop and the heartbeat (`POST /heartbeat` every 30 s).
 
 ## 3. Sync, ordering and never losing a message
 
-The sync handler is **synchronous with Core**: for every event in a sync response the bot calls Core and only returns once Core has answered (or the event is classified as not retryable). mautrix persists the next batch token only after a sync response has been fully processed, so:
+The sync handler is **synchronous with Core**: `DefaultSyncer` dispatches every event to its handlers one after another in the sync goroutine (verified in the M0 spike), and each handler calls Core and only returns once Core has answered or the event is classified as not retryable.
 
-- Core down or slow → the handler retries with exponential backoff and the sync loop stalls, the token does not advance, and nothing is lost; Matrix retains the messages (NFR-R1, BOT-B2). Key sharing for encrypted rooms resumes as soon as Core is back.
-- Bot crash mid-batch → the batch is replayed from the stored token on restart; Core deduplicates by event id (BOT-7).
+**mautrix-go saves its sync token before it processes the response** (`SyncWithContext`: "Save the token now before processing it"). Used as is, a crash mid-batch, or a handler that gives up while Core is down, would skip those events for good and break NFR-R1 and BOT-B2. The bot therefore uses `internal/syncack`: a `Syncer` wrapper and a `Store` wrapper that swallow the early `SaveNextBatch` and **commit the token only after `ProcessResponse` returned without error**. The token itself lives in the crypto store, so it is in PostgreSQL.
+
+- Core down or slow: the handler retries with exponential backoff, the sync loop stalls, the token is not committed, nothing is lost; Matrix retains the messages. Key sharing for encrypted rooms resumes as soon as Core is back.
+- Handler gives up (or panics) or the process dies mid-batch: `ProcessResponse` reports an error, the sync loop ends, the pod restarts, and the batch is replayed from the last committed token; Core deduplicates by event id (BOT-7).
 - **Not retryable** results (Core answered `rejected`, or `4xx` for a malformed event): the bot reports to the user if `reply_text` is set, records a counter and moves on. It never blocks forever on one bad event.
 
 Events are handled in arrival order, which for one room is the platform order Core expects (BOT-9); with one sync goroutine there is no reordering.
 
-*Verify at implementation time:* that mautrix's syncer runs handlers to completion before saving the token in the version pinned by `go.mod`; a contract test in the bot's integration suite kills the process mid-batch and asserts no loss and no duplication.
+*Guarded by tests:* `TestSyncTokenCommit` in `bots/matrix/internal/e2eetest` runs the same "handler fails mid-batch, pod restarts" scenario twice against Synapse: with mautrix's default behaviour the message is **lost** (this documents the library behaviour and will fail loudly if a future mautrix version changes it), and with `syncack` it is **redelivered**. Unit tests in `internal/syncack` cover the wrapper.
 
 ## 4. Rooms, invites and DMs (MX-1, MX-2, SEC-MX-1)
 
@@ -57,7 +59,7 @@ Events are handled in arrival order, which for one room is the platform order Co
 | redaction | `message_deleted` |
 | `m.in_reply_to`, `m.thread` | `relates_to.reply_to` and `.thread` |
 
-Encrypted media (`file` with `key`, `iv`, `hashes`) is downloaded from the configured homeserver via its `mxc://` URI only (SEC-CNT-8) and decrypted. The size is checked against `info.size` and Core's limit **before** downloading: too large → an `attachment_failed` part with reason `too_large`, no download. The decrypted stream is written to Core with `PUT /uploads/{id}`; where the library decrypts in place, memory is bounded by the maximum attachment size (25 MiB by default) times a small concurrency limit (4).
+Encrypted media (`file` with `key`, `iv`, `hashes`) is downloaded from the configured homeserver via its `mxc://` URI only (SEC-CNT-8) and decrypted. The size is checked against `info.size` and Core's limit **before** downloading: too large → an `attachment_failed` part with reason `too_large`, no download. The decrypted stream is written to Core with `PUT /uploads/{id}` using mautrix's `DecryptStream`, so bot memory does not depend on file size beyond the homeserver download itself. Two library details verified in the M0 spike: call `PrepareForDecryption()` **before** `DecryptStream` (the cipher is built eagerly and panics on an unprepared file), and the file's SHA-256 is only verified when the stream is **closed**, so the bot must check the error from `Close()` and abort the Core upload (a short or cancelled request leaves an incomplete blob that the janitor removes) when it fails.
 
 ## 6. Commands and feedback
 

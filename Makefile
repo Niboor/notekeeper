@@ -59,7 +59,7 @@ generate-check: generate ## Fail if regenerating changes committed files
 	git diff --exit-code -- core/internal/gen bots/sdk/botclient web/src/api
 
 .PHONY: build
-build: ## Build Core, the Matrix bot and the web app
+build: check-libolm ## Build Core, the Matrix bot and the web app
 	cd core && go build -o ../.bin/core ./cmd/core
 	cd bots/matrix && go build -o ../../.bin/matrix-bot ./cmd/matrix-bot
 	cd web && npm run build
@@ -72,8 +72,12 @@ test: test-core test-bot test-web ## Unit tests of every component (no Docker, n
 test-core: ## Core unit tests
 	cd core && go test -race ./...
 
+.PHONY: check-libolm
+check-libolm: ## Verify libolm (and its headers) is installed; the Matrix bot needs it
+	@pkg-config --exists olm || { echo "libolm not found. Install it: Arch 'sudo pacman -S libolm', Debian/Ubuntu 'sudo apt install libolm-dev'"; exit 1; }
+
 .PHONY: test-bot
-test-bot: ## Bot and bot SDK unit tests
+test-bot: check-libolm ## Bot and bot SDK unit tests
 	cd bots/sdk && go test -race ./...
 	cd bots/matrix && go test -race ./...
 
@@ -82,8 +86,9 @@ test-web: ## Web unit tests and type check
 	cd web && npm run typecheck && npm test
 
 .PHONY: test-integration
-test-integration: ## Integration tests against real PostgreSQL (Docker required)
+test-integration: check-libolm ## Integration tests against real PostgreSQL and Synapse (Docker required)
 	cd core && go test -race -tags integration -count=1 ./...
+	cd bots/matrix && go test -race -tags integration -count=1 -timeout 10m ./...
 
 .PHONY: test-e2e
 test-e2e: ## Whole stack in docker-compose driven by Playwright (Docker required)
@@ -91,7 +96,7 @@ test-e2e: ## Whole stack in docker-compose driven by Playwright (Docker required
 
 ##@ Quality
 .PHONY: lint
-lint: ## golangci-lint, ESLint, manifest checks
+lint: check-libolm ## golangci-lint, ESLint, manifest checks
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint run ./...) || exit 1; done
 	cd web && npm run lint
 	@if [ -d deploy/k8s ]; then kube-linter lint deploy/k8s && kubeconform -strict -ignore-missing-schemas -summary deploy/k8s; fi

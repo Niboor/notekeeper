@@ -19,5 +19,25 @@ services:
       timeout: 3s
       retries: 30
 
+  # Matrix homeserver for the bot's integration and end-to-end tests. Development only.
+  synapse:
+    profiles: ["matrix"]
+    image: matrixdotorg/synapse:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        python -m synapse.app.homeserver --config-path /data/homeserver.yaml --generate-keys &&
+        exec python -m synapse.app.homeserver --config-path /data/homeserver.yaml
+    ports:
+      - "127.0.0.1:8008:8008"
+    volumes:
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./synapse/log.config:/data/log.config:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8008/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
 volumes:
   dbdata:
