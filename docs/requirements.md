@@ -221,7 +221,8 @@ A user can share a single note with someone who has no account, through an ungue
 | CORE-SH10 | Should | unimplemented | The public page is lightweight and mobile friendly, and text and attachment downloads work without JavaScript. English in v1 (NFR-Q3). |
 | CORE-SH11 | Should | unimplemented | The operator can disable share links entirely by configuration; existing links then stop working. |
 | CORE-SH12 | Should | unimplemented | Link creation and revocation are audit-logged (no note content in logs). Access is counted for CORE-SH3 (last access, view count). |
-| CORE-SH13 | Could | unimplemented | Optional password on a link; extending the expiry of an existing link; sharing a whole page read-only; a `!share` chat command. |
+| CORE-SH13 | Could | unimplemented | Extending the expiry of an existing link; sharing a whole page read-only; a `!share` chat command. |
+| CORE-SH14 | Should | unimplemented | **Revoke all** of a user's share links in one action. |
 
 ## 5. Accounts and authentication
 
@@ -238,6 +239,8 @@ A user can share a single note with someone who has no account, through an ungue
 | AUTH-U7 | Must | unimplemented | There is **exactly one admin**. The admin is bootstrapped at first start (from configuration/secret or an operator CLI command) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
 | AUTH-U8 | Must | unimplemented | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which also revokes the user's existing sessions. |
 | AUTH-U9 | Must | unimplemented | **Complete deletion.** Deleting a user (by the admin or themselves) removes their notes, pages, attachments, text history, reminders, queued and pending deliveries, share links (which stop working immediately), sessions and tokens, pairing codes and chat-identity links, and queues a lifecycle notice for every bot instance that served them (BOT-16). Afterwards Core holds nothing about the user except a content-free audit entry. Database backups are outside this guarantee; their retention is documented. |
+| AUTH-U10 | Should | unimplemented | **Sign out everywhere**: one action revokes all of the user's sessions and tokens (optionally keeping the current one). Together with revoking all share links (CORE-SH14), it lets a user who suspects a compromise cut off access in one step. |
+| AUTH-U11 | Should | unimplemented | **Security notices.** Core sends a notice to the user's linked chat identities (over the BOT-11 channel) and shows it in the app at next login when: a new session signs in (browser/OS and time), the password changes or an activation link is issued for the account, a chat identity is linked or unlinked, or a share link is created. The user can mute the new-session and share-link notices; the others cannot be muted. |
 
 ### 5.2 Authenticating users (web now, Android later)
 
@@ -250,6 +253,9 @@ A user can share a single note with someone who has no account, through an ungue
 | AUTH-C6 | Must | unimplemented | Login is rate-limited and brute-force resistant. |
 | AUTH-C7 | Should | unimplemented | TOTP or passkey as a second factor. |
 | AUTH-C8 | Could | unimplemented | Personal access tokens for scripts/automation, scoped and revocable. |
+| AUTH-C9 | Must | unimplemented | **Persistent login.** After signing in, the user stays signed in on that browser or device across browser restarts, app updates and deployments, until the session expires or is ended explicitly (sign-out, revocation, account disabled, password reset by the admin). The lifetime is configurable: a sliding lifetime that each use extends (`SESSION_IDLE_LIFETIME`, default 90 days) and an optional absolute maximum (default 1 year, can be set to unlimited). A new login is needed only after that, or after explicit revocation. |
+| AUTH-C10 | Must | unimplemented | **Invisible renewal.** Short-lived access tokens (AUTH-C3) are renewed silently in the background. The user never sees a login prompt, or loses unsaved work, because a token expired, and renewal is safe with several tabs open and with retried requests (SEC-AUTH-7). |
+| AUTH-C11 | Could | unimplemented | A "shared computer" option at login: the session ends when the browser is closed. |
 
 ### 5.3 Authenticating bots and linking chat identities
 
@@ -385,7 +391,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | unimplemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
-| WEB-12 | Must | unimplemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. |
+| WEB-12 | Must | unimplemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
 | WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
@@ -575,6 +581,9 @@ Answers given after the first draft, and where they are reflected.
 | 24 | Push notifications | Not a Notekeeper requirement; reminders reach the chat, whose notifications alert the user | CORE-R12 removed, AND-4, §2.2 |
 | 25 | Review gaps | All seven fixed: conditional reminder filter, failed attachments never drop text, platform timestamps for notes, no overwrite of drafts, async thumbnails, complete user deletion, no push contradiction | WEB-14, CORE-A9, CORE-N18, WEB-11, CORE-A4, AUTH-U9, BOT-16, BOT-B7 |
 | 26 | Security requirements | Kept in a separate file, written as abuse cases that must fail | [security-requirements.md](security-requirements.md) |
+| 27 | Operator vs admin | Not differentiated further: the admin is the operator, trusted, with full database access; the app just doesn't expose other users' content | security-requirements.md R1, SEC-ADM |
+| 28 | Persistent sessions | Users stay signed in for a configurable time (sliding, default 90 days), with silent token renewal | AUTH-C9, C10 |
+| 29 | Security suggestions | Accepted: sign out everywhere, revoke all links, security notices. Dropped: link passwords, CSP report endpoint, signed images/SBOM, incident procedure | AUTH-U10, AUTH-U11, CORE-SH14 |
 
 ## 14. Open questions
 

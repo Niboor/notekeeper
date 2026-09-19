@@ -5,7 +5,7 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 ## 1. How to read this document
 
 - The main requirements say what the system **does**. This document says what must **not be possible**, whoever tries and however they try.
-- Every item in §4 is written as a negative ("X must not be possible") so that it translates directly into an **abuse-case test**: perform the attack, expect it to fail. A security requirement is only `fully tested` when such a test exists (§9).
+- Every item in §4 is written as a negative ("X must not be possible") so that it translates directly into an **abuse-case test**: perform the attack, expect it to fail. A security requirement is only `fully tested` when such a test exists (§8).
 - This document is **normative**, like `requirements.md`, and uses the same priorities (Must / Should / Could) and the same **State** column (`unimplemented`, `implemented`, `fully tested`).
 - Where a requirement already exists in `requirements.md`, the *Related* column points to it rather than restating it. Where an item here adds something new, it is the authoritative statement.
 - IDs are stable; gaps in numbering are intentional.
@@ -34,7 +34,7 @@ Status: draft v0.1. Companion to [requirements.md](requirements.md); read that f
 | **Compromised chat account** | An attacker controlling a linked Matrix account (can send messages as the user). |
 | **Bot instance** | Holds bot credentials; may be buggy or compromised. |
 | **Third party in a chat room** | Someone who joins a DM room or forwards messages to the bot. |
-| **Admin** | The single admin, who is also the operator (R1). Trusted to run the service; the *application* gives them no way to read other users' notes, and can take over an account only detectably (SEC-ADM-2). |
+| **Admin** | The single admin, who is also the operator: trusted, with full access at the database level (R1). |
 | **Network attacker** | Can observe or tamper with traffic between components and clients. |
 | **Malicious content** | A crafted note, file, filename or chat message from any of the above. |
 
@@ -77,8 +77,8 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-AUTH-3 | Must | unimplemented | Learning whether a username exists, from login responses, activation responses or response timing. | — |
 | SEC-AUTH-4 | Must | unimplemented | Reusing an activation link after use, after expiry, or after a newer link was issued for the same user; guessing one (at least 128 bits, stored only as a hash, compared in constant time). | AUTH-U8 |
 | SEC-AUTH-5 | Must | unimplemented | Setting a password that is shorter than 10 characters or appears in a common/breached-password list (checked offline, no third-party calls). | AUTH-C1 |
-| SEC-AUTH-6 | Must | unimplemented | Keeping access after logout, password change, admin-issued reset or account disable: all sessions and refresh tokens are revoked immediately, and access tokens live at most 15 minutes. | AUTH-U4, AUTH-U8 |
-| SEC-AUTH-7 | Must | unimplemented | Using a refresh token that was already rotated: reuse revokes the whole token family (theft detection). | AUTH-C3 |
+| SEC-AUTH-6 | Must | unimplemented | Keeping access after sign-out, admin-issued password reset or account disable: all sessions and refresh tokens are revoked immediately, and access tokens live at most 15 minutes. A password change revokes all *other* sessions but keeps the current one. | AUTH-U4, AUTH-U8 |
+| SEC-AUTH-7 | Must | unimplemented | Using a refresh token that was already rotated: reuse beyond a short grace window (default 60 s) revokes the whole token family (theft detection). Within the grace window a repeated refresh (second tab, retried request after a network failure) returns the same successor, so a legitimate user is never logged out by a race. | AUTH-C3, AUTH-C10 |
 | SEC-AUTH-8 | Must | unimplemented | Triggering a state-changing request cross-site (CSRF), or from a cross-origin page reading authenticated responses. State-changing operations are never reachable by GET. | AUTH-C4 |
 | SEC-AUTH-9 | Must | unimplemented | Session fixation: a fresh session identifier is issued on every login. | AUTH-C4 |
 | SEC-AUTH-10 | Must | unimplemented | Intercepting or redirecting the native-client authorisation code: PKCE is mandatory, redirect URIs are matched exactly, no open redirects anywhere in login flows. | AUTH-C3 |
@@ -86,6 +86,8 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-AUTH-12 | Must | unimplemented | Session or access tokens appearing in URLs (query strings, paths), logs or referrers. | NFR-S1 |
 | SEC-AUTH-13 | Must | unimplemented | Creating a second admin, or re-running the admin bootstrap once an admin exists (for instance by changing a config value); the bootstrap secret must not have a default value. | AUTH-U7 |
 | SEC-AUTH-14 | Should | unimplemented | Taking over the admin account with only a password: the admin has a second factor once one is available. | AUTH-C7 |
+| SEC-AUTH-15 | Must | unimplemented | A user being logged out unexpectedly: a session survives access-token expiry, server restarts, deployments, several tabs and concurrent or retried refreshes. Only sign-out, revocation, account disable, admin password reset, or reaching the configured session lifetime ends it. | AUTH-C9, AUTH-C10 |
+| SEC-AUTH-16 | Should | unimplemented | A user who suspects a compromise being unable to cut off all access in one step: sign out everywhere and revoke all share links. | AUTH-U10, CORE-SH14 |
 
 ### 4.2 Authorisation and tenant isolation (SEC-ISO)
 
@@ -107,10 +109,9 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-ADM-1 | Must | unimplemented | The admin reading other users' notes, attachments, history or share-link content through any application feature or API. Admin endpoints return metadata only (username, status, quota use). | AUTH-U6 |
-| SEC-ADM-2 | Must | unimplemented | The admin taking over or impersonating a user **silently**. There is no "log in as" feature and the admin never chooses a password, but issuing an activation link (the only reset mechanism, AUTH-U8) lets the admin set a password themselves. That path must therefore be loud: issuing a link revokes the user's sessions, is audit-logged (SEC-ADM-3), and triggers a notice (SEC-ADM-5). | AUTH-U8 |
+| SEC-ADM-2 | Must | unimplemented | The admin logging in as a user or choosing a user's password: there is no "log in as" feature, and passwords are only ever set by the user through the activation flow. Issuing an activation link revokes the user's sessions and is audit-logged, and the user gets a security notice (AUTH-U11). | AUTH-U8 |
 | SEC-ADM-3 | Must | unimplemented | An admin action leaving no trace: every admin action is written to the audit log. | AUTH-B8, NFR-S6 |
 | SEC-ADM-4 | Must | unimplemented | Admin functions being reachable by a non-admin, by a bot credential, or through a share link. | SEC-ISO-1 |
-| SEC-ADM-5 | Must | unimplemented | A user not being told that an activation link was issued for their account: Core queues a chat notice ("an activation link was issued for your account") to every linked identity over the BOT-11 channel, and shows the same notice in the app at next login. | AUTH-U8, BOT-11 |
 
 ### 4.4 Bots and identity linking (SEC-BOT)
 
@@ -217,6 +218,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-AUD-1 | Must | unimplemented | Security-relevant events going unrecorded: failed and successful logins, activation, password changes, session revocation, link/unlink, bot credential creation/rotation/disabling, admin actions, share-link creation/revocation, and rejected bot requests. | AUTH-B8, NFR-S6 |
 | SEC-AUD-2 | Must | unimplemented | The audit log containing note content or secrets, or being modifiable through the application: it is append-only from the application's point of view. | SEC-DATA-1 |
 | SEC-AUD-3 | Should | unimplemented | An attack pattern going unnoticed: metrics and example alerts for spikes in failed logins, rejected bot requests, share-link 404s and rate-limit hits. | NFR-O2 |
+| SEC-AUD-4 | Should | unimplemented | Sensitive account events happening without the user being told: new sign-ins, password changes or activation links, chat link changes and share-link creation produce a security notice in chat and in the app. | AUTH-U11 |
 
 ## 5. Accepted risks (explicitly not prevented)
 
@@ -224,13 +226,12 @@ These are known limits. They are stated so that nobody assumes otherwise.
 
 | # | Risk | Why it is accepted / mitigation |
 |---|---|---|
-| R1 | The **operator** can read all notes and attachments. In this deployment the operator and the single admin are the same party (AUTH-U7 bootstraps from the operator's configuration), and anyone with database or cluster access sees everything. | Notes are stored readable by the server (NFR-S5), and users must be told so. SEC-ADM-1 only ensures the *application* never makes reading content easy or untraced. Mitigate with operator hygiene, encrypted backups (SEC-DATA-7) and least privilege. |
+| R1 | The **admin is the operator**: one trusted person with full database and cluster access, who can therefore read all notes and attachments and take over any account. | Acceptable for a small friends-and-family deployment. Notes are stored readable by the server (NFR-S5) and users should be told. The application itself doesn't expose other users' content to the admin (SEC-ADM-1), and account takeover is audited and announced (SEC-ADM-2). Encrypted backups (SEC-DATA-7) and least privilege still apply. |
 | R2 | The **Matrix homeserver** is trusted for who a message is from. A malicious homeserver could forge messages as a user and thereby create notes. | Inherent to Matrix. The bot instance is bound to one configured homeserver, and in encrypted rooms message authenticity is also protected by the Megolm session. |
 | R3 | A **compromised chat account** can create notes for that user and receive their reminders (including attachments). It cannot read existing notes, because the bot API offers no query commands. | Revoke the link (AUTH-B5). Adding chat-side query commands later would widen this risk and requires a fresh review. |
 | R4 | A **share link** can be forwarded by whoever holds it, and the content can be copied. | Links are read-only, expire (CORE-SH2) and can be revoked (CORE-SH3). |
 | R5 | **Malware** in attachments is not scanned by default. | Files are never executed by Notekeeper and are served as downloads (SEC-CNT-3). Optional scanning is a Should (SEC-CNT-9). |
 | R6 | **Availability** depends on a single PostgreSQL instance and the operator. | Consistent with the sizing in NFR-P3; chat platforms retain messages while the system is down (NFR-R1). |
-| R7 | The **admin can take over any account** by issuing an activation link, and can disable or delete accounts. | Takeover is detectable, not impossible: sessions are revoked, the action is audit-logged and the user is notified (SEC-ADM-2, SEC-ADM-5). |
 
 ## 6. Cryptographic and configuration baselines
 
@@ -240,25 +241,14 @@ These are known limits. They are stated so that nobody assumes otherwise.
 | SEC-BASE-2 | Must | unimplemented | All random secrets (tokens, codes, session identifiers) come from a cryptographically secure random source; pairing codes are at least 40 bits of entropy, all other tokens at least 128. |
 | SEC-BASE-3 | Must | unimplemented | TLS 1.2 or higher only, for all client-facing traffic. |
 | SEC-BASE-4 | Should | unimplemented | Every secret (bot credentials, database passwords, encryption key for Matrix state) can be rotated without data loss; the procedure is documented. |
-| SEC-BASE-5 | Must | unimplemented | Security-relevant limits are configuration, not code: token lifetimes, rate limits, share-link maximum lifetime, size limits. Defaults are the safe ones. |
+| SEC-BASE-5 | Must | unimplemented | Security-relevant limits are configuration, not code: token and session lifetimes (idle and absolute), rate limits, share-link maximum lifetime, size limits. Defaults are the safe ones. |
 
-## 7. Suggested additions (not yet requirements)
-
-Proposed for discussion; none are applied.
-
-1. **Account-level "log out everywhere" and "revoke all share links"** buttons for a suspected compromise (cheap, useful).
-2. **Security notifications to the user in chat**: a message when a new session logs in, a link is created, or a share link is created (uses the existing delivery channel).
-3. **Per-link passwords** on share links (already a Could in CORE-SH13) for sensitive notes.
-4. **Content-Security-Policy report endpoint** to detect XSS attempts in the field.
-5. **Signed release artefacts and an SBOM** for the container images.
-6. **A written security-incident procedure** for the operator: revoke bot credentials, rotate secrets, invalidate sessions, notify users.
-
-## 8. Relationship to other requirements
+## 7. Relationship to other requirements
 
 - `NFR-S1..S7`, `AUTH-*`, `CORE-SH*`, `WEB-N5` and the Matrix NFRs stay where they are; this document restates none of them, except to make the "must not" explicit.
 - Where a new item here needs behaviour that the functional requirements don't yet describe (for example refresh-token family revocation, or the membership re-check before reminders), this document is the authoritative source.
 
-## 9. Verification
+## 8. Verification
 
 | Approach | Covers |
 |---|---|
@@ -270,5 +260,6 @@ Proposed for discussion; none are applied.
 | **Deletion tests** checking that no rows, blobs or index entries remain for a deleted user, note or attachment | SEC-DATA-5 |
 | **Log scanning tests** running the integration suite and asserting that no secret or note content marker appears in output | SEC-DATA-1, SEC-SHR-7, SEC-MX-3 |
 | **Manifest and image scanning** (policy checks on the example manifests, dependency and image vulnerability scans) in CI | SEC-OPS-1..3, SEC-OPS-6 |
+| **Session tests**: access-token expiry, server restart, several tabs, concurrent and retried refresh, and lifetime expiry | SEC-AUTH-6, SEC-AUTH-7, SEC-AUTH-15 |
 | **Concurrency tests** for single-use codes, the one-admin rule and quota | SEC-API-7, SEC-BOT-4, SEC-CNT-6 |
 | **Periodic manual review** of this document against the current design, and a pre-release check that every `Must` here is at least `implemented` | Everything |
