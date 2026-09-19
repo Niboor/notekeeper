@@ -458,3 +458,35 @@ func TestPendingAndDisabledAccountsCannotAuthenticateOrIngest(t *testing.T) {
 		t.Fatal("unknown identity reported as linked")
 	}
 }
+
+// A bot instance acts only for identities linked through it (SEC-BOT-1): a second instance of the
+// same type cannot ingest for, or even see, an identity that was linked through the first.
+func TestBotInstancesAreScopedToTheirOwnLinks(t *testing.T) {
+	s := newStack(t)
+	c, keyA := s.linked("alice", "@alice:example.org")
+	keyB := s.makeBot("second", "example.org")
+
+	var out struct {
+		Result string `json:"result"`
+		Code   string `json:"code"`
+	}
+	s.event(keyB, "@alice:example.org", "$b1", "via the other bot", time.Now().Add(time.Second)).JSON(t, &out)
+	if out.Result != "rejected" || out.Code != "identity_unlinked" {
+		t.Fatalf("second instance ingested for an identity it does not hold: %+v", out)
+	}
+	var idr struct {
+		Linked bool `json:"linked"`
+	}
+	s.botDo(keyB, "GET", "/bot/v1/identities/@alice:example.org", nil).JSON(t, &idr)
+	if idr.Linked {
+		t.Fatal("the identity lookup revealed a link made through another instance")
+	}
+	if res := s.event(keyA, "@alice:example.org", "$a1", "via the first bot", time.Now().Add(time.Second)); res.Status != 200 {
+		t.Fatal(res.Status)
+	}
+	var page notePage
+	c.do("GET", "/api/v1/inbox/notes", nil).JSON(t, &page)
+	if len(page.Items) != 1 {
+		t.Fatalf("notes: %d", len(page.Items))
+	}
+}

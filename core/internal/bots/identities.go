@@ -196,7 +196,9 @@ type Identity struct {
 	LinkedAt       time.Time
 }
 
-// ResolveIdentity finds the linked identity for a sender, or reports that there is none.
+// ResolveIdentity finds the identity a sender linked through *this* bot instance, or reports that
+// there is none. An identity linked through another instance does not count: a bot instance acts
+// only for identities linked to it (SEC-BOT-1).
 func (s *Service) ResolveIdentity(ctx context.Context, bot *Principal, externalUser string) (Identity, bool, error) {
 	row, err := s.St.Q().GetIdentityByExternal(ctx, dbq.GetIdentityByExternalParams{BotType: bot.Type, ExternalUserID: externalUser})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -204,6 +206,9 @@ func (s *Service) ResolveIdentity(ctx context.Context, bot *Principal, externalU
 	}
 	if err != nil {
 		return Identity{}, false, err
+	}
+	if row.BotInstanceID != bot.InstanceID {
+		return Identity{}, false, nil
 	}
 	return Identity{ID: row.ID, UserID: row.UserID, BotInstanceID: row.BotInstanceID, ExternalUserID: row.ExternalUserID,
 		ConversationID: row.ConversationID, ReminderTarget: row.ReminderTarget, LinkedAt: row.LinkedAt}, true, nil

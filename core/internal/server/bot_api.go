@@ -164,11 +164,7 @@ func (b *botAPI) GetIdentity(ctx context.Context, req botapi.GetIdentityRequestO
 	if !ok {
 		return botapi.GetIdentity200JSONResponse{Linked: false}, nil
 	}
-	res := botapi.GetIdentity200JSONResponse{Linked: true, LinkedAt: &ident.LinkedAt}
-	if ident.BotInstanceID == bot.InstanceID {
-		res.Conversation = ident.ConversationID
-	}
-	return res, nil
+	return botapi.GetIdentity200JSONResponse{Linked: true, LinkedAt: &ident.LinkedAt, Conversation: ident.ConversationID}, nil
 }
 
 func (b *botAPI) PostHeartbeat(ctx context.Context, _ botapi.PostHeartbeatRequestObject) (botapi.PostHeartbeatResponseObject, error) {

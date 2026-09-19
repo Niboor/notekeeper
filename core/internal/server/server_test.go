@@ -180,3 +180,32 @@ func TestOpsEndpoints(t *testing.T) {
 		t.Errorf("metrics %d, missing request counter", c)
 	}
 }
+
+// Every API listener answers with the defensive headers, including for errors (SEC-API-8, SEC-DATA-6).
+func TestAPIResponsesCarrySecurityHeaders(t *testing.T) {
+	r := testRouters(t, config.Config{}, nil)
+	for name, tc := range map[string]struct {
+		h    http.Handler
+		path string
+	}{
+		"user ok":        {r.User, "/api/v1/version"},
+		"user not found": {r.User, "/api/v1/nothing"},
+		"bot ok":         {r.Bot, "/bot/v1/version"},
+		"bot not found":  {r.Bot, "/bot/v1/nothing"},
+	} {
+		rec := httptest.NewRecorder()
+		tc.h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		for header, want := range map[string]string{
+			"Cache-Control":          "no-store",
+			"X-Content-Type-Options": "nosniff",
+			"Referrer-Policy":        "no-referrer",
+		} {
+			if got := rec.Header().Get(header); got != want {
+				t.Errorf("%s: %s = %q, want %q", name, header, got, want)
+			}
+		}
+		if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "frame-ancestors 'none'") {
+			t.Errorf("%s: CSP %q", name, csp)
+		}
+	}
+}

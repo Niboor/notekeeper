@@ -116,7 +116,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-BOT-1 | Must | unimplemented | A bot instance acting for a user who has not linked that bot instance: ingest, edit, delete, delivery claim and attachment download are all scoped to (bot instance, linked identity). | AUTH-B2 |
+| SEC-BOT-1 | Must | implemented | A bot instance acting for a user who has not linked that bot instance: ingest, edit, delete, delivery claim and attachment download are all scoped to (bot instance, linked identity). | AUTH-B2 |
 | SEC-BOT-2 | Must | fully tested | Using bot credentials on the user API, user tokens on the bot API, or a bot credential from one instance on another instance's items. | AUTH-B2 |
 | SEC-BOT-3 | Must | unimplemented | A bot reading anything beyond what it was handed: notes, attachments not referenced by its own deliveries, users, or the links of other bot instances. The identity lookup reveals only "linked or not", never which user, and is rate-limited and audited. | BOT-15, BOT-2 |
 | SEC-BOT-4 | Must | fully tested | Redeeming a pairing code twice, after expiry, or by guessing (attempts rate-limited; codes are single-use, short-lived, consumed atomically and bound to the user who created them). | AUTH-B3 |
@@ -182,7 +182,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-DATA-3 | Must | unimplemented | Client-to-Core traffic over plain HTTP. | NFR-S1 |
 | SEC-DATA-4 | Should | unimplemented | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
 | SEC-DATA-5 | Must | unimplemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
-| SEC-DATA-6 | Must | unimplemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
+| SEC-DATA-6 | Must | implemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
 | SEC-DATA-7 | Should | unimplemented | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
 | SEC-DATA-8 | Must | unimplemented | A data export containing anything but the requesting user's own data. | AUTH-U5 |
 

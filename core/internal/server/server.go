@@ -71,6 +71,7 @@ func NewRouters(d Deps) (Routers, error) {
 			httpx.Recoverer(d.Log),
 			httpx.Observe(name, d.Log, metrics),
 			httpx.HostCheck(hosts),
+			httpx.APIHeaders(),
 		)
 		r.NotFound(httpx.NotFound)
 		r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {

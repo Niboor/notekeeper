@@ -181,3 +181,20 @@ func statusClass(code int) string {
 		return "2xx"
 	}
 }
+
+// APIHeaders sets the defensive headers every JSON API response carries (SEC-API-8, SEC-DATA-6):
+// nothing may be cached by shared caches, content types are not sniffed, no referrer is sent, and
+// the response cannot be framed or used as a document. Handlers that need other cache rules
+// (attachment downloads) override Cache-Control themselves.
+func APIHeaders() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("Cache-Control", "no-store")
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("Referrer-Policy", "no-referrer")
+			h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
