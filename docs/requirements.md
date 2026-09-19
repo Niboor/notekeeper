@@ -2,7 +2,7 @@
 
 Status: draft v0.2 — requirements only. Technology choices appear only where a constraint forces them (Postgres, Kubernetes, Matrix E2EE, native-client auth).
 
-Priorities: **Must** / **Should** / **Could**. Every requirement also has a **State**: `unimplemented`, `implemented` or `fully tested` (implemented and covered by automated tests that demonstrate the requirement). All requirements start as `unimplemented`; the state is updated in the same commit that changes the implementation or its tests. Requirement IDs are stable identifiers; gaps in numbering are intentional (removed requirements are not renumbered). Decisions taken after review are logged in §13.
+Priorities: **Must** / **Should** / **Could**. Every requirement also has a **State**: `unimplemented`, `implemented` or `fully tested` (implemented and covered by automated tests, at the level defined in NFR-Q1 and NFR-Q2, that demonstrate the requirement). Exceptions: WEB-N7 is a note and has no state; for the Android constraints (AND-*) the state tracks whether the current design honours the constraint. All requirements start as `unimplemented`; the state is updated in the same commit that changes the implementation or its tests. Requirement IDs are stable identifiers; gaps in numbering are intentional (removed requirements are not renumbered). Decisions taken after review are logged in §13.
 
 ## 1. Purpose and vision
 
