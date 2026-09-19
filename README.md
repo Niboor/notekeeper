@@ -26,5 +26,20 @@ make test        # unit tests of every component (no Docker, no network)
 make check       # everything CI runs
 ```
 
+### Try it locally
+
+```bash
+make up                                       # PostgreSQL (development roles are created on first start)
+make dev-core                                 # migrate and run Core on :8080 (user), :8081 (bot), :9090 (ops)
+make dev-admin ARGS="bootstrap you"           # create the admin; prints the activation link
+make dev-web                                  # the web app on http://localhost:5173, proxying /api to Core
+make dev-admin ARGS="bot-create matrix matrix-dev your.homeserver.name"
+make dev-admin ARGS="bot-credential matrix-dev"   # prints the bot key once
+```
+
+Open the activation link, choose a password, then link a chat under *Settings → Chats*. To run
+the bot itself see `bots/matrix` (`matrix-bot run`, configured through environment variables, listed in
+[docs/design/08-deployment-and-testing.md](docs/design/08-deployment-and-testing.md)).
+
 Layout: `api/` OpenAPI specs, `core/` backend, `bots/` chat bots and their shared client,
 `web/` web app, `deploy/` example deployment files, `docs/` documentation.

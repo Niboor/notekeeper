@@ -51,7 +51,7 @@ Events are handled in arrival order, which for one room is the platform order Co
 
 | Matrix | Bot API |
 |---|---|
-| `m.text`, `m.emote` | text part; `formatted_body` HTML converted to Markdown through an allowlist (paragraphs, emphasis, code, lists including task lists, links, quotes); everything else stripped; falls back to `body` |
+| `m.text`, `m.emote` | text part taken from `body`, which carries the Markdown the user typed (decision 42); `formatted_body` is not converted. For replies the quoted fallback block that older clients prepend is stripped |
 | `m.image`, `m.file`, `m.audio`, `m.video` | attachment part; a caption is present when `filename` differs from `body` (then `body` becomes the text part, `part_index` 0, the file part 1) |
 | `m.location` | text part with a `geo:` link |
 | anything else | `unsupported` part with a description; never dropped |

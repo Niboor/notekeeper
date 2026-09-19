@@ -8,7 +8,7 @@ PostgreSQL 16 or later (NFR-D8). The DDL below is illustrative: it fixes names, 
 - Every content table has `user_id uuid not null` and a **composite unique key `(user_id, id)`**. Child tables reference the parent through `(user_id, parent_id)`, so the database itself refuses cross-user references (SEC-ISO-4).
 - Mutable entities have `version integer not null default 1` and `updated_at`.
 - Extensions: `unaccent`, `pg_trgm`. Nothing that exists only in newer PostgreSQL versions is used.
-- Content tables are under row-level security (see [README](README.md) §3).
+- Content tables are under row-level security (see [README](README.md) §3): `enable` and `force row level security` with one policy `user_id = nk_current_user()`, where `nk_current_user()` reads `app.user_id` and yields null when it is unset, so a forgotten context matches nothing. `force` also applies the policy to the table owner, so it protects deployments that use a single role.
 
 ## 2. Users, sessions and tokens
 
@@ -216,6 +216,7 @@ create table note_part_versions (             -- EDT-3
   edited_at     timestamptz not null,         -- when the edit was made (platform time or server time)
   recorded_at   timestamptz not null default now(),
   applied       boolean not null,             -- false = arrived late and did not overwrite (EDT-5)
+  session_id    uuid,                         -- app edits: the session, for coalescing (below)
   source_event_id text,
   foreign key (user_id, part_id) references note_parts (user_id, id) on delete cascade
 );
@@ -446,7 +447,9 @@ create table audit_log (                             -- SEC-AUD-1, SEC-AUD-2
 |---|---|
 | `nk_migrate` | Owns the schema; DDL. Used only by the migration Job. |
 | `nk_app` | Core runtime. DML on all tables, subject to row-level security; no DDL, no `BYPASSRLS`; `INSERT`/`SELECT` only on `audit_log`. |
-| `nk_bot_matrix` | Bot runtime. Owns its own schema (`matrix_bot`) for mautrix's crypto and sync tables; no access to Core's tables (SEC-OPS-5). |
+| `nk_bot_matrix` | Bot runtime. Owns its own schema (`matrix_bot`) for mautrix's crypto and sync tables and the bot's room table; no access to Core's tables (SEC-OPS-5). |
+
+The roles and the bot schema come from `deploy/sql/roles.sql`, run once by the operator inside the application database before `core migrate`; the migration grants `nk_app` its rights when the role exists.
 
 Migrations are forward-only and backwards-compatible across one release (add columns and tables first, remove later) so a rolling update needs no downtime (NFR-D4).
 

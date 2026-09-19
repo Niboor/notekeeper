@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -241,5 +242,41 @@ func TestCrossUserReferencesAreRefused(t *testing.T) {
 	_, err := d.Admin.Exec(ctx, `insert into notes (id, user_id, category_id, position, created_at) values ($1,$2,$3,'m',now())`, uuid.New(), b, cat)
 	if err == nil {
 		t.Fatal("a note referencing another user's category was accepted")
+	}
+}
+
+// The runtime role is confined: no schema changes (SEC-OPS-5), an append-only audit log (SEC-AUD-2),
+// and the bot's role sees nothing of Core's tables (SEC-OPS-5, BOT-B5).
+func TestRuntimeRolesAreConfined(t *testing.T) {
+	ctx := context.Background()
+	d := testdb.New(t)
+	if _, err := d.App.Exec(ctx, `create table sneaky (x int)`); err == nil {
+		t.Error("the runtime role can create tables")
+	}
+	if _, err := d.App.Exec(ctx, `alter table users add column pwned text`); err == nil {
+		t.Error("the runtime role can alter tables")
+	}
+	if _, err := d.App.Exec(ctx, `insert into audit_log (actor_kind, action) values ('system', 'test')`); err != nil {
+		t.Errorf("the runtime role must append to the audit log: %v", err)
+	}
+	if _, err := d.App.Exec(ctx, `update audit_log set action = 'forged'`); err == nil {
+		t.Error("the audit log can be modified by the application")
+	}
+	if _, err := d.App.Exec(ctx, `delete from audit_log`); err == nil {
+		t.Error("the audit log can be emptied by the application")
+	}
+
+	bot, err := pgx.Connect(ctx, strings.Replace(d.AppURL, "nk_app:nk_app_dev", "nk_bot_matrix:nk_bot_dev", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = bot.Close(ctx) }()
+	for _, table := range []string{"users", "notes", "bot_credentials", "sessions"} {
+		if _, err := bot.Exec(ctx, "select * from public."+table); err == nil {
+			t.Errorf("the bot's role can read Core's table %s", table)
+		}
+	}
+	if _, err := bot.Exec(ctx, `create table matrix_bot.mine (x int)`); err != nil {
+		t.Errorf("the bot's role must own its own schema: %v", err)
 	}
 }

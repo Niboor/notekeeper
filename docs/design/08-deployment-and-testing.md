@@ -59,9 +59,10 @@ Environment variables; safe defaults; documented in `docs/configuration.md` when
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `NK_DATABASE_URL` | none | Core runtime role |
+| `NK_DATABASE_URL` | none | Core runtime role (`nk_app`, no DDL rights) |
+| `NK_MIGRATE_DATABASE_URL` | `NK_DATABASE_URL` | Used only by `core migrate`: the schema-owning role |
 | `NK_APP_URL`, `NK_SHARE_URL` | none | Public hostnames (host checks, links) |
-| `NK_TOKEN_KEYS` | none | `kid:base64key` list for token MACs; first signs, all verify |
+| `NK_TOKEN_KEYS` | none | `kid:base64key` list for token MACs (each at least 32 bytes); first signs, all verify. Core refuses to start without it or with a `change-me` placeholder |
 | `NK_ACCESS_TOKEN_TTL` | 15m | |
 | `NK_SESSION_IDLE_LIFETIME` | 90d | Sliding (AUTH-C9) |
 | `NK_SESSION_ABSOLUTE_LIFETIME` | 365d | `0` = unlimited |
@@ -73,8 +74,8 @@ Environment variables; safe defaults; documented in `docs/configuration.md` when
 | `NK_DEFAULT_QUOTA_BYTES` | 2 GiB | CORE-A3 |
 | `NK_GROUPING_WINDOW` | 60s | GRP-5 (per-user override in settings) |
 | `NK_TRUSTED_PROXIES` | none | Ingress addresses trusted for `X-Forwarded-For` |
-| `NK_ARGON2_*` | 64 MiB, 3, 2 | SEC-BASE-1 |
-| Bot: `NK_CORE_URL`, `NK_BOT_KEY`, `MX_HOMESERVER`, `MX_USER`, `MX_PASSWORD` or `MX_ACCESS_TOKEN`, `MX_PICKLE_KEY`, `NK_BOT_DATABASE_URL` | none | |
+| `NK_ARGON2_MEMORY_KIB`, `NK_ARGON2_ITERATIONS`, `NK_ARGON2_PARALLELISM`, `NK_ARGON2_CONCURRENCY` | 65536, 3, 2, 4 | SEC-BASE-1; the last bounds hashes computed at once (SEC-API-4) |
+| Bot: `NK_CORE_URL`, `NK_BOT_KEY`, `MX_HOMESERVER`, `MX_USER`, `MX_PASSWORD`, `MX_PICKLE_KEY` (at least 16 characters), `NK_BOT_DATABASE_URL`, `NK_BOT_INSTANCE` (default `matrix`, names the advisory lock), `NK_BOT_LISTEN` (default `:9091`, health and metrics) | none | |
 
 ## 4. Backup and restore (NFR-R4)
 
@@ -89,6 +90,8 @@ Tiers and `make` targets are fixed by NFR-Q5 and the tech-stack; this section sa
 | Unit | `make test`, `test-core`, `test-bot`, `test-web` | `grouping.decide` table tests (every scenario of [04](04-ingestion.md) §4), `timeparse`, fractional keys (Go and TypeScript against **shared test vectors**), token derivation and grace-window logic, password policy, Markdown renderer XSS corpus, checklist offsets, bot normalisation (fixtures of real Matrix events) |
 | Integration | `make test-integration` | Real PostgreSQL 16 and newest. Repository and transaction tests; the **OpenAPI-generated authorisation matrix** (every route × anonymous, user, other user, admin, bot, share-token holder; CI fails on a route without declared actors; SEC-ISO-1); router-vs-spec route walk; tenant isolation and RLS tests (SEC-ISO-2..4); **streaming memory test** (large upload and download under a small `GOMEMLIMIT`, memory stays flat; CORE-A8); quota races (parallel uploads cannot exceed quota; SEC-CNT-6); concurrent ingest of one conversation (SEC-API-7); refresh races and grace window (SEC-AUTH-7, SEC-AUTH-15); change-feed ordering under concurrent writers (CORE-S3); outbox claiming with two workers; reminder firing with two replicas; deletion completeness (SEC-DATA-5); log-scan test for leaked secrets and content (SEC-DATA-1); response-header tests per listener |
 | End to end | `make test-e2e` | Compose stack: PostgreSQL, Synapse, Core, web, bot. Playwright drives the web app; a second mautrix client plays the Element user in an **encrypted** DM ([06](06-matrix-bot.md) §10). Flows F0–F11 of the requirements, plus: bot restart mid-batch, Core restart while an SSE stream is open, session survival across a Core restart |
+
+**Speed.** Integration tests never roll back a transaction per test: NOTIFY, the change feed, outbox leases and `SKIP LOCKED` all depend on commits. Instead `core/internal/testdb` starts one PostgreSQL container per test binary (with durability switched off), migrates once into a template database and clones it per test (`create database … template`, tens of milliseconds, parallel-safe). The Matrix suites share one Synapse and one PostgreSQL per package and stay independent through unique user and database names. `make test` needs no Docker; `make check` is a milestone-boundary command.
 
 Requirement states are updated (`unimplemented` → `implemented` → `fully tested`) in the same commit as the code and tests; `09-traceability.md` names the tier that verifies each requirement.
 

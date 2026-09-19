@@ -2,6 +2,10 @@
 
 Three OpenAPI documents (NFR-API1), written first and stored in `api/`: `user.yaml`, `bot.yaml`, `public.yaml`. Go server code, the TypeScript client and the shared Go bot client are generated from them (see [tech-stack.md](../tech-stack.md) §3.2 for the `oapi-codegen` caveats this design is shaped by). All three follow the conventions in [README](README.md) §3: UUID ids, RFC 3339 times, cursor pagination, `problem+json` errors, `404` for foreign ids.
 
+**Action endpoints** are sub-paths (`/notes/{id}/move`), not `:verb` suffixes (decision 43).
+
+**Authorisation** of every operation is declared in the document's `security` and enforced by the router (decision 44): `security: []` is anonymous, `sessionAuth`/`bearerAuth` any signed-in user, and the scope `admin` additionally requires the admin. An operation without a declaration is an error at start-up.
+
 Versioning: major version in the path (`/api/v1`, `/bot/v1`, `/api/public/v1`); compatible changes only within a version, with a deprecation period (NFR-API2, AND-7).
 
 ## 1. User API (`/api/v1`)
@@ -18,13 +22,13 @@ Authentication: session cookies for the web app; bearer access tokens for native
 | `POST /auth/activate` | `{token, password}`: set a password from an activation link, sign in | AUTH-U8 |
 | `GET /me`, `PATCH /me` | Profile, timezone, grouping window, muted notices | WEB-12 |
 | `POST /me/password` | Change password (keeps this session, revokes others) | AUTH-U4, SEC-AUTH-6 |
-| `GET /me/sessions`, `DELETE /me/sessions/{id}`, `POST /me/sessions:revoke-all` | List, revoke, sign out everywhere | AUTH-U4, AUTH-U10 |
+| `GET /me/sessions`, `DELETE /me/sessions/{id}`, `POST /me/sessions/revoke-all` | List, revoke, sign out everywhere | AUTH-U4, AUTH-U10 |
 | `DELETE /me` | Delete account (requires the password) | AUTH-U4, AUTH-U9 |
 | `GET /me/export` | Stream all of the user's data as an archive | AUTH-U5 |
 | `GET /me/identities`, `PATCH /me/identities/{id}`, `DELETE /me/identities/{id}` | Linked chat identities; mark reminder targets; unlink | AUTH-B5, CORE-R3 |
-| `POST /me/pairing-codes` | Create a pairing code (rate limited, at most 5 active) | AUTH-B3 |
+| `POST /me/pairing-codes` | Create a pairing code `{bot_instance_id}` (at most 5 active) | AUTH-B3 |
 | `GET /bot-instances` | Instances the user can link to, with online status | WEB-12 |
-| `GET /notifications`, `POST /notifications/{id}:read` | In-app notices | CORE-R9, AUTH-U11 |
+| `GET /notifications`, `POST /notifications/{id}/read` | In-app notices | CORE-R9, AUTH-U11 |
 
 ### 1.2 Pages, categories, notes
 
@@ -38,11 +42,11 @@ Authentication: session cookies for the web app; bearer access tokens for native
 | `GET /notes/{id}` | A note with parts, reminders and share-link summary | WEB-8 |
 | `PATCH /notes/{id}/parts/{partId}` | Edit a text part: `{text, base_version}`; latest wins, `stale` flag in the response | CORE-S4, EDT-5 |
 | `POST /notes/{id}/parts`, `DELETE /notes/{id}/parts/{partId}` | Add a text or attachment part; remove a part | WEB-9 |
-| `POST /notes/{id}:move` | `{category_id \| null, before_id?, after_id?}` | CORE-N3, WEB-3, WEB-4 |
-| `POST /notes/{id}:dismiss`, `POST /notes/{id}:restore` | Soft delete and undo | CORE-N6..N8 |
+| `POST /notes/{id}/move` | `{category_id \| null, before_id?, after_id?}` | CORE-N3, WEB-3, WEB-4 |
+| `POST /notes/{id}/dismiss`, `POST /notes/{id}/restore` | Soft delete and undo | CORE-N6..N8 |
 | `DELETE /notes/{id}` | Permanent delete; only for a note in the Trash | CORE-N10 |
 | `GET /trash/notes` | Deleted notes, newest deleted first | CORE-N9 |
-| `POST /notes/{id}:merge`, `POST /notes/{id}/parts/{partId}:split` | Correct grouping | CORE-N14 |
+| `POST /notes/{id}/merge`, `POST /notes/{id}/parts/{partId}/split` | Correct grouping | CORE-N14 |
 | `GET /notes/{id}/history` | Text versions of every part | EDT-3, WEB-13 |
 | `GET /search` | `q`, `scope=active\|trash\|all`, `page_id`, `category_id`, `has_attachment`, `has_reminder`, `cursor` | CORE-N13, WEB-14 |
 
@@ -60,10 +64,10 @@ There is no multipart upload anywhere (see tech-stack §3.2). Downloads always c
 | Method and path | Purpose | Reqs |
 |---|---|---|
 | `POST /notes/{id}/reminders`, `PATCH /reminders/{id}`, `DELETE /reminders/{id}` | Set, change (including `rrule`), clear | CORE-R1, CORE-R10 |
-| `POST /reminders/{id}:snooze`, `POST /reminders/{id}:done` | Snooze or complete | CORE-R8 |
+| `POST /reminders/{id}/snooze`, `POST /reminders/{id}/done` | Snooze or complete | CORE-R8 |
 | `GET /reminders?state=upcoming` | Upcoming reminders | CORE-R9 |
 | `POST /notes/{id}/share-links` | `{expires_in}` from presets; returns the link **once** (only its hash is stored) | CORE-SH1, CORE-SH2 |
-| `GET /share-links`, `DELETE /share-links/{id}`, `POST /share-links:revoke-all` | List with usage, revoke | CORE-SH3, CORE-SH14 |
+| `GET /share-links`, `DELETE /share-links/{id}`, `POST /share-links/revoke-all` | List with usage, revoke | CORE-SH3, CORE-SH14 |
 
 ### 1.5 Realtime and sync
 
@@ -77,7 +81,7 @@ There is no multipart upload anywhere (see tech-stack §3.2). Downloads always c
 | Method and path | Purpose | Reqs |
 |---|---|---|
 | `GET /admin/users`, `POST /admin/users` | List (metadata only: username, status, storage use); create a pending user | AUTH-U6, WEB-19 |
-| `POST /admin/users/{id}:activation-link` | Issue an activation link (clears the password, revokes sessions, notifies the user) | AUTH-U8, SEC-ADM-2 |
+| `POST /admin/users/{id}/activation-link` | Issue an activation link (clears the password, revokes sessions, notifies the user) | AUTH-U8, SEC-ADM-2 |
 | `PATCH /admin/users/{id}` | Disable or enable, set quota | AUTH-U6 |
 | `DELETE /admin/users/{id}` | Delete user and all data | AUTH-U9 |
 | `GET /admin/bot-instances`, `POST /admin/bot-instances`, `PATCH /admin/bot-instances/{id}` | Register, disable | AUTH-B1 |

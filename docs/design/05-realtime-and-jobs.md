@@ -6,11 +6,14 @@ Covers CORE-S1..S5, CORE-R*, BOT-11..BOT-16, NFR-D2, NFR-D1.
 
 Every write transaction appends `changes` rows (see [01](01-data-model.md) §5) with the user's next `seq`, and calls `pg_notify('nk_changes', '<user_id>:<seq>')` inside the same transaction. PostgreSQL delivers the notification only on commit and caps payloads at 8000 bytes, so the payload is **identifiers only, never content**; consumers read the change rows.
 
+`nk_sessions` payloads are `s:<session id>` (one session) or `u:<user id>` (every session of a user).
+
 Each replica runs one **listener goroutine** on a dedicated `pgx.Conn`, outside the pool (`LISTEN nk_changes; LISTEN nk_sessions; LISTEN nk_outbox`). It never shares a pooled connection, which is what keeps the design correct if a pooler is introduced later (tech-stack §3.3). On connection loss it reconnects, re-issues `LISTEN`, and triggers a catch-up for every connected stream, because notifications sent while disconnected are lost. As a safety net every stream also polls its user's `change_seq` every 30 seconds.
 
 ## 2. SSE stream (`GET /api/v1/events`)
 
 - Authenticated like any user API request. The stream is registered in an in-process map `user_id → streams`.
+- **First event:** a fresh connection (no `Last-Event-ID`) starts with `event: hello` and `data: {"seq": <current>}`; the client refetches its views on it, which closes the gap between its initial fetch and the subscription (decision 45).
 - **Events:** `event: change`, `id: <seq>`, `data: {"entity_type","entity_id","op","version"}`. The client applies or refetches by entity (see [07](07-web-app.md) §4).
 - **Catch-up:** a client connects with `Last-Event-ID` (the browser sends it on automatic reconnect). The server replays `changes` after that seq. If the id is older than retention it sends `event: resync` and the client refetches its views.
 - **Heartbeat:** a comment line every 25 seconds keeps proxies from closing the stream.
@@ -124,7 +127,7 @@ The outbox `payload` lists the note's attachments as `{id, filename, media_type,
 
 ### 5.4 Snooze, done, replies
 
-App: `POST /reminders/{id}:snooze` sets `due_at` and `pending`; `:done` sets `done`. Chat: `!snooze` and `!done` as a reply to a reminder message resolve through `outbox_messages(bot, conversation, message_id) → outbox → reminder` and do the same (CORE-R11c).
+App: `POST /reminders/{id}/snooze` sets `due_at` and `pending`; `:done` sets `done`. Chat: `!snooze` and `!done` as a reply to a reminder message resolve through `outbox_messages(bot, conversation, message_id) → outbox → reminder` and do the same (CORE-R11c).
 
 ## 6. Failure scenarios
 

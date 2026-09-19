@@ -1,5 +1,5 @@
--- Example role setup (docs/design/01-data-model.md section 12). Run once, as a superuser, before
--- `core migrate`. Passwords here are for development only; production passwords come from Secrets.
+-- Example role setup (docs/design/01-data-model.md section 12). Run once, as a superuser, connected to
+-- the application database (the bot's schema is created in it), before `core migrate`. Passwords here are for development only; production passwords come from Secrets.
 --
 --   nk_app         Core runtime: DML under row-level security, no DDL, no BYPASSRLS.
 --   nk_bot_matrix  Matrix bot runtime: owns only its own schema, no access to Core's tables.

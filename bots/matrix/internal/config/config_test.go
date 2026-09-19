@@ -10,7 +10,7 @@ func env(m map[string]string) func(string) string { return func(k string) string
 func full() map[string]string {
 	return map[string]string{
 		"MX_HOMESERVER": "https://matrix.example.org/", "MX_USER": "notekeeper", "MX_PASSWORD": "pw-secret-value",
-		"MX_PICKLE_KEY": "0123456789abcdef0123", "NK_BOT_DATABASE_URL": "postgres://x", "NK_CORE_URL": "http://core:8081/",
+		"MX_PICKLE_KEY": "test-only-pickle-key", "NK_BOT_DATABASE_URL": "postgres://x", "NK_CORE_URL": "http://core:8081/",
 		"NK_BOT_KEY": "nkb.a.b",
 	}
 }

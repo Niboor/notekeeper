@@ -134,7 +134,7 @@ flowchart LR
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | CORE-N1 | Must | unimplemented | Notes are created with text and/or attachments. A note always has at least one part. |
-| CORE-N2 | Must | unimplemented | New notes created via a bot are placed in the Inbox of the linked user. The Inbox is ordered by created time (CORE-N18). |
+| CORE-N2 | Must | fully tested | New notes created via a bot are placed in the Inbox of the linked user. The Inbox is ordered by created time (CORE-N18). |
 | CORE-N3 | Must | unimplemented | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
 | CORE-N4 | Must | unimplemented | Note order within a category is user-controlled and persistent. The Inbox is not manually ordered: it is sorted by created time, newest first (CORE-N18); manual ordering starts when a note is moved into a category. |
 | CORE-N5 | Must | unimplemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
@@ -148,7 +148,7 @@ flowchart LR
 | CORE-N14 | Should | unimplemented | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | unimplemented | Bulk operations (dismiss/move multiple notes). |
 | CORE-N17 | Should | unimplemented | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
-| CORE-N18 | Must | unimplemented | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. The Inbox is sorted by created time, so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
+| CORE-N18 | Must | fully tested | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. The Inbox is sorted by created time, so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
 
 ### 4.3 Pages and categories — functional requirements
 
@@ -180,9 +180,9 @@ flowchart LR
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| CORE-S1 | Must | unimplemented | Clients see changes made elsewhere (new note from a bot, edit, move on another device) without manual reload (push channel such as SSE or WebSocket). |
-| CORE-S2 | Must | unimplemented | Realtime delivery works with multiple Core replicas (no in-process-only pub/sub). |
-| CORE-S3 | Must | unimplemented | A **change feed** endpoint returns all changes (including deletions/tombstones) since an opaque cursor, so clients can (re)sync incrementally after being offline or reconnecting. |
+| CORE-S1 | Must | fully tested | Clients see changes made elsewhere (new note from a bot, edit, move on another device) without manual reload (push channel such as SSE or WebSocket). |
+| CORE-S2 | Must | fully tested | Realtime delivery works with multiple Core replicas (no in-process-only pub/sub). |
+| CORE-S3 | Must | fully tested | A **change feed** endpoint returns all changes (including deletions/tombstones) since an opaque cursor, so clients can (re)sync incrementally after being offline or reconnecting. |
 | CORE-S4 | Must | unimplemented | Mutations carry the version the client based them on. For content (note text) **the latest edit wins**: nothing is lost because every overwritten text version is kept in the note's history (EDT-3), and a client whose base version was stale is told, so it can show that the note changed. Structural operations (move, reorder, dismiss, restore) are applied so that two devices working on different notes never conflict. |
 | CORE-S5 | Must | unimplemented | Mutating requests accept an idempotency key or client-generated ID so retries are safe. |
 
@@ -232,32 +232,32 @@ A user can share a single note with someone who has no account, through an ungue
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| AUTH-U1 | Must | unimplemented | The system supports multiple users with strict data isolation. Every data access is scoped to the authenticated user; this is enforced centrally, not per endpoint by convention. |
-| AUTH-U2 | Must | unimplemented | A user account has: unique ID, unique **username** (login identifier), display name, optional e-mail (informational only; no feature depends on e-mail delivery), created timestamp, status (active/disabled). |
-| AUTH-U3 | Must | unimplemented | Sign-up is **closed**, always: there is no self-registration. Accounts are created only by the admin (AUTH-U6). |
+| AUTH-U1 | Must | implemented | The system supports multiple users with strict data isolation. Every data access is scoped to the authenticated user; this is enforced centrally, not per endpoint by convention. |
+| AUTH-U2 | Must | implemented | A user account has: unique ID, unique **username** (login identifier), display name, optional e-mail (informational only; no feature depends on e-mail delivery), created timestamp, status (active/disabled). |
+| AUTH-U3 | Must | fully tested | Sign-up is **closed**, always: there is no self-registration. Accounts are created only by the admin (AUTH-U6). |
 | AUTH-U4 | Must | unimplemented | Users can change their password, view and revoke active sessions/devices, and delete their account (deleting all data, including attachments). |
 | AUTH-U5 | Should | unimplemented | Users can export all their data (notes, pages, attachments) in an open format. |
 | AUTH-U6 | Must | unimplemented | The **admin** can, in the web app (WEB-19) and via the API: create users; issue an activation link for a user (new account or lost password); disable/enable a user; delete a user together with all their data; set a user's storage quota; see per-user storage usage; register and disable bot instances and rotate their credentials. No app feature lets the admin read other users' notes. |
-| AUTH-U7 | Must | unimplemented | There is **exactly one admin**. The admin is bootstrapped by an operator CLI command (there is no bootstrap secret in configuration) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
-| AUTH-U8 | Must | unimplemented | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which clears the current password (the account is pending activation until the link is used) and revokes the user's existing sessions. |
+| AUTH-U7 | Must | fully tested | There is **exactly one admin**. The admin is bootstrapped by an operator CLI command (there is no bootstrap secret in configuration) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
+| AUTH-U8 | Must | fully tested | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which clears the current password (the account is pending activation until the link is used) and revokes the user's existing sessions. |
 | AUTH-U9 | Must | unimplemented | **Complete deletion.** Deleting a user (by the admin or themselves) removes their notes, pages, attachments, text history, reminders, queued and pending deliveries, share links (which stop working immediately), sessions and tokens, pairing codes and chat-identity links, and queues a lifecycle notice for every bot instance that served them (BOT-16). Afterwards Core holds nothing about the user except a content-free audit entry. Database backups are outside this guarantee; their retention is documented. |
-| AUTH-U10 | Should | unimplemented | **Sign out everywhere**: one action revokes all of the user's sessions and tokens (optionally keeping the current one). Together with revoking all share links (CORE-SH14), it lets a user who suspects a compromise cut off access in one step. |
+| AUTH-U10 | Should | fully tested | **Sign out everywhere**: one action revokes all of the user's sessions and tokens (optionally keeping the current one). Together with revoking all share links (CORE-SH14), it lets a user who suspects a compromise cut off access in one step. |
 | AUTH-U11 | Should | unimplemented | **Security notices.** Core sends a notice to the user's linked chat identities (over the BOT-11 channel) and shows it in the app at next login when: a new session signs in (browser/OS and time), the password changes or an activation link is issued for the account, a chat identity is linked or unlinked, or a share link is created. The user can mute the new-session and share-link notices; the others cannot be muted. |
 
 ### 5.2 Authenticating users (web now, Android later)
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| AUTH-C1 | Must | unimplemented | Local authentication with username + password only; no external identity providers and no dependency on e-mail infrastructure. Passwords are stored only as salted hashes using a modern password hash (e.g. argon2id); a minimum length is enforced. |
-| AUTH-C3 | Must | unimplemented | The auth mechanism is suitable for both browsers and native mobile apps: short-lived access tokens plus revocable, rotating refresh tokens, obtained via a standard flow (OAuth 2.0 authorization code + PKCE against Core's own login page, so a native client never handles the password). No design that only works with browser cookies. |
-| AUTH-C4 | Must | unimplemented | Web sessions are protected against CSRF and XSS-based token theft (e.g. HttpOnly, SameSite cookies or equivalent), and all traffic is over TLS. |
-| AUTH-C5 | Must | unimplemented | Auth state is not held in Core process memory: any replica can serve any request (sessions/refresh tokens live in Postgres or are self-contained signed tokens with a revocation mechanism). |
-| AUTH-C6 | Must | unimplemented | Login is rate-limited and brute-force resistant. |
+| AUTH-C1 | Must | fully tested | Local authentication with username + password only; no external identity providers and no dependency on e-mail infrastructure. Passwords are stored only as salted hashes using a modern password hash (e.g. argon2id); a minimum length is enforced. |
+| AUTH-C3 | Must | implemented | The auth mechanism is suitable for both browsers and native mobile apps: short-lived access tokens plus revocable, rotating refresh tokens, obtained via a standard flow (OAuth 2.0 authorization code + PKCE against Core's own login page, so a native client never handles the password). No design that only works with browser cookies. |
+| AUTH-C4 | Must | implemented | Web sessions are protected against CSRF and XSS-based token theft (e.g. HttpOnly, SameSite cookies or equivalent), and all traffic is over TLS. |
+| AUTH-C5 | Must | implemented | Auth state is not held in Core process memory: any replica can serve any request (sessions/refresh tokens live in Postgres or are self-contained signed tokens with a revocation mechanism). |
+| AUTH-C6 | Must | fully tested | Login is rate-limited and brute-force resistant. |
 | AUTH-C7 | Should | unimplemented | TOTP or passkey as a second factor. |
 | AUTH-C8 | Could | unimplemented | Personal access tokens for scripts/automation, scoped and revocable. |
-| AUTH-C9 | Must | unimplemented | **Persistent login.** After signing in, the user stays signed in on that browser or device across browser restarts, app updates and deployments, until the session expires or is ended explicitly (sign-out, revocation, account disabled, password reset by the admin). The lifetime is configurable: a sliding lifetime that each use extends (`SESSION_IDLE_LIFETIME`, default 90 days) and an optional absolute maximum (default 1 year, can be set to unlimited). A new login is needed only after that, or after explicit revocation. |
-| AUTH-C10 | Must | unimplemented | **Invisible renewal.** Short-lived access tokens (AUTH-C3) are renewed silently in the background. The user never sees a login prompt, or loses unsaved work, because a token expired, and renewal is safe with several tabs open and with retried requests (SEC-AUTH-7). |
-| AUTH-C11 | Could | unimplemented | A "shared computer" option at login: the session ends when the browser is closed. |
+| AUTH-C9 | Must | fully tested | **Persistent login.** After signing in, the user stays signed in on that browser or device across browser restarts, app updates and deployments, until the session expires or is ended explicitly (sign-out, revocation, account disabled, password reset by the admin). The lifetime is configurable: a sliding lifetime that each use extends (`SESSION_IDLE_LIFETIME`, default 90 days) and an optional absolute maximum (default 1 year, can be set to unlimited). A new login is needed only after that, or after explicit revocation. |
+| AUTH-C10 | Must | implemented | **Invisible renewal.** Short-lived access tokens (AUTH-C3) are renewed silently in the background. The user never sees a login prompt, or loses unsaved work, because a token expired, and renewal is safe with several tabs open and with retried requests (SEC-AUTH-7). |
+| AUTH-C11 | Could | implemented | A "shared computer" option at login: the session ends when the browser is closed. |
 
 ### 5.3 Authenticating bots and linking chat identities
 
@@ -268,14 +268,14 @@ Bots are **not users** and do not hold user passwords. There are two separate co
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| AUTH-B1 | Must | unimplemented | A **bot instance** is registered in Core by the admin with a type (`matrix`, ...), a name, and a rotatable credential (client ID + secret, or equivalent). Credentials are stored hashed; multiple credentials can be valid during rotation. There is no limit on the number of bot instances, of any type. One bot instance serves any number of users, and one user can be linked to any number of bot instances. |
-| AUTH-B2 | Must | unimplemented | Bot credentials carry narrow scopes (e.g. `bot:ingest`, and `bot:deliver` for outbound deliveries) that permit only the bot-facing API. They can never call user-facing endpoints, and a bot can act only for users who have **linked** an external identity to that bot instance. |
-| AUTH-B3 | Must | unimplemented | **Linking flow**: (a) the user, logged in to the web app, requests a link for a bot type/instance and receives a short-lived (e.g. 10 min), single-use pairing code; (b) the user sends that code to the bot in chat (e.g. `!link <code>`); (c) the bot submits the code plus the sender's external identity to Core; (d) Core binds the external identity to the user and the bot replies with a confirmation. |
-| AUTH-B4 | Must | unimplemented | An external identity (`bot type` + `platform user ID`, e.g. homeserver-qualified) maps to at most one Notekeeper user. A user may link many external identities, across many bot instances and platforms. |
-| AUTH-B5 | Must | unimplemented | Users can list and revoke their links in the web app. Revocation takes effect immediately; further messages from that identity are rejected and the bot tells the sender the identity is unlinked. Notes already created stay; later edits/deletes arriving from a revoked identity are ignored. |
-| AUTH-B6 | Must | unimplemented | Messages from unlinked identities are never stored. The bot replies once (rate-limited) with linking instructions. |
-| AUTH-B7 | Must | unimplemented | Ingest requests are attributed: every note part records which bot instance and external identity created it. |
-| AUTH-B8 | Should | unimplemented | Audit log of bot-related security events (link created/revoked, credential rotated, rejected requests). |
+| AUTH-B1 | Must | fully tested | A **bot instance** is registered in Core by the admin with a type (`matrix`, ...), a name, and a rotatable credential (client ID + secret, or equivalent). Credentials are stored hashed; multiple credentials can be valid during rotation. There is no limit on the number of bot instances, of any type. One bot instance serves any number of users, and one user can be linked to any number of bot instances. |
+| AUTH-B2 | Must | implemented | Bot credentials carry narrow scopes (e.g. `bot:ingest`, and `bot:deliver` for outbound deliveries) that permit only the bot-facing API. They can never call user-facing endpoints, and a bot can act only for users who have **linked** an external identity to that bot instance. |
+| AUTH-B3 | Must | fully tested | **Linking flow**: (a) the user, logged in to the web app, requests a link for a bot type/instance and receives a short-lived (e.g. 10 min), single-use pairing code; (b) the user sends that code to the bot in chat (e.g. `!link <code>`); (c) the bot submits the code plus the sender's external identity to Core; (d) Core binds the external identity to the user and the bot replies with a confirmation. |
+| AUTH-B4 | Must | fully tested | An external identity (`bot type` + `platform user ID`, e.g. homeserver-qualified) maps to at most one Notekeeper user. A user may link many external identities, across many bot instances and platforms. |
+| AUTH-B5 | Must | fully tested | Users can list and revoke their links in the web app. Revocation takes effect immediately; further messages from that identity are rejected and the bot tells the sender the identity is unlinked. Notes already created stay; later edits/deletes arriving from a revoked identity are ignored. |
+| AUTH-B6 | Must | fully tested | Messages from unlinked identities are never stored. The bot replies once (rate-limited) with linking instructions. |
+| AUTH-B7 | Must | fully tested | Ingest requests are attributed: every note part records which bot instance and external identity created it. |
+| AUTH-B8 | Should | implemented | Audit log of bot-related security events (link created/revoked, credential rotated, rejected requests). |
 | AUTH-B9 | Could | unimplemented | Alternative to a shared bot service: per-user, per-bot revocable tokens (useful for very simple bots/scripts). The ingest API should be usable that way with no changes beyond auth. |
 
 ## 6. Bot integration contract (platform-independent)
@@ -286,15 +286,15 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| BOT-1 | Must | unimplemented | Core exposes a versioned, documented (OpenAPI) bot-facing API separate from the user-facing one, using bot credentials (AUTH-B1/B2). |
-| BOT-2 | Must | unimplemented | **Identity resolution / linking**: redeem pairing code for an external identity; look up whether an external identity is linked (needed to decide between "ingest" and "send linking instructions"). |
-| BOT-3 | Must | unimplemented | **Message events**: the bot reports normalised events, each carrying: bot instance, external identity of the sender, conversation ID, platform message ID, platform timestamp, and the event kind: `message_created`, `message_edited` (references original message ID + new content), `message_deleted`. |
-| BOT-4 | Must | unimplemented | A message event's content is a list of typed parts: `text` (plain text or Markdown), `attachment` (see BOT-6), or `unsupported` (fallback text description, e.g. "location shared"). |
+| BOT-1 | Must | implemented | Core exposes a versioned, documented (OpenAPI) bot-facing API separate from the user-facing one, using bot credentials (AUTH-B1/B2). |
+| BOT-2 | Must | fully tested | **Identity resolution / linking**: redeem pairing code for an external identity; look up whether an external identity is linked (needed to decide between "ingest" and "send linking instructions"). |
+| BOT-3 | Must | implemented | **Message events**: the bot reports normalised events, each carrying: bot instance, external identity of the sender, conversation ID, platform message ID, platform timestamp, and the event kind: `message_created`, `message_edited` (references original message ID + new content), `message_deleted`. |
+| BOT-4 | Must | implemented | A message event's content is a list of typed parts: `text` (plain text or Markdown), `attachment` (see BOT-6), or `unsupported` (fallback text description, e.g. "location shared"). |
 | BOT-5 | Must | unimplemented | Events include **relationship hints** when the platform provides them: "replies to message X", "in thread T". Core uses them for grouping (§6.3). |
 | BOT-6 | Must | unimplemented | Attachment upload: the bot uploads binary content (already decrypted, if the platform encrypts it) with filename and media type, and refers to it from the message event. Uploads are streamed; resumable uploads are not required (a failed upload is simply retried, and ingestion is idempotent, BOT-7). |
-| BOT-7 | Must | unimplemented | **Idempotent ingestion**: the tuple (bot instance, conversation, platform message ID, event kind/edit ID) is a natural dedupe key. Replaying an event is safe and yields the same result. Delivery is at-least-once. |
-| BOT-8 | Must | unimplemented | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message (English in v1, localisable per NFR-Q3) for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
-| BOT-9 | Must | unimplemented | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
+| BOT-7 | Must | implemented | **Idempotent ingestion**: the tuple (bot instance, conversation, platform message ID, event kind/edit ID) is a natural dedupe key. Replaying an event is safe and yields the same result. Delivery is at-least-once. |
+| BOT-8 | Must | implemented | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message (English in v1, localisable per NFR-Q3) for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
+| BOT-9 | Must | implemented | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
 | BOT-10 | Should | unimplemented | Core's notion of "what the bot has already delivered" (e.g. last platform timestamp per conversation) is queryable, so a bot that lost its own state can resync. |
 | BOT-11 | Must | unimplemented | **Outbound pull channel (Core → bot).** A bot fetches the queued outbound items addressed to its bot instance, namely deliveries such as reminders (§4.6) and lifecycle notices (BOT-16), via long-poll or streaming, claims each with a lease, and reports the outcome: done, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired items are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. The channel is part of the minimal contract; reminder deliveries on it are a Should. |
 | BOT-12 | Should | unimplemented | A delivery names its target: external identity plus conversation ID. Core learns the conversation from linking and message events (BOT-2/BOT-3) and keeps the most recent direct-message conversation per identity. |
@@ -307,12 +307,12 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| BOT-B1 | Must | unimplemented | Bots are thin: no note logic, no categorisation, no grouping decisions. |
-| BOT-B2 | Must | unimplemented | Bots must not lose messages: after downtime or restart they catch up on messages sent meanwhile (using the platform's sync mechanism plus their durable cursor) and rely on idempotent ingestion for duplicates. |
-| BOT-B3 | Must | unimplemented | Feedback in chat is minimal and low-noise. Preferred default: a reaction/tick on the original message on success, a short reply on failure or when the identity is unlinked. Users can silence success feedback. |
-| BOT-B4 | Must | unimplemented | Bots are horizontally safe: running two replicas by mistake must not double-create notes (dedupe by BOT-7) — although a single active replica / leader election per bot instance is acceptable. |
-| BOT-B5 | Must | unimplemented | Bots persist any durable state they need (sync cursors, platform crypto keys) in PostgreSQL or another declared durable store, never on ephemeral container storage. |
-| BOT-B6 | Should | unimplemented | Bots expose health, readiness and metrics endpoints and structured logs. |
+| BOT-B1 | Must | implemented | Bots are thin: no note logic, no categorisation, no grouping decisions. |
+| BOT-B2 | Must | fully tested | Bots must not lose messages: after downtime or restart they catch up on messages sent meanwhile (using the platform's sync mechanism plus their durable cursor) and rely on idempotent ingestion for duplicates. |
+| BOT-B3 | Must | fully tested | Feedback in chat is minimal and low-noise. Preferred default: a reaction/tick on the original message on success, a short reply on failure or when the identity is unlinked. Users can silence success feedback. |
+| BOT-B4 | Must | fully tested | Bots are horizontally safe: running two replicas by mistake must not double-create notes (dedupe by BOT-7) — although a single active replica / leader election per bot instance is acceptable. |
+| BOT-B5 | Must | fully tested | Bots persist any durable state they need (sync cursors, platform crypto keys) in PostgreSQL or another declared durable store, never on ephemeral container storage. |
+| BOT-B6 | Should | implemented | Bots expose health, readiness and metrics endpoints and structured logs. |
 | BOT-B7 | Must | unimplemented | On a lifecycle notice (BOT-16) a bot deletes all per-identity and per-conversation state it stores (cursors, room mappings, cached content) and stops processing that conversation. |
 
 ### 6.3 Message → note grouping (owned by Core)
@@ -354,16 +354,16 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| MX-1 | Must | unimplemented | The bot has its own Matrix account on a configured homeserver. It works in **direct-message rooms only**: rooms with exactly two joined members, the bot and one user. Group rooms are out of scope. |
-| MX-2 | Must | unimplemented | The bot accepts invites to direct-message rooms only (rate-limited) and declines other invites. If a third member joins a DM room, the bot stops processing it and says so once. Messages are processed only from linked identities; unlinked users receive linking instructions (AUTH-B6). |
-| MX-3 | Must | unimplemented | **End-to-end-encrypted rooms must work**, since Element creates encrypted DMs by default: the bot participates in Olm/Megolm, verifies/cross-signs as needed, decrypts messages and encrypted attachments (`m.file` / `m.image` / `m.audio` / `m.video` with encryption info), and handles key requests/backfill. |
-| MX-4 | Must | unimplemented | Message types handled: `m.text`, `m.notice` (ignored — used by the bot itself), `m.emote` (treated as text), `m.image`, `m.file`, `m.audio`, `m.video`, `m.location` (as a text/link part). Unknown types become `unsupported` parts with a description rather than being dropped. |
-| MX-5 | Must | unimplemented | Formatted messages (`formatted_body` HTML) are converted to the Core's text format (Markdown subset); plain `body` is the fallback. Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. Task-list syntax (`- [ ]`, `- [x]`) is preserved (CORE-N17). |
+| MX-1 | Must | fully tested | The bot has its own Matrix account on a configured homeserver. It works in **direct-message rooms only**: rooms with exactly two joined members, the bot and one user. Group rooms are out of scope. |
+| MX-2 | Must | fully tested | The bot accepts invites to direct-message rooms only (rate-limited) and declines other invites. If a third member joins a DM room, the bot stops processing it and says so once. Messages are processed only from linked identities; unlinked users receive linking instructions (AUTH-B6). |
+| MX-3 | Must | fully tested | **End-to-end-encrypted rooms must work**, since Element creates encrypted DMs by default: the bot participates in Olm/Megolm, verifies/cross-signs as needed, decrypts messages and encrypted attachments (`m.file` / `m.image` / `m.audio` / `m.video` with encryption info), and handles key requests/backfill. |
+| MX-4 | Must | implemented | Message types handled: `m.text`, `m.notice` (ignored — used by the bot itself), `m.emote` (treated as text), `m.image`, `m.file`, `m.audio`, `m.video`, `m.location` (as a text/link part). Unknown types become `unsupported` parts with a description rather than being dropped. |
+| MX-5 | Must | implemented | Message text is taken from the `body` the user typed, which Element and other clients fill with the Markdown source, so formatting and task lists arrive exactly as written; `formatted_body` HTML is not converted (decision 42). Captions on media (`filename` + `body` semantics) are recognised so caption + file arrive as one message with two parts. Task-list syntax (`- [ ]`, `- [x]`) is preserved (CORE-N17). |
 | MX-6 | Must | unimplemented | Edits (`m.replace` relations) map to `message_edited`; redactions map to `message_deleted`. Replies (`m.in_reply_to`) and threads (`m.thread`) map to relationship hints (BOT-5). |
-| MX-7 | Must | unimplemented | Feedback: a reaction on the source message on success (default ✅); a short text reply for errors (unlinked, too large, quota) — see BOT-B3. |
-| MX-8 | Must | unimplemented | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`; with reminders also `!remind`, `!snooze`, `!done` (CORE-R11, BOT-14). Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). A known command with invalid arguments is answered with an error and never turns into a note. |
-| MX-9 | Must | unimplemented | Catch-up after downtime via the Matrix sync token stored durably (BOT-B2, BOT-B5). |
-| MX-10 | Must | unimplemented | Only messages sent after the identity was linked (or after the bot joined the room, whichever is later) are processed. History import is out of scope: older room history is never backfilled into notes. |
+| MX-7 | Must | fully tested | Feedback: a reaction on the source message on success (default ✅); a short text reply for errors (unlinked, too large, quota) — see BOT-B3. |
+| MX-8 | Must | implemented | Commands are minimal and unambiguous: `!link <code>`, `!unlink`, `!help`; with reminders also `!remind`, `!snooze`, `!done` (CORE-R11, BOT-14). Everything else is a note. A message starting with a command prefix that is not a known command is treated as a note (nothing is ever silently swallowed). A known command with invalid arguments is answered with an error and never turns into a note. |
+| MX-9 | Must | fully tested | Catch-up after downtime via the Matrix sync token stored durably (BOT-B2, BOT-B5). |
+| MX-10 | Must | fully tested | Only messages sent after the identity was linked (or after the bot joined the room, whichever is later) are processed. History import is out of scope: older room history is never backfilled into notes. |
 | MX-11 | Could | unimplemented | Support for bot-side "typing"/read-receipt to signal processing, if it reduces uncertainty for the user. |
 | MX-12 | Should | unimplemented | **Reminder delivery** (BOT-11..15): the bot posts the reminder as a message in the linked DM (plain text plus formatted body, with the deep link), then re-sends each attachment as Matrix media (encrypted upload in encrypted rooms), falling back to a name plus link if the homeserver refuses it. It derives the Matrix transaction ID from the delivery ID, reports the sent event IDs (BOT-13), and reports a permanent failure if the room is gone or the user has left. |
 | MX-13 | Should | unimplemented | On a lifecycle notice the bot leaves and forgets the DM room (with a short final message if the user unlinked themselves). |
@@ -372,9 +372,9 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| MX-N1 | Must | unimplemented | Cryptographic device keys and session state are persisted durably (Postgres) and encrypted at rest with a key from a Kubernetes secret. Losing the pod must not lose the device identity, or messages in encrypted rooms would become undecryptable. |
-| MX-N2 | Must | unimplemented | Uses a single active instance per Matrix bot account (one device identity); a rolling update must not run two active instances that would fight over the same device keys (e.g. `Recreate` strategy or leader lock in Postgres). |
-| MX-N3 | Must | unimplemented | Works against any spec-compliant homeserver (Synapse, Conduit, Dendrite, matrix.org); homeserver URL and credentials are configuration. |
+| MX-N1 | Must | fully tested | Cryptographic device keys and session state are persisted durably (Postgres) and encrypted at rest with a key from a Kubernetes secret. Losing the pod must not lose the device identity, or messages in encrypted rooms would become undecryptable. |
+| MX-N2 | Must | fully tested | Uses a single active instance per Matrix bot account (one device identity); a rolling update must not run two active instances that would fight over the same device keys (e.g. `Recreate` strategy or leader lock in Postgres). |
+| MX-N3 | Must | implemented | Works against any spec-compliant homeserver (Synapse, Conduit, Dendrite, matrix.org); homeserver URL and credentials are configuration. |
 
 ## 8. Web app
 
@@ -383,7 +383,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | WEB-1 | Must | unimplemented | **Page view**: shows the selected page's categories as horizontally arranged columns of note cards. |
-| WEB-2 | Must | unimplemented | **Inbox**: the uncategorised notes are always reachable from any page (e.g. a persistent side panel or tray) so notes can be dragged straight from the Inbox into a column of the current page. The Inbox has a visible count. |
+| WEB-2 | Must | implemented | **Inbox**: the uncategorised notes are always reachable from any page (e.g. a persistent side panel or tray) so notes can be dragged straight from the Inbox into a column of the current page. The Inbox has a visible count. |
 | WEB-3 | Must | unimplemented | **Drag and drop**: a note can be dragged between columns (also across the Inbox), and reordered within a column. The UI updates immediately (optimistic) and reconciles with the server. |
 | WEB-4 | Must | unimplemented | Moving a note to a category on **another page** is possible (e.g. via a "move to..." menu; dragging onto a page in the navigation is a nice extra). |
 | WEB-5 | Must | unimplemented | Every drag-and-drop action has a **non-drag alternative** (keyboard and menu "move to...") for accessibility and for touch devices where drag is awkward. |
@@ -392,8 +392,8 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-8 | Must | unimplemented | Notes render: text (formatted, links clickable), image attachments shown inline (lazy-loaded, scaled by the browser) with a full-size viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
 | WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app, into the Inbox or into any existing category (at the top of that column), with text (including checklist items) and attachments. |
 | WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
-| WEB-11 | Must | unimplemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
-| WEB-12 | Must | unimplemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
+| WEB-11 | Must | implemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
+| WEB-12 | Must | implemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
 | WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
@@ -463,11 +463,11 @@ No Android requirements are in scope for v1. To keep the option open:
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| NFR-D1 | Must | unimplemented | **Stateless services.** Core and the web frontend hold no state between requests that isn't in PostgreSQL. Any replica can serve any request; pods can be killed at any time without data loss. |
-| NFR-D2 | Must | unimplemented | **PostgreSQL is the only stateful dependency** (data, attachments per CORE-A2, sessions, search index, reminder schedule and delivery queue, bot cursors/keys). No requirement for Redis, a message queue, an external search engine or persistent volumes in v1. Cross-replica coordination (realtime fan-out, locks, job claiming, reminder scheduling) uses Postgres (e.g. `LISTEN/NOTIFY`, advisory locks, `SKIP LOCKED`). |
+| NFR-D1 | Must | implemented | **Stateless services.** Core and the web frontend hold no state between requests that isn't in PostgreSQL. Any replica can serve any request; pods can be killed at any time without data loss. |
+| NFR-D2 | Must | implemented | **PostgreSQL is the only stateful dependency** (data, attachments per CORE-A2, sessions, search index, reminder schedule and delivery queue, bot cursors/keys). No requirement for Redis, a message queue, an external search engine or persistent volumes in v1. Cross-replica coordination (realtime fan-out, locks, job claiming, reminder scheduling) uses Postgres (e.g. `LISTEN/NOTIFY`, advisory locks, `SKIP LOCKED`). |
 | NFR-D3 | Must | unimplemented | Runs on Kubernetes: container images per component, configuration by environment/config files, secrets from Kubernetes Secrets, liveness/readiness/startup probes, graceful shutdown (drain in-flight requests and streams). |
-| NFR-D4 | Must | unimplemented | Schema changes via versioned migrations, applied in a controlled way (init container or Job), backwards-compatible across one release so rolling updates need no downtime. |
-| NFR-D5 | Must | unimplemented | Components are independently deployable and scalable: Core, web app, and each bot are separate deployables. A bot outage never affects the web app; a Core outage never loses chat messages (bots retry, chat platform retains history). |
+| NFR-D4 | Must | implemented | Schema changes via versioned migrations, applied in a controlled way (init container or Job), backwards-compatible across one release so rolling updates need no downtime. |
+| NFR-D5 | Must | implemented | Components are independently deployable and scalable: Core, web app, and each bot are separate deployables. A bot outage never affects the web app; a Core outage never loses chat messages (bots retry, chat platform retains history). |
 | NFR-D6 | Should | unimplemented | **Example** Kubernetes manifests (Deployments, Services, Ingress, ConfigMap/Secret templates, migration Job, probes) that show how to run the components, plus a docker-compose setup for local development. No packaged Helm chart or operator, and no management of a complete cluster setup; the operator adapts the examples. |
 | NFR-D7 | Should | unimplemented | Bots, Core and web app can be versioned and released independently (contract versioned via BOT-1). |
 | NFR-D8 | Must | implemented | Works on **PostgreSQL 16 and later**. CI runs against 16 and the newest stable release, and nothing that only exists in newer versions is required (for example, identifiers such as UUIDv7 are generated by the application). |
@@ -519,7 +519,7 @@ Targets assume friends-and-family use (see §12).
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| NFR-O1 | Must | unimplemented | Structured (JSON) logs to stdout with request/correlation IDs propagated from bot → Core, so one chat message can be traced end to end. |
+| NFR-O1 | Must | implemented | Structured (JSON) logs to stdout with request/correlation IDs propagated from bot → Core, so one chat message can be traced end to end. |
 | NFR-O2 | Must | unimplemented | Prometheus-compatible metrics for every component (request rates and latencies, ingest outcomes, grouping decisions, reminder scheduling lag and delivery outcomes, bot lag, realtime connections, DB pool). |
 | NFR-O4 | Must | implemented | Health endpoints distinguish *alive* from *ready* (DB reachable, migrations current). |
 | NFR-O5 | Must | unimplemented | All configuration is externalised and documented; no config requires a rebuild. |
@@ -600,6 +600,11 @@ Answers given after the first draft, and where they are reflected.
 | 39 | Visual direction | **Paper** chosen (warm, calm, book serif for notes, terracotta accent); **Quiet** kept as a possible alternative theme; Ink removed | docs/design/ui/ |
 | 40 | Creating notes in the app | Notes can be created directly into the Inbox or any existing column, from a column's "Add a note" row, a New note button and the N key | WEB-9, WEB-16, design/02 §1.2, design/07 |
 | 41 | Repository | github.com/Niboor/notekeeper; Go module paths use it. Integrating with the operator's own Kubernetes stack is out of scope (only generic example manifests, NFR-D6) | tech-stack.md §11 |
+| 42 | Message text source | The bot uses the `body` of a Matrix message (the Markdown the user typed) instead of converting `formatted_body` HTML back to Markdown: converting would lose or mangle what the user wrote, and Element's `body` already carries the source | MX-5, design/06 §5 |
+| 43 | Action paths | Action endpoints are sub-paths (`POST /notes/{id}/move`, `/dismiss`, `/restore`, `/reminders/{id}/snooze`, `/me/sessions/revoke-all`, `/admin/users/{id}/activation-link`) rather than `:verb` suffixes, which the chi router used by the generated server cannot match | design/02 |
+| 44 | Authorisation source of truth | Who may call an operation is declared once, in its OpenAPI `security` (anonymous, user, or the `admin` scope); the router enforces it fail-closed, and the authorisation matrix test is generated from the same declarations. A route not in the document is not served | SEC-ISO-1, SEC-API-2, design/02, design/08 §5 |
+| 45 | Event stream start | A fresh event stream begins with `event: hello` carrying the current change number; the client refetches its views on it, which closes the gap between its initial fetch and the subscription. Reconnects resume from `Last-Event-ID` | CORE-S1, design/05 §2 |
+| 46 | Page limits | A `limit` above the maximum (200) is capped, not refused | SEC-API-3, design/README §3 |
 
 ## 14. Open questions
 

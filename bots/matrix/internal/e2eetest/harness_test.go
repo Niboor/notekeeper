@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,8 +29,46 @@ func repoDeploy(t *testing.T) string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "deploy")
 }
 
-// startSynapse starts the development Synapse from deploy/synapse and returns its base URL.
+// One Synapse and one PostgreSQL serve every test of the package (starting them per test would
+// dominate the run time); tests stay independent by using unique user and database names.
+var (
+	shared struct {
+		once   sync.Once
+		synURL string
+		synErr error
+		synC   testcontainers.Container
+		pgOnce sync.Once
+		pg     *postgresDB
+		pgErr  error
+		pgC    testcontainers.Container
+	}
+)
+
+// TestMain terminates the shared containers after the last test.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if shared.synC != nil {
+		_ = shared.synC.Terminate(ctx)
+	}
+	if shared.pgC != nil {
+		_ = shared.pgC.Terminate(ctx)
+	}
+	os.Exit(code)
+}
+
+// startSynapse returns the base URL of the shared development Synapse from deploy/synapse.
 func startSynapse(t *testing.T) string {
+	t.Helper()
+	shared.once.Do(func() { shared.synURL, shared.synC, shared.synErr = launchSynapse(t) })
+	if shared.synErr != nil {
+		t.Fatalf("synapse: %v", shared.synErr)
+	}
+	return shared.synURL
+}
+
+func launchSynapse(t *testing.T) (string, testcontainers.Container, error) {
 	t.Helper()
 	ctx := context.Background()
 	dir := filepath.Join(repoDeploy(t), "synapse")
@@ -53,24 +92,23 @@ func startSynapse(t *testing.T) string {
 		},
 	})
 	if err != nil {
-		t.Fatalf("start synapse: %v", err)
+		return "", nil, fmt.Errorf("start synapse: %w", err)
 	}
-	testcontainers.CleanupContainer(t, c)
 	host, err := c.Host(ctx)
 	if err != nil {
-		t.Fatal(err)
+		return "", c, err
 	}
 	port, err := c.MappedPort(ctx, "8008/tcp")
 	if err != nil {
-		t.Fatal(err)
+		return "", c, err
 	}
 	url := fmt.Sprintf("http://%s:%s", host, port.Port())
 	resp, err := http.Get(url + "/_matrix/client/versions")
 	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("synapse not answering: %v", err)
+		return "", c, fmt.Errorf("synapse not answering: %v", err)
 	}
 	_ = resp.Body.Close()
-	return url
+	return url, c, nil
 }
 
 // postgresDB is a PostgreSQL server from which each actor gets its own database.
@@ -78,19 +116,29 @@ type postgresDB struct{ adminURL, base string }
 
 func startPostgres(t *testing.T) *postgresDB {
 	t.Helper()
-	ctx := context.Background()
-	c, err := postgres.Run(ctx, "postgres:16",
-		postgres.WithDatabase("postgres"), postgres.WithUsername("nk"), postgres.WithPassword("nk"),
-		postgres.BasicWaitStrategies())
-	if err != nil {
-		t.Fatalf("start postgres: %v", err)
+	shared.pgOnce.Do(func() {
+		ctx := context.Background()
+		c, err := postgres.Run(ctx, "postgres:16",
+			postgres.WithDatabase("postgres"), postgres.WithUsername("nk"), postgres.WithPassword("nk"),
+			// Throwaway data: durability settings only slow the tests down.
+			testcontainers.WithCmdArgs("-c", "fsync=off", "-c", "full_page_writes=off", "-c", "synchronous_commit=off", "-c", "max_connections=300"),
+			postgres.BasicWaitStrategies())
+		if err != nil {
+			shared.pgErr = err
+			return
+		}
+		shared.pgC = c
+		url, err := c.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			shared.pgErr = err
+			return
+		}
+		shared.pg = &postgresDB{adminURL: url}
+	})
+	if shared.pgErr != nil {
+		t.Fatalf("postgres: %v", shared.pgErr)
 	}
-	testcontainers.CleanupContainer(t, c)
-	url, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &postgresDB{adminURL: url}
+	return shared.pg
 }
 
 // newDatabase creates an empty database and returns its connection URL.

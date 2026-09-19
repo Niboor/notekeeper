@@ -42,7 +42,9 @@ type PermanentError struct {
 	Code   string
 }
 
-func (e *PermanentError) Error() string { return fmt.Sprintf("core refused the request: %d %s", e.Status, e.Code) }
+func (e *PermanentError) Error() string {
+	return fmt.Sprintf("core refused the request: %d %s", e.Status, e.Code)
+}
 
 // Client wraps the generated client with the retry policy.
 type Client struct {

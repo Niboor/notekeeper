@@ -43,9 +43,3 @@ func (s *roomStore) markNotified(ctx context.Context, room id.RoomID) error {
 	_, err := s.db.Exec(ctx, `update nk_rooms set notified = true where room_id = $1`, room)
 	return err
 }
-
-// forget drops everything about a room (lifecycle: unlink or account deletion, BOT-B7).
-func (s *roomStore) forget(ctx context.Context, room id.RoomID) error {
-	_, err := s.db.Exec(ctx, `delete from nk_rooms where room_id = $1`, room)
-	return err
-}

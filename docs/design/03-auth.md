@@ -45,7 +45,7 @@ Native clients (Android, later) use the same endpoints with tokens in JSON bodie
 | *g = c* | Atomically `update sessions set refresh_generation = c+1, previous_valid_until = now()+60s, last_refreshed_at = now(), expires_at = least(now()+idle, absolute) where id = $1 and refresh_generation = c`; return a new access token and `refresh(c+1)`. |
 | *g = c−1* and `now() ≤ previous_valid_until` | A second tab or a retried request: return a new access token and the **same** `refresh(c)` (recomputed). No state change, nobody is logged out by a race. |
 | *g < c−1*, or *g = c−1* after the grace window | **Reuse of a rotated token**: revoke the session (`revoked_reason = 'refresh_reuse'`), write an audit entry, send a security notice (§7). |
-| Session revoked or expired | `401`; the client shows the login page. |
+| Session revoked or expired, or reuse detected | `401` with code `session_expired` (never `unauthenticated`, which means "no credentials"); the client shows the login page. |
 
 The client refreshes proactively (at about 80% of the access lifetime) and on any `401`, single-flight within a tab and serialised across tabs with the Web Locks API ([07](07-web-app.md) §3). A user is therefore signed in until the idle lifetime lapses without use, the absolute maximum is reached, or the session is revoked (SEC-AUTH-15).
 

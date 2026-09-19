@@ -89,11 +89,18 @@ func start(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
-	if _, err := conn.Exec(ctx, roles); err != nil {
-		return fmt.Errorf("roles: %w", err)
-	}
 	if _, err := conn.Exec(ctx, `create database `+templateName); err != nil {
 		return err
+	}
+	// The roles script runs inside the application database, as documented for operators: roles
+	// are cluster-wide, and the bot's schema is created in the database it is run against.
+	tpl, err := pgx.Connect(ctx, withDB(u, templateName, "", ""))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tpl.Close(ctx) }()
+	if _, err := tpl.Exec(ctx, roles); err != nil {
+		return fmt.Errorf("roles: %w", err)
 	}
 	if err := db.Migrate(ctx, withDB(u, templateName, "", "")); err != nil {
 		return fmt.Errorf("migrate template: %w", err)

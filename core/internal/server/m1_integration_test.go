@@ -523,9 +523,18 @@ type sseStream struct {
 	body interface{ Close() error }
 }
 
-func openSSE(t *testing.T, s *stack, c *client) *sseStream {
+func openSSE(t *testing.T, s *stack, c *client) *sseStream { return openSSEAt(t, s.user.URL, c) }
+
+func openSSEAt(t *testing.T, base string, c *client) *sseStream {
+	return openSSEWithLastID(t, base, c, "")
+}
+
+func openSSEWithLastID(t *testing.T, base string, c *client, lastID string) *sseStream {
 	t.Helper()
-	req, _ := http.NewRequest("GET", s.user.URL+"/api/v1/events", nil)
+	req, _ := http.NewRequest("GET", base+"/api/v1/events", nil)
+	if lastID != "" {
+		req.Header.Set("Last-Event-ID", lastID)
+	}
 	for k, v := range c.cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
 	}
