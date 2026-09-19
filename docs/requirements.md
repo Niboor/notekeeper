@@ -28,7 +28,7 @@ Guiding principles:
 - A **web app** for organising notes.
 - A generic **bot integration contract** and one implementation: a **Matrix bot**.
 - User accounts, authentication, and linking of chat identities to accounts.
-- Deployment on Kubernetes with PostgreSQL as the only stateful dependency.
+- Deployability on Kubernetes with PostgreSQL as the only stateful dependency, documented with example manifests.
 - **Global search** over all of a user's notes.
 - **Reminders** on notes, delivered to the user's chat through the bots and shown in the app (Should; see §4.6).
 - **Administration**: a single admin who creates accounts and registers bots.
@@ -48,6 +48,8 @@ Guiding principles:
 - Choosing a page/category from chat: every note lands in the Inbox.
 - Undo of anything but dismissal (earlier text versions are recoverable from note history instead).
 - Automatic purging of the Trash: dismissed notes are kept until the user deletes them permanently.
+- A packaged Helm chart or operator: example Kubernetes manifests are enough.
+- Localised UI/bot messages (English only in v1; Dutch can follow).
 - Object storage for attachments (not available now; the storage layer must allow adding it later).
 
 ### 2.3 Glossary
@@ -255,7 +257,7 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-5 | Must | Events include **relationship hints** when the platform provides them: "replies to message X", "in thread T". Core uses them for grouping (§6.3). |
 | BOT-6 | Must | Attachment upload: the bot uploads binary content (already decrypted, if the platform encrypts it) with filename and media type, and refers to it from the message event. Uploads are resumable/streamed. |
 | BOT-7 | Must | **Idempotent ingestion**: the tuple (bot instance, conversation, platform message ID, event kind/edit ID) is a natural dedupe key. Replaying an event is safe and yields the same result. Delivery is at-least-once. |
-| BOT-8 | Must | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message **in the user's language** for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
+| BOT-8 | Must | Core's response to an event tells the bot what happened (note created / appended to note / updated / ignored / rejected + reason), so the bot can give feedback in chat. The response also carries a short human-readable message (English in v1, localisable per NFR-Q3) for anything the bot needs to say in chat, so bots contain no user-facing wording of their own. |
 | BOT-9 | Must | Events for one conversation are delivered by the bot in platform order. Core is nonetheless tolerant: an edit or delete for an unknown message is ignored (or parked briefly), not an error that blocks the bot. |
 | BOT-10 | Should | Core's notion of "what the bot has already delivered" (e.g. last platform timestamp per conversation) is queryable, so a bot that lost its own state can resync. |
 | BOT-11 | Should | **Delivery API (Core → bot, pull-based).** A bot fetches the queued outbound deliveries addressed to its bot instance (long-poll or streaming), claims each with a lease, and reports the outcome: delivered, failed-transient, or failed-permanent with a reason. Unclaimed or lease-expired deliveries are offered again. Pull-based so bots need no inbound network exposure and Core needs no bot addresses. Required for reminders (§4.6). |
@@ -352,7 +354,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-9 | Must | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app. |
 | WEB-10 | Must | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). |
-| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, interface/bot language (English or Dutch), bot status, grouping window. |
+| WEB-12 | Must | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. |
 | WEB-13 | Should | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | Merge/split notes (CORE-N14). |
@@ -422,7 +424,7 @@ No Android requirements are in scope for v1. To keep the option open:
 | NFR-D3 | Must | Runs on Kubernetes: container images per component, configuration by environment/config files, secrets from Kubernetes Secrets, liveness/readiness/startup probes, graceful shutdown (drain in-flight requests and streams). |
 | NFR-D4 | Must | Schema changes via versioned migrations, applied in a controlled way (init container or Job), backwards-compatible across one release so rolling updates need no downtime. |
 | NFR-D5 | Must | Components are independently deployable and scalable: Core, web app, and each bot are separate deployables. A bot outage never affects the web app; a Core outage never loses chat messages (bots retry, chat platform retains history). |
-| NFR-D6 | Should | Ships with a reference Helm chart or Kustomize manifests, and a docker-compose setup for local development. |
+| NFR-D6 | Should | **Example** Kubernetes manifests (Deployments, Services, Ingress, ConfigMap/Secret templates, migration Job, probes) that show how to run the components, plus a docker-compose setup for local development. No packaged Helm chart or operator, and no management of a complete cluster setup; the operator adapts the examples. |
 | NFR-D7 | Should | Bots, Core and web app can be versioned and released independently (contract versioned via BOT-1). |
 
 ### 11.2 Extensibility
@@ -471,8 +473,7 @@ Targets assume friends-and-family use (see §12).
 | ID | Pri | Requirement |
 |---|---|---|
 | NFR-O1 | Must | Structured (JSON) logs to stdout with request/correlation IDs propagated from bot → Core, so one chat message can be traced end to end. |
-| NFR-O2 | Should | Prometheus-compatible metrics (request rates/latencies, ingest outcomes, grouping decisions, bot lag, realtime connections, DB pool). |
-| NFR-O3 | Should | OpenTelemetry tracing support. |
+| NFR-O2 | Must | Prometheus-compatible metrics for every component (request rates and latencies, ingest outcomes, grouping decisions, reminder scheduling lag and delivery outcomes, bot lag, realtime connections, DB pool). |
 | NFR-O4 | Must | Health endpoints distinguish *alive* from *ready* (DB reachable, migrations current). |
 | NFR-O5 | Must | All configuration is externalised and documented; no config requires a rebuild. |
 
@@ -491,7 +492,7 @@ Targets assume friends-and-family use (see §12).
 |---|---|---|
 | NFR-Q1 | Must | Grouping and edit-handling rules (§6.3, §6.4) are covered by automated scenario tests derived from the flows in §10. |
 | NFR-Q2 | Must | CI runs unit, integration (real PostgreSQL) and end-to-end API tests; the Matrix bot is testable against a local homeserver in CI. |
-| NFR-Q3 | Must | **Localisation: English and Dutch** from day one. The web UI, and everything bots say in chat (feedback, command replies, reminders), is available in both. Each user has a language setting (default from the browser at first login). Strings are externalised and dates, times and numbers follow the locale, so further languages can be added without code changes to application logic. |
+| NFR-Q3 | Should | The UI and everything bots say in chat are **English only** in v1, but user-facing strings are externalised (message catalogue, no hard-coded text in logic; Core supplies bot-facing text per BOT-8) and dates, times and numbers are formatted per locale, so other languages, Dutch first, can be added later without changing application logic. |
 | NFR-Q4 | Should | Developer documentation: architecture, API, bot-writing guide (how to add a new chat platform), deployment, backup/restore. |
 
 ## 12. Assumptions
@@ -527,7 +528,9 @@ Answers given after the first draft, and where they are reflected.
 | 15 | Recurring reminders | Wanted (Should) | CORE-R10 |
 | 16 | Reminder targets | Each user picks reminder targets, default the first linked chat identity | CORE-R3 |
 | 17 | Reminder attachments | Re-sent into the chat, with fallback to a link | CORE-R6, BOT-15, MX-12 |
-| 18 | Languages | English and Dutch (UI, bot messages, search, reminder time parsing); others later | CORE-N13, CORE-R11, NFR-Q3, WEB-12 |
+| 18 | Languages | UI and bot messages English only in v1 (structure allows Dutch later); search and reminder time input still handle English and Dutch | CORE-N13, CORE-R11, NFR-Q3 |
+| 19 | Metrics / tracing | Prometheus metrics are a Must; OpenTelemetry tracing dropped | NFR-O2 |
+| 20 | Kubernetes | Example manifests are sufficient; no Helm chart, no full cluster management | NFR-D6, §2.2 |
 
 ## 14. Open questions
 
