@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# One example of a site: replace the hostnames, image tags and secrets. Every secret below is a
+# placeholder that Core and the bot refuse to start with (SEC-OPS-1, SEC-OPS-7); create the real Secrets
+# out of band (sealed-secrets, external-secrets, or kubectl) and delete these generators.
+namespace: notekeeper
+resources:
+  - ../../base
+  - namespace.yaml
+images:
+  - {name: notekeeper/core, newTag: "1.0.0"}
+  - {name: notekeeper/web, newTag: "1.0.0"}
+  - {name: notekeeper/matrix-bot, newTag: "1.0.0"}
+patches:
+  - target: {kind: ConfigMap, name: notekeeper-config}
+    patch: |-
+      - {op: replace, path: /data/NK_APP_URL, value: "https://notes.example.org"}
+      - {op: replace, path: /data/NK_SHARE_URL, value: "https://share.example.net"}
+secretGenerator:
+  - name: notekeeper-secrets
+    literals:
+      - NK_DATABASE_URL=postgres://nk_app:change-me@postgres:5432/notekeeper?sslmode=require
+      - NK_MIGRATE_DATABASE_URL=postgres://nk_migrate:change-me@postgres:5432/notekeeper?sslmode=require
+      - NK_TOKEN_KEYS=k1:change-me-generate-32-random-bytes-and-base64-encode-them
+  - name: notekeeper-bot-secrets
+    literals:
+      - NK_BOT_DATABASE_URL=postgres://nk_bot_matrix:change-me@postgres:5432/notekeeper?sslmode=require&search_path=matrix_bot
+      - NK_BOT_KEY=nkb.change-me.change-me
+      - MX_PASSWORD=change-me
+      - MX_PICKLE_KEY=change-me-generate-a-long-random-string
+generatorOptions:
+  disableNameSuffixHash: true

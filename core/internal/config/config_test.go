@@ -55,3 +55,28 @@ func TestBadDuration(t *testing.T) {
 		t.Fatal("expected error for a bad duration")
 	}
 }
+
+// A deployment that still has a placeholder from the example manifests does not start (SEC-OPS-1, SEC-OPS-7).
+func TestPlaceholderCredentialsAreRefused(t *testing.T) {
+	get := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	for name, env := range map[string]map[string]string{
+		"database":  {"NK_DATABASE_URL": "postgres://nk_app:change-me@db/notekeeper"},
+		"migration": {"NK_DATABASE_URL": "postgres://nk_app:real@db/notekeeper", "NK_MIGRATE_DATABASE_URL": "postgres://nk_migrate:CHANGE-ME@db/notekeeper"},
+	} {
+		c, err := LoadFrom(get(env))
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		if err := c.RequireDatabase(); err == nil {
+			t.Errorf("%s: a placeholder was accepted", name)
+		}
+	}
+	c, _ := LoadFrom(get(map[string]string{"NK_DATABASE_URL": "postgres://nk_app:real@db/notekeeper"}))
+	if err := c.RequireDatabase(); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = LoadFrom(get(map[string]string{"NK_TOKEN_KEYS": "k1:change-me-change-me-change-me-change-me="}))
+	if err := c.RequireAuth(); err == nil {
+		t.Fatal("a placeholder token key was accepted")
+	}
+}

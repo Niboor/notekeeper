@@ -1,0 +1,33 @@
+# Applies schema migrations under the schema-owning role before the new version serves (NFR-D4).
+# Recreate it for each release: Kustomize's name suffix (overlay) makes every rollout a new Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: core-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: core-migrate}
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: notekeeper/core:latest
+          args: ["migrate"]
+          envFrom:
+            - secretRef: {name: notekeeper-secrets}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Example manifests (NFR-D6): Notekeeper's components run as they would in a cluster, with the security
+# posture of docs/design/08 section 2. Provisioning PostgreSQL, the ingress controller and TLS
+# certificates is the operator's job; the overlay shows where the site-specific values go.
+resources:
+  - configmap.yaml
+  - core.yaml
+  - web.yaml
+  - matrix-bot.yaml
+  - migrate-job.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - prometheusrule.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: notekeeper

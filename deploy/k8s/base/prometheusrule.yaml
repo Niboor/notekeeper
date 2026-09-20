@@ -1,0 +1,61 @@
+# Example alerts (SEC-AUD-3, NFR-O2). Needs the Prometheus Operator; the expressions work in any
+# Prometheus. The thresholds are starting points for a small deployment.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: notekeeper
+spec:
+  groups:
+    - name: notekeeper-security
+      rules:
+        - alert: NotekeeperFailedLoginSpike
+          expr: sum(increase(nk_auth_events_total{event=~"failed|throttled"}[10m])) > 30
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: Many failed or throttled sign-ins, which may be someone guessing passwords}
+        - alert: NotekeeperBotRequestsRejected
+          expr: sum(increase(nk_bot_requests_rejected_total[10m])) > 20
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: Requests with a bad or unauthorised bot key, which may be a leaked or guessed credential}
+        - alert: NotekeeperShareLinkProbing
+          expr: sum(increase(nk_share_requests_total{result="not_found"}[10m])) > 100
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: Many share requests for links that do not exist, which may be someone probing for tokens}
+        - alert: NotekeeperRateLimitHits
+          expr: sum(increase(nk_rate_limited_total[10m])) > 200
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: Requests are being refused by rate limits at a high rate}
+    - name: notekeeper-health
+      rules:
+        - alert: NotekeeperCoreDown
+          expr: absent(up{job=~".*core.*"} == 1)
+          for: 3m
+          labels: {severity: critical}
+          annotations: {summary: No Core replica is being scraped as up}
+        - alert: NotekeeperBotDown
+          expr: absent(up{job=~".*matrix-bot.*"} == 1)
+          for: 5m
+          labels: {severity: critical}
+          annotations: {summary: The Matrix bot is not running, so chat messages are not reaching Notekeeper}
+        - alert: NotekeeperOutboxBacklog
+          expr: sum(nk_outbox_items{state=~"queued|claimed"}) > 50
+          for: 15m
+          labels: {severity: warning}
+          annotations: {summary: Messages for chats (reminders, notices) are waiting for a bot to send them}
+        - alert: NotekeeperReminderLag
+          expr: histogram_quantile(0.95, sum(rate(nk_reminder_lag_seconds_bucket[15m])) by (le)) > 60
+          for: 15m
+          labels: {severity: warning}
+          annotations: {summary: Reminders fire more than a minute after they are due (target CORE-R5)}
+        - alert: NotekeeperJobFailures
+          expr: sum(increase(nk_job_failures_total[30m])) > 3
+          labels: {severity: warning}
+          annotations: {summary: Background jobs are failing}
+        - alert: NotekeeperDatabasePoolSaturated
+          expr: max(nk_db_pool_connections) >= max(nk_db_pool_max_connections)
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: The database connection pool is full}

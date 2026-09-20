@@ -15,6 +15,7 @@ OAPI_CODEGEN_VERSION  := v2.8.0
 GOVULNCHECK_VERSION   := v1.8.0
 GOLANGCI_LINT_VERSION := v2.13.2
 GITLEAKS_VERSION      := v8.30.1
+KUSTOMIZE_VERSION     := v5.6.0
 KUBECONFORM_VERSION   := v0.8.0
 KUBE_LINTER_VERSION   := v0.8.3
 OSV_SCANNER_VERSION   := v2.6.0
@@ -36,6 +37,7 @@ tools: ## Install pinned developer tools into .bin/
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION)
+	go install sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
 	go install github.com/yannh/kubeconform/cmd/kubeconform@$(KUBECONFORM_VERSION)
 	go install golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION)
 	go install github.com/google/osv-scanner/v2/cmd/osv-scanner@$(OSV_SCANNER_VERSION)
@@ -116,7 +118,9 @@ test-e2e: ## Browser end-to-end tests: real Core and PostgreSQL, the built web a
 lint: check-libolm ## golangci-lint, ESLint, manifest checks
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint run ./...) || exit 1; done
 	cd web && npm run lint
-	@if [ -d deploy/k8s ]; then kube-linter lint deploy/k8s && kubeconform -strict -ignore-missing-schemas -summary deploy/k8s; fi
+	kustomize build deploy/k8s/overlays/example > $(BIN)/k8s.rendered.yaml
+	kube-linter lint $(BIN)/k8s.rendered.yaml
+	kubeconform -strict -ignore-missing-schemas -summary $(BIN)/k8s.rendered.yaml
 
 .PHONY: vuln
 vuln: ## Dependency vulnerability scans
@@ -128,8 +132,9 @@ secrets: ## Scan the repository for committed secrets
 	gitleaks dir --no-banner --redact .
 
 .PHONY: docs-check
-docs-check: ## Regenerate the traceability table and fail on drift
+docs-check: ## Regenerate the traceability table and fail on drift; check configuration.md against the code
 	python3 docs/design/tools/traceability.py
+	python3 docs/design/tools/config_check.py
 	git diff --exit-code -- docs/design/09-traceability.md
 
 .PHONY: check

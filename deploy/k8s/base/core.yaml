@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core
+  labels: {app.kubernetes.io/name: core}
+spec:
+  replicas: 2
+  strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
+  selector:
+    matchLabels: {app.kubernetes.io/name: core}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: core}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      terminationGracePeriodSeconds: 40
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector: {matchLabels: {app.kubernetes.io/name: core}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app.kubernetes.io/name: core}}
+      containers:
+        - name: core
+          image: notekeeper/core:latest
+          args: ["serve"]
+          envFrom:
+            - configMapRef: {name: notekeeper-config}
+            - secretRef: {name: notekeeper-secrets}
+          ports:
+            - {name: user, containerPort: 8080}
+            - {name: bot, containerPort: 8081}
+            - {name: public, containerPort: 8082}
+            - {name: ops, containerPort: 9090}
+          readinessProbe: {httpGet: {path: /readyz, port: ops}, periodSeconds: 5, failureThreshold: 3}
+          livenessProbe: {httpGet: {path: /healthz, port: ops}, periodSeconds: 10, failureThreshold: 6}
+          startupProbe: {httpGet: {path: /healthz, port: ops}, periodSeconds: 2, failureThreshold: 30}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-user
+spec:
+  selector: {app.kubernetes.io/name: core}
+  ports: [{name: user, port: 8080, targetPort: user}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-public
+spec:
+  selector: {app.kubernetes.io/name: core}
+  ports: [{name: public, port: 8082, targetPort: public}]
+---
+# The bot API: a ClusterIP Service that only bot pods may reach (see the NetworkPolicy). Never routed by an ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-bot
+spec:
+  selector: {app.kubernetes.io/name: core}
+  ports: [{name: bot, port: 8081, targetPort: bot}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: core
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels: {app.kubernetes.io/name: core}

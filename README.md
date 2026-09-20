@@ -8,6 +8,10 @@ Everything is documented under [docs/](docs/):
 
 | Document | Contents |
 |---|---|
+| [user-guide.md](docs/user-guide.md) | For people who use it, including **who can read your notes** |
+| [operations.md](docs/operations.md) | Installing, upgrading, backup and restore, rotating secrets, monitoring |
+| [configuration.md](docs/configuration.md) | Every setting |
+| [bot-guide.md](docs/bot-guide.md) | Writing a bot for another chat platform |
 | [requirements.md](docs/requirements.md) | Functional and non-functional requirements, with implementation state |
 | [security-requirements.md](docs/security-requirements.md) | What must not be possible; access matrix; accepted risks |
 | [tech-stack.md](docs/tech-stack.md) | Technology choices |
@@ -39,7 +43,21 @@ make dev-admin ARGS="bot-credential matrix-dev"   # prints the bot key once
 
 Open the activation link, choose a password, then link a chat under *Settings → Chats*. To run
 the bot itself see `bots/matrix` (`matrix-bot run`, configured through environment variables, listed in
-[docs/design/08-deployment-and-testing.md](docs/design/08-deployment-and-testing.md)).
+[docs/configuration.md](docs/configuration.md)).
+
+### Run the built images
+
+```bash
+make images            # notekeeper/core, notekeeper/web, notekeeper/matrix-bot (tag :dev)
+make test-e2e-stack    # the whole app behind nginx in Docker, browser tests included
+```
+
+`deploy/docker-compose.stack.yml` is that stack; `deploy/k8s` has example Kubernetes manifests
+(`make lint` renders and checks them). For a real installation read [docs/operations.md](docs/operations.md).
 
 Layout: `api/` OpenAPI specs, `core/` backend, `bots/` chat bots and their shared client,
-`web/` web app, `deploy/` example deployment files, `docs/` documentation.
+`web/` web app, `e2e/` browser tests, `deploy/` images, nginx and example manifests, `docs/` documentation.
+
+Test tiers: `make test` (unit), `make test-integration` (Docker: PostgreSQL 16 and latest, Synapse), `make test-e2e`
+(browser tests against a local stack), `make test-e2e-stack` (browser tests against the built images), `make test-perf`
+(latency at 50 000 notes).

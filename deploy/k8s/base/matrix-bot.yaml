@@ -1,0 +1,43 @@
+# One instance only: two would fight over the same Matrix device (MX-N2), so the strategy is Recreate and
+# the bot also holds a database advisory lock.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-bot
+  labels: {app.kubernetes.io/name: matrix-bot}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: matrix-bot}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: matrix-bot}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: matrix-bot
+          image: notekeeper/matrix-bot:latest
+          args: ["run"]
+          envFrom:
+            - configMapRef: {name: notekeeper-config}
+            - secretRef: {name: notekeeper-bot-secrets}
+          ports: [{name: ops, containerPort: 9091}]
+          readinessProbe: {httpGet: {path: /readyz, port: ops}, periodSeconds: 10, failureThreshold: 6}
+          livenessProbe: {httpGet: {path: /healthz, port: ops}, periodSeconds: 10, failureThreshold: 6}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}

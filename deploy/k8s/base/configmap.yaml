@@ -1,0 +1,28 @@
+# Non-secret configuration. Every variable is documented in docs/configuration.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notekeeper-config
+data:
+  # Public addresses: used for links, host checks and cookies. Replace in the overlay.
+  NK_APP_URL: "https://notes.example.org"
+  NK_SHARE_URL: "https://share.example.net"
+  # Ingress addresses whose X-Forwarded-For is believed, for per-address limits.
+  NK_TRUSTED_PROXIES: "10.0.0.0/8"
+  NK_LOG_LEVEL: "info"
+  NK_MAX_ATTACHMENT_BYTES: "26214400"
+  NK_DEFAULT_QUOTA_BYTES: "2147483648"
+  NK_SHARE_ENABLED: "true"
+  NK_SHARE_MAX_LIFETIME: "720h"
+  NK_RATE_USER_PER_MIN: "1800"
+  NK_RATE_IP_PER_MIN: "3000"
+  # Matrix bot
+  NK_CORE_URL: "http://core-bot:8081"
+  NK_BOT_INSTANCE: "matrix"
+  MX_HOMESERVER: "https://matrix.example.org"
+  MX_USER: "notekeeper"
+  # Web (nginx)
+  APP_HOST: "notes.example.org"
+  SHARE_HOST: "share.example.net"
+  CORE_USER_UPSTREAM: "core-user:8080"
+  CORE_PUBLIC_UPSTREAM: "core-public:8082"

@@ -1,0 +1,36 @@
+# Two hostnames on one ingress controller (nginx-ingress annotations shown). The application host sends
+# /api/v1 to Core and everything else to the web image; the share host sends only the public API to Core
+# and everything else to the web image, whose nginx serves nothing but the share page there. Nothing
+# routes to Core's bot or ops ports (SEC-OPS-4). TLS is terminated here with modern protocols and HSTS (SEC-OPS-8).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notekeeper
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 30m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "63072000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [notes.example.org]
+      secretName: notekeeper-app-tls
+    - hosts: [share.example.net]
+      secretName: notekeeper-share-tls
+  rules:
+    - host: notes.example.org
+      http:
+        paths:
+          - {path: /api/v1, pathType: Prefix, backend: {service: {name: core-user, port: {number: 8080}}}}
+          - {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 8080}}}}
+    - host: share.example.net
+      http:
+        paths:
+          - {path: /api/public/v1, pathType: Prefix, backend: {service: {name: core-public, port: {number: 8082}}}}
+          - {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 8080}}}}

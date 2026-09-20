@@ -1,0 +1,93 @@
+# Default deny, then exactly the paths the design allows (SEC-OPS-3): the ingress controller reaches the
+# web image and Core's user and public listeners; bots reach Core's bot listener only; Core and the bot
+# reach PostgreSQL; the bot reaches the Matrix homeserver; Prometheus scrapes the ops ports. Adjust the
+# selectors for your cluster (the namespaces of the ingress controller, PostgreSQL and Prometheus).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: web}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: core}}}]
+      ports: [{protocol: TCP, port: 8080}, {protocol: TCP, port: 8082}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: core
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: core}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:   # users and the share page, through the ingress and the web image
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}
+        - podSelector: {matchLabels: {app.kubernetes.io/name: web}}
+      ports: [{protocol: TCP, port: 8080}, {protocol: TCP, port: 8082}]
+    - from:   # the bot API: bots only
+        - podSelector: {matchLabels: {app.kubernetes.io/name: matrix-bot}}
+      ports: [{protocol: TCP, port: 8081}]
+    - from:   # metrics
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports: [{protocol: TCP, port: 9090}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: core-migrate
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: core-migrate}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: matrix-bot
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: matrix-bot}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports: [{protocol: TCP, port: 9091}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: core}}}]
+      ports: [{protocol: TCP, port: 8081}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
+      ports: [{protocol: TCP, port: 5432}]
+    - to:   # the Matrix homeserver, on the internet or elsewhere; keep it to the addresses you need
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports: [{protocol: TCP, port: 443}]

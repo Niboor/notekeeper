@@ -14,6 +14,8 @@ import (
 // Config is the runtime configuration of the Core binary.
 type Config struct {
 	DatabaseURL string
+	// MigrateDatabaseURL is the schema owner's connection, used only by `core migrate`.
+	MigrateDatabaseURL string
 
 	// Listener addresses: user API, bot API, public share API, ops (health and metrics).
 	UserAddr   string
@@ -98,6 +100,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	if len(c.ShareHosts) == 0 {
 		c.ShareHosts = hostOf(c.ShareURL)
 	}
+	c.MigrateDatabaseURL = getenv("NK_MIGRATE_DATABASE_URL")
 	c.TokenKeys = getenv("NK_TOKEN_KEYS")
 	c.TrustedProxies = list(getenv("NK_TRUSTED_PROXIES"))
 	for _, f := range []struct {
@@ -196,6 +199,13 @@ func number(getenv func(string) string, key string, def uint64) (uint64, error) 
 func (c Config) RequireDatabase() error {
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("NK_DATABASE_URL is required")
+	}
+	// The example manifests ship placeholders instead of credentials (SEC-OPS-1, SEC-OPS-7); a deployment
+	// that forgot to replace one must not start.
+	for name, v := range map[string]string{"NK_DATABASE_URL": c.DatabaseURL, "NK_MIGRATE_DATABASE_URL": c.MigrateDatabaseURL} {
+		if strings.Contains(strings.ToLower(v), "change-me") {
+			return fmt.Errorf("%s still contains a placeholder value", name)
+		}
 	}
 	return nil
 }
