@@ -93,6 +93,48 @@ func (e EventResultResult) Valid() bool {
 	}
 }
 
+// Defines values for OutboxItemKind.
+const (
+	Lifecycle OutboxItemKind = "lifecycle"
+	Notice    OutboxItemKind = "notice"
+	Reminder  OutboxItemKind = "reminder"
+)
+
+// Valid indicates whether the value is a known member of the OutboxItemKind enum.
+func (e OutboxItemKind) Valid() bool {
+	switch e {
+	case Lifecycle:
+		return true
+	case Notice:
+		return true
+	case Reminder:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OutboxResultState.
+const (
+	Delivered       OutboxResultState = "delivered"
+	FailedPermanent OutboxResultState = "failed_permanent"
+	FailedTransient OutboxResultState = "failed_transient"
+)
+
+// Valid indicates whether the value is a known member of the OutboxResultState enum.
+func (e OutboxResultState) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	case FailedPermanent:
+		return true
+	case FailedTransient:
+		return true
+	default:
+		return false
+	}
+}
+
 // Command defines model for Command.
 type Command struct {
 	Args         *string    `json:"args,omitempty"`
@@ -178,6 +220,34 @@ type IdentityStatus struct {
 	LinkedAt     *time.Time `json:"linked_at,omitempty"`
 }
 
+// OutboxItem defines model for OutboxItem.
+type OutboxItem struct {
+	Attempts       int        `json:"attempts"`
+	ConversationId string     `json:"conversation_id"`
+	DueAt          *time.Time `json:"due_at,omitempty"`
+	ExternalUserId string     `json:"external_user_id"`
+
+	// Id Also the idempotency key for the platform send (BOT-13)
+	Id   openapi_types.UUID `json:"id"`
+	Kind OutboxItemKind     `json:"kind"`
+
+	// Payload notice/reminder: {text, ...}; lifecycle: {reason: unlinked | user_deleted}
+	Payload map[string]interface{} `json:"payload"`
+}
+
+// OutboxItemKind defines model for OutboxItem.Kind.
+type OutboxItemKind string
+
+// OutboxResult defines model for OutboxResult.
+type OutboxResult struct {
+	MessageIds *[]string         `json:"message_ids,omitempty"`
+	Reason     *string           `json:"reason,omitempty"`
+	State      OutboxResultState `json:"state"`
+}
+
+// OutboxResultState defines model for OutboxResult.State.
+type OutboxResultState string
+
 // Problem defines model for Problem.
 type Problem struct {
 	Code      *string `json:"code,omitempty"`
@@ -188,9 +258,30 @@ type Problem struct {
 	Type      *string `json:"type,omitempty"`
 }
 
+// Upload defines model for Upload.
+type Upload struct {
+	Filename  string             `json:"filename"`
+	Id        openapi_types.UUID `json:"id"`
+	MediaType string             `json:"media_type"`
+	Size      int64              `json:"size"`
+}
+
 // Version defines model for Version.
 type Version struct {
 	Version string `json:"version"`
+}
+
+// ClaimOutboxParams defines parameters for ClaimOutbox.
+type ClaimOutboxParams struct {
+	Wait  *int `form:"wait,omitempty" json:"wait,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// PutUploadParams defines parameters for PutUpload.
+type PutUploadParams struct {
+	XExternalUser string  `json:"X-External-User"`
+	XFilename     string  `json:"X-Filename"`
+	XMediaType    *string `json:"X-Media-Type,omitempty"`
 }
 
 // PostCommandJSONRequestBody defines body for PostCommand for application/json ContentType.
@@ -198,6 +289,9 @@ type PostCommandJSONRequestBody = Command
 
 // PostEventJSONRequestBody defines body for PostEvent for application/json ContentType.
 type PostEventJSONRequestBody = Event
+
+// PostOutboxResultJSONRequestBody defines body for PostOutboxResult for application/json ContentType.
+type PostOutboxResultJSONRequestBody = OutboxResult
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -287,6 +381,13 @@ type ClientInterface interface {
 	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
 	PostCommand(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetConversationCursor The platform time of the newest message Core holds for a conversation
+	//
+	// Lets a bot that lost its own position resume after the right message instead of replaying everything.
+	//
+	// Corresponds with GET /bot/v1/conversations/{id}/cursor (the `GetConversationCursor` operationId).
+	GetConversationCursor(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostEventWithBody A normalised chat event (created, edited or deleted message)
 	//
 	// Takes any type of body and a specified content type.
@@ -310,6 +411,40 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
 	GetIdentity(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
+	//
+	// Claims queued items with a 60-second lease. Waits up to `wait` seconds when nothing is
+	// available. An item that is not acknowledged before its lease expires is offered again;
+	// an expired lease does not count as a delivery attempt.
+	//
+	// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
+	ClaimOutbox(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostOutboxResultWithBody Report what happened to a claimed outbox item
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+	PostOutboxResultWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostOutboxResult Report what happened to a claimed outbox item
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+	PostOutboxResult(ctx context.Context, id openapi_types.UUID, body PostOutboxResultJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutUploadWithBody Stream an attachment for a linked chat identity (already decrypted by the bot)
+	//
+	// Same storage path and quota as the user upload. The body is the raw file with
+	// `Content-Type: application/octet-stream` and a required `Content-Length`. The attachment
+	// stays unlinked until an event references it by `upload_id`; unused ones are removed after an hour.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /bot/v1/uploads/{id} (the `PutUpload` operationId).
+	PutUploadWithBody(ctx context.Context, id openapi_types.UUID, params *PutUploadParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetBotVersion Build information
 	//
@@ -341,6 +476,23 @@ func (c *Client) PostCommandWithBody(ctx context.Context, contentType string, bo
 // Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
 func (c *Client) PostCommand(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostCommandRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetConversationCursor The platform time of the newest message Core holds for a conversation
+//
+// Lets a bot that lost its own position resume after the right message instead of replaying everything.
+//
+// Corresponds with GET /bot/v1/conversations/{id}/cursor (the `GetConversationCursor` operationId).
+func (c *Client) GetConversationCursor(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetConversationCursorRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -415,6 +567,80 @@ func (c *Client) GetIdentity(ctx context.Context, externalUserId string, reqEdit
 	return c.Client.Do(req)
 }
 
+// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
+//
+// Claims queued items with a 60-second lease. Waits up to `wait` seconds when nothing is
+// available. An item that is not acknowledged before its lease expires is offered again;
+// an expired lease does not count as a delivery attempt.
+//
+// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
+func (c *Client) ClaimOutbox(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewClaimOutboxRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostOutboxResultWithBody Report what happened to a claimed outbox item
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+func (c *Client) PostOutboxResultWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostOutboxResultRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostOutboxResult Report what happened to a claimed outbox item
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+func (c *Client) PostOutboxResult(ctx context.Context, id openapi_types.UUID, body PostOutboxResultJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostOutboxResultRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutUploadWithBody Stream an attachment for a linked chat identity (already decrypted by the bot)
+//
+// Same storage path and quota as the user upload. The body is the raw file with
+// `Content-Type: application/octet-stream` and a required `Content-Length`. The attachment
+// stays unlinked until an event references it by `upload_id`; unused ones are removed after an hour.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /bot/v1/uploads/{id} (the `PutUpload` operationId).
+func (c *Client) PutUploadWithBody(ctx context.Context, id openapi_types.UUID, params *PutUploadParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutUploadRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetBotVersion Build information
 //
 // Corresponds with GET /bot/v1/version (the `GetBotVersion` operationId).
@@ -466,6 +692,40 @@ func NewPostCommandRequestWithBody(server string, contentType string, body io.Re
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetConversationCursorRequest constructs an http.Request for the GetConversationCursor method
+func NewGetConversationCursorRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/conversations/%s/cursor", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -571,6 +831,188 @@ func NewGetIdentityRequest(server string, externalUserId string) (*http.Request,
 	return req, nil
 }
 
+// NewClaimOutboxRequest constructs an http.Request for the ClaimOutbox method
+func NewClaimOutboxRequest(server string, params *ClaimOutboxParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/outbox")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Wait != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "wait", *params.Wait, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostOutboxResultRequest calls the generic PostOutboxResult builder with application/json body
+func NewPostOutboxResultRequest(server string, id openapi_types.UUID, body PostOutboxResultJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostOutboxResultRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostOutboxResultRequestWithBody constructs an http.Request for the PostOutboxResult method, with any body, and a specified content type
+func NewPostOutboxResultRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/outbox/%s/result", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPutUploadRequestWithBody constructs an http.Request for the PutUpload method, with any body, and a specified content type
+func NewPutUploadRequestWithBody(server string, id openapi_types.UUID, params *PutUploadParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/uploads/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-External-User", params.XExternalUser, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-External-User", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Filename", params.XFilename, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-Filename", headerParam1)
+
+		if params.XMediaType != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "X-Media-Type", *params.XMediaType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Media-Type", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetBotVersionRequest constructs an http.Request for the GetBotVersion method
 func NewGetBotVersionRequest(server string) (*http.Request, error) {
 	var err error
@@ -656,6 +1098,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bot/v1/commands (the `PostCommand` operationId).
 	PostCommandWithResponse(ctx context.Context, body PostCommandJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCommandResponse, error)
 
+	// GetConversationCursorWithResponse The platform time of the newest message Core holds for a conversation
+	//
+	// Lets a bot that lost its own position resume after the right message instead of replaying everything.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bot/v1/conversations/{id}/cursor (the `GetConversationCursor` operationId).
+	GetConversationCursorWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetConversationCursorResponse, error)
+
 	// PostEventWithBodyWithResponse A normalised chat event (created, edited or deleted message)
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -683,6 +1134,42 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /bot/v1/identities/{external_user_id} (the `GetIdentity` operationId).
 	GetIdentityWithResponse(ctx context.Context, externalUserId string, reqEditors ...RequestEditorFn) (*GetIdentityResponse, error)
+
+	// ClaimOutboxWithResponse Long-poll the outbox for items addressed to this bot instance
+	//
+	// Claims queued items with a 60-second lease. Waits up to `wait` seconds when nothing is
+	// available. An item that is not acknowledged before its lease expires is offered again;
+	// an expired lease does not count as a delivery attempt.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
+	ClaimOutboxWithResponse(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*ClaimOutboxResponse, error)
+
+	// PostOutboxResultWithBodyWithResponse Report what happened to a claimed outbox item
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+	PostOutboxResultWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostOutboxResultResponse, error)
+
+	// PostOutboxResultWithResponse Report what happened to a claimed outbox item
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+	PostOutboxResultWithResponse(ctx context.Context, id openapi_types.UUID, body PostOutboxResultJSONRequestBody, reqEditors ...RequestEditorFn) (*PostOutboxResultResponse, error)
+
+	// PutUploadWithBodyWithResponse Stream an attachment for a linked chat identity (already decrypted by the bot)
+	//
+	// Same storage path and quota as the user upload. The body is the raw file with
+	// `Content-Type: application/octet-stream` and a required `Content-Length`. The attachment
+	// stays unlinked until an event references it by `upload_id`; unused ones are removed after an hour.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /bot/v1/uploads/{id} (the `PutUpload` operationId).
+	PutUploadWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, params *PutUploadParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutUploadResponse, error)
 
 	// GetBotVersionWithResponse Build information
 	//
@@ -734,6 +1221,58 @@ func (r PostCommandResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostCommandResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetConversationCursorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		LastMessageAt *time.Time `json:"last_message_at,omitempty"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetConversationCursorResponse) GetJSON200() *struct {
+	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetConversationCursorResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetConversationCursorResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetConversationCursorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetConversationCursorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetConversationCursorResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -877,6 +1416,147 @@ func (r GetIdentityResponse) ContentType() string {
 	return ""
 }
 
+type ClaimOutboxResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []OutboxItem `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ClaimOutboxResponse) GetJSON200() *struct {
+	Items []OutboxItem `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ClaimOutboxResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ClaimOutboxResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ClaimOutboxResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ClaimOutboxResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ClaimOutboxResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostOutboxResultResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PostOutboxResultResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostOutboxResultResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostOutboxResultResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostOutboxResultResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostOutboxResultResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Upload
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PutUploadResponse) GetJSON201() *Upload {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PutUploadResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutUploadResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetBotVersionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -944,6 +1624,21 @@ func (c *ClientWithResponses) PostCommandWithResponse(ctx context.Context, body 
 	return ParsePostCommandResponse(rsp)
 }
 
+// GetConversationCursorWithResponse The platform time of the newest message Core holds for a conversation
+//
+// Lets a bot that lost its own position resume after the right message instead of replaying everything.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bot/v1/conversations/{id}/cursor (the `GetConversationCursor` operationId).
+func (c *ClientWithResponses) GetConversationCursorWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetConversationCursorResponse, error) {
+	rsp, err := c.GetConversationCursor(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetConversationCursorResponse(rsp)
+}
+
 // PostEventWithBodyWithResponse A normalised chat event (created, edited or deleted message)
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -996,6 +1691,66 @@ func (c *ClientWithResponses) GetIdentityWithResponse(ctx context.Context, exter
 	return ParseGetIdentityResponse(rsp)
 }
 
+// ClaimOutboxWithResponse Long-poll the outbox for items addressed to this bot instance
+//
+// Claims queued items with a 60-second lease. Waits up to `wait` seconds when nothing is
+// available. An item that is not acknowledged before its lease expires is offered again;
+// an expired lease does not count as a delivery attempt.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
+func (c *ClientWithResponses) ClaimOutboxWithResponse(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*ClaimOutboxResponse, error) {
+	rsp, err := c.ClaimOutbox(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseClaimOutboxResponse(rsp)
+}
+
+// PostOutboxResultWithBodyWithResponse Report what happened to a claimed outbox item
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+func (c *ClientWithResponses) PostOutboxResultWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostOutboxResultResponse, error) {
+	rsp, err := c.PostOutboxResultWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostOutboxResultResponse(rsp)
+}
+
+// PostOutboxResultWithResponse Report what happened to a claimed outbox item
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/outbox/{id}/result (the `PostOutboxResult` operationId).
+func (c *ClientWithResponses) PostOutboxResultWithResponse(ctx context.Context, id openapi_types.UUID, body PostOutboxResultJSONRequestBody, reqEditors ...RequestEditorFn) (*PostOutboxResultResponse, error) {
+	rsp, err := c.PostOutboxResult(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostOutboxResultResponse(rsp)
+}
+
+// PutUploadWithBodyWithResponse Stream an attachment for a linked chat identity (already decrypted by the bot)
+//
+// Same storage path and quota as the user upload. The body is the raw file with
+// `Content-Type: application/octet-stream` and a required `Content-Length`. The attachment
+// stays unlinked until an event references it by `upload_id`; unused ones are removed after an hour.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /bot/v1/uploads/{id} (the `PutUpload` operationId).
+func (c *ClientWithResponses) PutUploadWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, params *PutUploadParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutUploadResponse, error) {
+	rsp, err := c.PutUploadWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutUploadResponse(rsp)
+}
+
 // GetBotVersionWithResponse Build information
 //
 // Returns a wrapper object for the known response body format(s).
@@ -1025,6 +1780,41 @@ func ParsePostCommandResponse(rsp *http.Response) (*PostCommandResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest CommandResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetConversationCursorResponse parses an HTTP response from a GetConversationCursorWithResponse call
+func ParseGetConversationCursorResponse(rsp *http.Response) (*GetConversationCursorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetConversationCursorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			LastMessageAt *time.Time `json:"last_message_at,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1124,6 +1914,103 @@ func ParseGetIdentityResponse(rsp *http.Response) (*GetIdentityResponse, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseClaimOutboxResponse parses an HTTP response from a ClaimOutboxWithResponse call
+func ParseClaimOutboxResponse(rsp *http.Response) (*ClaimOutboxResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ClaimOutboxResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []OutboxItem `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostOutboxResultResponse parses an HTTP response from a PostOutboxResultWithResponse call
+func ParsePostOutboxResultResponse(rsp *http.Response) (*PostOutboxResultResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostOutboxResultResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutUploadResponse parses an HTTP response from a PutUploadWithResponse call
+func ParsePutUploadResponse(rsp *http.Response) (*PutUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Upload
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

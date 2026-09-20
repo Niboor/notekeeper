@@ -9,7 +9,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -91,6 +93,48 @@ func (e EventResultResult) Valid() bool {
 	case Removed:
 		return true
 	case Updated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OutboxItemKind.
+const (
+	Lifecycle OutboxItemKind = "lifecycle"
+	Notice    OutboxItemKind = "notice"
+	Reminder  OutboxItemKind = "reminder"
+)
+
+// Valid indicates whether the value is a known member of the OutboxItemKind enum.
+func (e OutboxItemKind) Valid() bool {
+	switch e {
+	case Lifecycle:
+		return true
+	case Notice:
+		return true
+	case Reminder:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OutboxResultState.
+const (
+	Delivered       OutboxResultState = "delivered"
+	FailedPermanent OutboxResultState = "failed_permanent"
+	FailedTransient OutboxResultState = "failed_transient"
+)
+
+// Valid indicates whether the value is a known member of the OutboxResultState enum.
+func (e OutboxResultState) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	case FailedPermanent:
+		return true
+	case FailedTransient:
 		return true
 	default:
 		return false
@@ -182,6 +226,34 @@ type IdentityStatus struct {
 	LinkedAt     *time.Time `json:"linked_at,omitempty"`
 }
 
+// OutboxItem defines model for OutboxItem.
+type OutboxItem struct {
+	Attempts       int        `json:"attempts"`
+	ConversationId string     `json:"conversation_id"`
+	DueAt          *time.Time `json:"due_at,omitempty"`
+	ExternalUserId string     `json:"external_user_id"`
+
+	// Id Also the idempotency key for the platform send (BOT-13)
+	Id   openapi_types.UUID `json:"id"`
+	Kind OutboxItemKind     `json:"kind"`
+
+	// Payload notice/reminder: {text, ...}; lifecycle: {reason: unlinked | user_deleted}
+	Payload map[string]interface{} `json:"payload"`
+}
+
+// OutboxItemKind defines model for OutboxItem.Kind.
+type OutboxItemKind string
+
+// OutboxResult defines model for OutboxResult.
+type OutboxResult struct {
+	MessageIds *[]string         `json:"message_ids,omitempty"`
+	Reason     *string           `json:"reason,omitempty"`
+	State      OutboxResultState `json:"state"`
+}
+
+// OutboxResultState defines model for OutboxResult.State.
+type OutboxResultState string
+
 // Problem defines model for Problem.
 type Problem struct {
 	Code      *string `json:"code,omitempty"`
@@ -192,9 +264,30 @@ type Problem struct {
 	Type      *string `json:"type,omitempty"`
 }
 
+// Upload defines model for Upload.
+type Upload struct {
+	Filename  string             `json:"filename"`
+	Id        openapi_types.UUID `json:"id"`
+	MediaType string             `json:"media_type"`
+	Size      int64              `json:"size"`
+}
+
 // Version defines model for Version.
 type Version struct {
 	Version string `json:"version"`
+}
+
+// ClaimOutboxParams defines parameters for ClaimOutbox.
+type ClaimOutboxParams struct {
+	Wait  *int `form:"wait,omitempty" json:"wait,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// PutUploadParams defines parameters for PutUpload.
+type PutUploadParams struct {
+	XExternalUser string  `json:"X-External-User"`
+	XFilename     string  `json:"X-Filename"`
+	XMediaType    *string `json:"X-Media-Type,omitempty"`
 }
 
 // PostCommandJSONRequestBody defines body for PostCommand for application/json ContentType.
@@ -203,11 +296,17 @@ type PostCommandJSONRequestBody = Command
 // PostEventJSONRequestBody defines body for PostEvent for application/json ContentType.
 type PostEventJSONRequestBody = Event
 
+// PostOutboxResultJSONRequestBody defines body for PostOutboxResult for application/json ContentType.
+type PostOutboxResultJSONRequestBody = OutboxResult
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// PostCommand A chat command (link, unlink, help, ...)
 	// (POST /bot/v1/commands)
 	PostCommand(w http.ResponseWriter, r *http.Request)
+	// GetConversationCursor The platform time of the newest message Core holds for a conversation
+	// (GET /bot/v1/conversations/{id}/cursor)
+	GetConversationCursor(w http.ResponseWriter, r *http.Request, id string)
 	// PostEvent A normalised chat event (created, edited or deleted message)
 	// (POST /bot/v1/events)
 	PostEvent(w http.ResponseWriter, r *http.Request)
@@ -217,6 +316,15 @@ type ServerInterface interface {
 	// GetIdentity Whether a chat identity is linked (nothing about the user)
 	// (GET /bot/v1/identities/{external_user_id})
 	GetIdentity(w http.ResponseWriter, r *http.Request, externalUserId string)
+	// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
+	// (GET /bot/v1/outbox)
+	ClaimOutbox(w http.ResponseWriter, r *http.Request, params ClaimOutboxParams)
+	// PostOutboxResult Report what happened to a claimed outbox item
+	// (POST /bot/v1/outbox/{id}/result)
+	PostOutboxResult(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// PutUpload Stream an attachment for a linked chat identity (already decrypted by the bot)
+	// (PUT /bot/v1/uploads/{id})
+	PutUpload(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutUploadParams)
 	// GetBotVersion Build information
 	// (GET /bot/v1/version)
 	GetBotVersion(w http.ResponseWriter, r *http.Request)
@@ -229,6 +337,12 @@ type Unimplemented struct{}
 // PostCommand A chat command (link, unlink, help, ...)
 // (POST /bot/v1/commands)
 func (_ Unimplemented) PostCommand(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetConversationCursor The platform time of the newest message Core holds for a conversation
+// (GET /bot/v1/conversations/{id}/cursor)
+func (_ Unimplemented) GetConversationCursor(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -247,6 +361,24 @@ func (_ Unimplemented) PostHeartbeat(w http.ResponseWriter, r *http.Request) {
 // GetIdentity Whether a chat identity is linked (nothing about the user)
 // (GET /bot/v1/identities/{external_user_id})
 func (_ Unimplemented) GetIdentity(w http.ResponseWriter, r *http.Request, externalUserId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
+// (GET /bot/v1/outbox)
+func (_ Unimplemented) ClaimOutbox(w http.ResponseWriter, r *http.Request, params ClaimOutboxParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostOutboxResult Report what happened to a claimed outbox item
+// (POST /bot/v1/outbox/{id}/result)
+func (_ Unimplemented) PostOutboxResult(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutUpload Stream an attachment for a linked chat identity (already decrypted by the bot)
+// (PUT /bot/v1/uploads/{id})
+func (_ Unimplemented) PutUpload(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutUploadParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -270,6 +402,32 @@ func (siw *ServerInterfaceWrapper) PostCommand(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostCommand(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetConversationCursor operation middleware
+func (siw *ServerInterfaceWrapper) GetConversationCursor(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetConversationCursor(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -324,6 +482,174 @@ func (siw *ServerInterfaceWrapper) GetIdentity(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetIdentity(w, r, externalUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimOutbox operation middleware
+func (siw *ServerInterfaceWrapper) ClaimOutbox(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ClaimOutboxParams
+
+	// ------------- Optional query parameter "wait" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "wait", r.URL.Query(), &params.Wait, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "wait"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "wait", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimOutbox(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostOutboxResult operation middleware
+func (siw *ServerInterfaceWrapper) PostOutboxResult(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostOutboxResult(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutUpload operation middleware
+func (siw *ServerInterfaceWrapper) PutUpload(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutUploadParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-External-User" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-External-User")]; found {
+		var XExternalUser string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-External-User", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-External-User", valueList[0], &XExternalUser, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-External-User", Err: err})
+			return
+		}
+
+		params.XExternalUser = XExternalUser
+
+	} else {
+		err := fmt.Errorf("Header parameter X-External-User is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-External-User", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "X-Filename" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Filename")]; found {
+		var XFilename string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Filename", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Filename", valueList[0], &XFilename, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Filename", Err: err})
+			return
+		}
+
+		params.XFilename = XFilename
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Filename is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Filename", Err: err})
+		return
+	}
+
+	// ------------- Optional header parameter "X-Media-Type" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Media-Type")]; found {
+		var XMediaType string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Media-Type", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Media-Type", valueList[0], &XMediaType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Media-Type", Err: err})
+			return
+		}
+
+		params.XMediaType = &XMediaType
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutUpload(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -475,6 +801,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/bot/v1/heartbeat", wrapper.PostHeartbeat)
 	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/bot/v1/uploads/{id}", wrapper.PutUpload)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/bot/v1/outbox", wrapper.ClaimOutbox)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/bot/v1/outbox/{id}/result", wrapper.PostOutboxResult)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/bot/v1/conversations/{id}/cursor", wrapper.GetConversationCursor)
+	})
 
 	return r
 }
@@ -509,6 +847,47 @@ type PostCommanddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostCommanddefaultApplicationProblemPlusJSONResponse) VisitPostCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetConversationCursorRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetConversationCursorResponseObject interface {
+	VisitGetConversationCursorResponse(w http.ResponseWriter) error
+}
+
+type GetConversationCursor200JSONResponse struct {
+	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
+}
+
+func (response GetConversationCursor200JSONResponse) VisitGetConversationCursorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetConversationCursordefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetConversationCursordefaultApplicationProblemPlusJSONResponse) VisitGetConversationCursorResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -630,6 +1009,122 @@ func (response GetIdentitydefaultApplicationProblemPlusJSONResponse) VisitGetIde
 	return err
 }
 
+type ClaimOutboxRequestObject struct {
+	Params ClaimOutboxParams
+}
+
+type ClaimOutboxResponseObject interface {
+	VisitClaimOutboxResponse(w http.ResponseWriter) error
+}
+
+type ClaimOutbox200JSONResponse struct {
+	Items []OutboxItem `json:"items"`
+}
+
+func (response ClaimOutbox200JSONResponse) VisitClaimOutboxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimOutboxdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ClaimOutboxdefaultApplicationProblemPlusJSONResponse) VisitClaimOutboxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostOutboxResultRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *PostOutboxResultJSONRequestBody
+}
+
+type PostOutboxResultResponseObject interface {
+	VisitPostOutboxResultResponse(w http.ResponseWriter) error
+}
+
+type PostOutboxResult204Response struct {
+}
+
+func (response PostOutboxResult204Response) VisitPostOutboxResultResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostOutboxResultdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostOutboxResultdefaultApplicationProblemPlusJSONResponse) VisitPostOutboxResultResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutUploadRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PutUploadParams
+	Body   io.Reader
+}
+
+type PutUploadResponseObject interface {
+	VisitPutUploadResponse(w http.ResponseWriter) error
+}
+
+type PutUpload201JSONResponse Upload
+
+func (response PutUpload201JSONResponse) VisitPutUploadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutUploaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutUploaddefaultApplicationProblemPlusJSONResponse) VisitPutUploadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetBotVersionRequestObject struct {
 }
 
@@ -656,6 +1151,9 @@ type StrictServerInterface interface {
 	// PostCommand A chat command (link, unlink, help, ...)
 	// (POST /bot/v1/commands)
 	PostCommand(ctx context.Context, request PostCommandRequestObject) (PostCommandResponseObject, error)
+	// GetConversationCursor The platform time of the newest message Core holds for a conversation
+	// (GET /bot/v1/conversations/{id}/cursor)
+	GetConversationCursor(ctx context.Context, request GetConversationCursorRequestObject) (GetConversationCursorResponseObject, error)
 	// PostEvent A normalised chat event (created, edited or deleted message)
 	// (POST /bot/v1/events)
 	PostEvent(ctx context.Context, request PostEventRequestObject) (PostEventResponseObject, error)
@@ -665,6 +1163,15 @@ type StrictServerInterface interface {
 	// GetIdentity Whether a chat identity is linked (nothing about the user)
 	// (GET /bot/v1/identities/{external_user_id})
 	GetIdentity(ctx context.Context, request GetIdentityRequestObject) (GetIdentityResponseObject, error)
+	// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
+	// (GET /bot/v1/outbox)
+	ClaimOutbox(ctx context.Context, request ClaimOutboxRequestObject) (ClaimOutboxResponseObject, error)
+	// PostOutboxResult Report what happened to a claimed outbox item
+	// (POST /bot/v1/outbox/{id}/result)
+	PostOutboxResult(ctx context.Context, request PostOutboxResultRequestObject) (PostOutboxResultResponseObject, error)
+	// PutUpload Stream an attachment for a linked chat identity (already decrypted by the bot)
+	// (PUT /bot/v1/uploads/{id})
+	PutUpload(ctx context.Context, request PutUploadRequestObject) (PutUploadResponseObject, error)
 	// GetBotVersion Build information
 	// (GET /bot/v1/version)
 	GetBotVersion(ctx context.Context, request GetBotVersionRequestObject) (GetBotVersionResponseObject, error)
@@ -733,6 +1240,32 @@ func (sh *strictHandler) PostCommand(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCommandResponseObject); ok {
 		if err := validResponse.VisitPostCommandResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetConversationCursor operation middleware
+func (sh *strictHandler) GetConversationCursor(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetConversationCursorRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetConversationCursor(ctx, request.(GetConversationCursorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetConversationCursor")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetConversationCursorResponseObject); ok {
+		if err := validResponse.VisitGetConversationCursorResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -821,6 +1354,94 @@ func (sh *strictHandler) GetIdentity(w http.ResponseWriter, r *http.Request, ext
 	}
 }
 
+// ClaimOutbox operation middleware
+func (sh *strictHandler) ClaimOutbox(w http.ResponseWriter, r *http.Request, params ClaimOutboxParams) {
+	var request ClaimOutboxRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimOutbox(ctx, request.(ClaimOutboxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimOutbox")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimOutboxResponseObject); ok {
+		if err := validResponse.VisitClaimOutboxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostOutboxResult operation middleware
+func (sh *strictHandler) PostOutboxResult(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request PostOutboxResultRequestObject
+
+	request.Id = id
+
+	var body PostOutboxResultJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostOutboxResult(ctx, request.(PostOutboxResultRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostOutboxResult")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostOutboxResultResponseObject); ok {
+		if err := validResponse.VisitPostOutboxResultResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutUpload operation middleware
+func (sh *strictHandler) PutUpload(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutUploadParams) {
+	var request PutUploadRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutUpload(ctx, request.(PutUploadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutUpload")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutUploadResponseObject); ok {
+		if err := validResponse.VisitPutUploadResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetBotVersion operation middleware
 func (sh *strictHandler) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 	var request GetBotVersionRequestObject
@@ -850,32 +1471,49 @@ func (sh *strictHandler) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"VAuyZO4qFihNlkySUbK6Wv0vAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

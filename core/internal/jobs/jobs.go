@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/Niboor/notekeeper/core/internal/blobs"
+	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
 
@@ -32,10 +33,11 @@ const (
 
 // Deps are what workers need.
 type Deps struct {
-	Store *store.Store
-	Blobs *blobs.Service
-	Log   *slog.Logger
-	Now   func() time.Time
+	Store  *store.Store
+	Blobs  *blobs.Service
+	Outbox *outbox.Service
+	Log    *slog.Logger
+	Now    func() time.Time
 }
 
 func (d Deps) now() time.Time {
@@ -137,12 +139,30 @@ func ReleaseStaleUploads(ctx context.Context, d Deps) error {
 	return nil
 }
 
+// ExpireOutboxArgs gives up on outbox items that waited too long and tells their users.
+type ExpireOutboxArgs struct{}
+
+// Kind identifies the job type.
+func (ExpireOutboxArgs) Kind() string { return "expire_outbox" }
+
+// ExpireOutboxWorker performs ExpireOutboxArgs.
+type ExpireOutboxWorker struct {
+	river.WorkerDefaults[ExpireOutboxArgs]
+	D Deps
+}
+
+// Work expires stale items.
+func (w *ExpireOutboxWorker) Work(ctx context.Context, _ *river.Job[ExpireOutboxArgs]) error {
+	return w.D.Outbox.Expire(ctx)
+}
+
 // New builds the River client. Call Start on it in the serving process; tests and insert-only
 // callers can use it without starting workers.
 func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &PurgeWorker{D: d})
 	river.AddWorker(workers, &ReleaseStaleUploadsWorker{D: d})
+	river.AddWorker(workers, &ExpireOutboxWorker{D: d})
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}},
 		Workers: workers,
@@ -153,6 +173,9 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 				&river.PeriodicJobOpts{RunOnStart: true}),
 			river.NewPeriodicJob(river.PeriodicInterval(10*time.Minute),
 				func() (river.JobArgs, *river.InsertOpts) { return ReleaseStaleUploadsArgs{}, nil },
+				nil),
+			river.NewPeriodicJob(river.PeriodicInterval(5*time.Minute),
+				func() (river.JobArgs, *river.InsertOpts) { return ExpireOutboxArgs{}, nil },
 				nil),
 		},
 	})

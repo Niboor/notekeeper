@@ -30,10 +30,10 @@ insert into ingest_events (bot_instance_id, event_id, user_id, result) values ($
 on conflict do nothing;
 
 -- name: GetIngestEvent :one
-select result from ingest_events where bot_instance_id = $1 and event_id = $2;
+select result from ingest_events where bot_instance_id = $1 and event_id = $2 and user_id = $3;
 
 -- name: UpdateIngestResult :exec
-update ingest_events set result = $3 where bot_instance_id = $1 and event_id = $2;
+update ingest_events set result = $3 where bot_instance_id = $1 and event_id = $2 and user_id = $4;
 
 -- ---- note operations (M2) ----
 
@@ -109,3 +109,33 @@ insert into notes (id, user_id, category_id, position, created_at, received_at) 
 
 -- name: NotesByIDs :many
 select * from notes where user_id = $1 and id = any($2::uuid[]);
+
+-- ---- chat ingestion (M3) ----
+
+-- name: PartsBySourceMessage :many
+select p.id, p.note_id, p.ordinal, p.kind, p.text, p.text_edited_at, p.attachment_id, p.source_identity_id,
+       p.source_part_index, n.state as note_state
+from note_parts p join notes n on n.user_id = p.user_id and n.id = p.note_id
+where p.user_id = $1 and p.source_bot_instance_id = $2 and p.source_conversation_id = $3 and p.source_message_id = $4
+order by p.source_part_index;
+
+-- name: SenderRecentNote :one
+select p.note_id, p.created_at as last_part_at
+from note_parts p join notes n on n.user_id = p.user_id and n.id = p.note_id
+where p.user_id = $1 and p.source_identity_id = $2 and p.source_conversation_id = $3 and n.state = 'active'
+order by p.created_at desc, p.ordinal desc
+limit 1;
+
+-- name: NoteLastPartAt :one
+select max(created_at)::timestamptz from note_parts where note_id = $1;
+
+-- name: NoteHasText :one
+select exists(select 1 from note_parts where note_id = $1 and kind = 'text');
+
+-- name: ConversationLastMessageAt :one
+select created_at from note_parts
+where user_id = $1 and source_bot_instance_id = $2 and source_conversation_id = $3
+order by created_at desc limit 1;
+
+-- name: IdentityByConversation :one
+select * from external_identities where bot_instance_id = $1 and conversation_id = $2 limit 1;

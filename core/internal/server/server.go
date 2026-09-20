@@ -25,6 +25,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
 	"github.com/Niboor/notekeeper/core/internal/notes"
+	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/version"
@@ -43,6 +44,7 @@ type Deps struct {
 	Board    *board.Service
 	Blobs    *blobs.Service
 	Ingest   *ingest.Service
+	Outbox   *outbox.Service
 	Hub      *realtime.Hub
 }
 
@@ -129,7 +131,7 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	bauth := &botAuth{bots: d.Bots, scopes: botScopes, log: d.Log}
-	ba := &botAPI{bots: d.Bots, ingest: d.Ingest}
+	ba := &botAPI{bots: d.Bots, ingest: d.Ingest, blobs: d.Blobs, outbox: d.Outbox, hub: d.Hub, st: d.Store}
 	bot := base("bot", nil, true)
 	bot.Group(func(g chi.Router) {
 		g.Use(bauth.wrap)

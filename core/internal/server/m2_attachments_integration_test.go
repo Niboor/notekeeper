@@ -399,7 +399,21 @@ func TestJanitorRemovesStaleUploads(t *testing.T) {
 	if s.count(`select count(*) from attachments`) != 2 || s.count(`select count(*) from blobs where not complete`) != 1 {
 		t.Fatal("the janitor removed something that is not old enough")
 	}
-	if _, err := s.db.Admin.Exec(t.Context(), `update blobs set created_at = now() - interval '2 hours'; update attachments set created_at = now() - interval '2 hours'`); err != nil {
+	// The search trigger insists on a user context, even for a superuser (0005), so age the rows as the user.
+	tx, err := s.db.Admin.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `select set_config('app.user_id', $1, true)`, uid.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `update blobs set created_at = now() - interval '2 hours'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `update attachments set created_at = now() - interval '2 hours'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.svc.Blobs.ReleaseStale(t.Context(), uid, time.Hour); err != nil {

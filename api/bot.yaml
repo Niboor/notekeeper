@@ -83,6 +83,117 @@ paths:
       responses:
         '204': {description: Recorded}
         default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/uploads/{id}:
+    put:
+      operationId: putUpload
+      summary: Stream an attachment for a linked chat identity (already decrypted by the bot)
+      description: |
+        Same storage path and quota as the user upload. The body is the raw file with
+        `Content-Type: application/octet-stream` and a required `Content-Length`. The attachment
+        stays unlinked until an event references it by `upload_id`; unused ones are removed after an hour.
+      security:
+        - botAuth: [ingest]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: X-External-User
+          in: header
+          required: true
+          schema: {type: string, maxLength: 512}
+        - name: X-Filename
+          in: header
+          required: true
+          schema: {type: string, maxLength: 1024}
+        - name: X-Media-Type
+          in: header
+          required: false
+          schema: {type: string, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '201':
+          description: Stored
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Upload'}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/outbox:
+    get:
+      operationId: claimOutbox
+      summary: Long-poll the outbox for items addressed to this bot instance
+      description: |
+        Claims queued items with a 60-second lease. Waits up to `wait` seconds when nothing is
+        available. An item that is not acknowledged before its lease expires is offered again;
+        an expired lease does not count as a delivery attempt.
+      security:
+        - botAuth: [deliver]
+      parameters:
+        - name: wait
+          in: query
+          schema: {type: integer, minimum: 0, maximum: 25, default: 0}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 50, default: 10}
+      responses:
+        '200':
+          description: Claimed items (possibly none)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/OutboxItem'}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/outbox/{id}/result:
+    post:
+      operationId: postOutboxResult
+      summary: Report what happened to a claimed outbox item
+      security:
+        - botAuth: [deliver]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OutboxResult'}
+      responses:
+        '204': {description: Recorded}
+        default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/conversations/{id}/cursor:
+    get:
+      operationId: getConversationCursor
+      summary: The platform time of the newest message Core holds for a conversation
+      description: Lets a bot that lost its own position resume after the right message instead of replaying everything.
+      security:
+        - botAuth: [ingest]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: The cursor (absent when Core holds nothing for the conversation)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_message_at: {type: string, format: date-time}
+        default: {$ref: '#/components/responses/Problem'}
+
 components:
   securitySchemes:
     botAuth:
@@ -142,6 +253,39 @@ components:
         size: {type: integer, format: int64}
         reason: {type: string, maxLength: 64}
         description: {type: string, maxLength: 512}
+
+    Upload:
+      type: object
+      required: [id, filename, media_type, size]
+      properties:
+        id: {type: string, format: uuid}
+        filename: {type: string}
+        media_type: {type: string}
+        size: {type: integer, format: int64}
+    OutboxItem:
+      type: object
+      required: [id, kind, external_user_id, conversation_id, payload, attempts]
+      properties:
+        id: {type: string, format: uuid, description: Also the idempotency key for the platform send (BOT-13)}
+        kind: {type: string, enum: [reminder, notice, lifecycle]}
+        external_user_id: {type: string}
+        conversation_id: {type: string}
+        payload:
+          type: object
+          additionalProperties: true
+          description: 'notice/reminder: {text, ...}; lifecycle: {reason: unlinked | user_deleted}'
+        attempts: {type: integer}
+        due_at: {type: string, format: date-time}
+    OutboxResult:
+      type: object
+      required: [state]
+      properties:
+        state: {type: string, enum: [delivered, failed_transient, failed_permanent]}
+        reason: {type: string, maxLength: 200}
+        message_ids:
+          type: array
+          maxItems: 20
+          items: {type: string, maxLength: 512}
     Feedback:
       type: object
       properties:

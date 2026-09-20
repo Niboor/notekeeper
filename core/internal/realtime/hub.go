@@ -64,12 +64,14 @@ type Hub struct {
 	mu      sync.Mutex
 	streams map[uuid.UUID]map[*Stream]struct{}
 	closing bool
+	// outbox waiters: bot instance -> channels woken when an item for it is queued.
+	outbox map[uuid.UUID]map[chan struct{}]struct{}
 }
 
 // NewHub creates a hub that listens using the given connection string (the same database as
 // the pool, but its own connection).
 func NewHub(url string, log *slog.Logger) *Hub {
-	return &Hub{url: url, log: log, streams: map[uuid.UUID]map[*Stream]struct{}{}}
+	return &Hub{url: url, log: log, streams: map[uuid.UUID]map[*Stream]struct{}{}, outbox: map[uuid.UUID]map[chan struct{}]struct{}{}}
 }
 
 // Subscribe registers a stream for a user.
@@ -121,6 +123,38 @@ func (h *Hub) Count() int {
 		n += len(set)
 	}
 	return n
+}
+
+// WaitOutbox returns a channel that receives when an outbox item for the bot instance is queued,
+// and a function to stop waiting. It backs the bot's long poll; a periodic re-check covers a
+// missed notification.
+func (h *Hub) WaitOutbox(instance uuid.UUID) (<-chan struct{}, func()) {
+	ch := make(chan struct{}, 1)
+	h.mu.Lock()
+	if h.outbox[instance] == nil {
+		h.outbox[instance] = map[chan struct{}]struct{}{}
+	}
+	h.outbox[instance][ch] = struct{}{}
+	h.mu.Unlock()
+	return ch, func() {
+		h.mu.Lock()
+		delete(h.outbox[instance], ch)
+		if len(h.outbox[instance]) == 0 {
+			delete(h.outbox, instance)
+		}
+		h.mu.Unlock()
+	}
+}
+
+func (h *Hub) wakeOutbox(instance uuid.UUID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for ch := range h.outbox[instance] {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (h *Hub) wakeUser(user uuid.UUID) {
@@ -191,12 +225,22 @@ func (h *Hub) listen(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
-	for _, ch := range []string{store.ChannelChanges, store.ChannelSessions} {
+	for _, ch := range []string{store.ChannelChanges, store.ChannelSessions, store.ChannelOutbox} {
 		if _, err := conn.Exec(ctx, "listen "+ch); err != nil {
 			return err
 		}
 	}
 	h.wakeAll() // catch up on anything missed while we were not listening
+	h.mu.Lock()
+	for _, set := range h.outbox {
+		for ch := range set {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	}
+	h.mu.Unlock()
 	for {
 		n, err := conn.WaitForNotification(ctx)
 		if err != nil {
@@ -210,6 +254,10 @@ func (h *Hub) listen(ctx context.Context) error {
 			}
 		case store.ChannelSessions:
 			h.revoke(n.Payload)
+		case store.ChannelOutbox:
+			if id, err := uuid.Parse(n.Payload); err == nil {
+				h.wakeOutbox(id)
+			}
 		}
 	}
 }

@@ -13,6 +13,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const conversationLastMessageAt = `-- name: ConversationLastMessageAt :one
+select created_at from note_parts
+where user_id = $1 and source_bot_instance_id = $2 and source_conversation_id = $3
+order by created_at desc limit 1
+`
+
+type ConversationLastMessageAtParams struct {
+	UserID               uuid.UUID
+	SourceBotInstanceID  uuid.NullUUID
+	SourceConversationID *string
+}
+
+func (q *Queries) ConversationLastMessageAt(ctx context.Context, arg ConversationLastMessageAtParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, conversationLastMessageAt, arg.UserID, arg.SourceBotInstanceID, arg.SourceConversationID)
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
+}
+
 const countInbox = `-- name: CountInbox :one
 select count(*) from notes where user_id = $1 and state = 'active' and category_id is null
 `
@@ -102,16 +121,17 @@ func (q *Queries) DismissNote(ctx context.Context, arg DismissNoteParams) (Note,
 }
 
 const getIngestEvent = `-- name: GetIngestEvent :one
-select result from ingest_events where bot_instance_id = $1 and event_id = $2
+select result from ingest_events where bot_instance_id = $1 and event_id = $2 and user_id = $3
 `
 
 type GetIngestEventParams struct {
 	BotInstanceID uuid.UUID
 	EventID       string
+	UserID        uuid.UUID
 }
 
 func (q *Queries) GetIngestEvent(ctx context.Context, arg GetIngestEventParams) ([]byte, error) {
-	row := q.db.QueryRow(ctx, getIngestEvent, arg.BotInstanceID, arg.EventID)
+	row := q.db.QueryRow(ctx, getIngestEvent, arg.BotInstanceID, arg.EventID, arg.UserID)
 	var result []byte
 	err := row.Scan(&result)
 	return result, err
@@ -177,6 +197,31 @@ func (q *Queries) GetNotePart(ctx context.Context, arg GetNotePartParams) (NoteP
 		&i.SourceConversationID,
 		&i.SourceMessageID,
 		&i.SourcePartIndex,
+	)
+	return i, err
+}
+
+const identityByConversation = `-- name: IdentityByConversation :one
+select id, user_id, bot_instance_id, bot_type, external_user_id, conversation_id, reminder_target, linked_at from external_identities where bot_instance_id = $1 and conversation_id = $2 limit 1
+`
+
+type IdentityByConversationParams struct {
+	BotInstanceID  uuid.UUID
+	ConversationID *string
+}
+
+func (q *Queries) IdentityByConversation(ctx context.Context, arg IdentityByConversationParams) (ExternalIdentity, error) {
+	row := q.db.QueryRow(ctx, identityByConversation, arg.BotInstanceID, arg.ConversationID)
+	var i ExternalIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.BotInstanceID,
+		&i.BotType,
+		&i.ExternalUserID,
+		&i.ConversationID,
+		&i.ReminderTarget,
+		&i.LinkedAt,
 	)
 	return i, err
 }
@@ -623,6 +668,28 @@ func (q *Queries) NoteByClientID(ctx context.Context, id uuid.UUID) (Note, error
 	return i, err
 }
 
+const noteHasText = `-- name: NoteHasText :one
+select exists(select 1 from note_parts where note_id = $1 and kind = 'text')
+`
+
+func (q *Queries) NoteHasText(ctx context.Context, noteID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, noteHasText, noteID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const noteLastPartAt = `-- name: NoteLastPartAt :one
+select max(created_at)::timestamptz from note_parts where note_id = $1
+`
+
+func (q *Queries) NoteLastPartAt(ctx context.Context, noteID uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, noteLastPartAt, noteID)
+	var column_1 time.Time
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const noteLocations = `-- name: NoteLocations :many
 select n.id as note_id, c.id as category_id, c.name as category_name, p.id as page_id, p.name as page_name
 from notes n join categories c on c.user_id = n.user_id and c.id = n.category_id
@@ -724,6 +791,72 @@ func (q *Queries) OverwriteVersionText(ctx context.Context, arg OverwriteVersion
 	return err
 }
 
+const partsBySourceMessage = `-- name: PartsBySourceMessage :many
+
+select p.id, p.note_id, p.ordinal, p.kind, p.text, p.text_edited_at, p.attachment_id, p.source_identity_id,
+       p.source_part_index, n.state as note_state
+from note_parts p join notes n on n.user_id = p.user_id and n.id = p.note_id
+where p.user_id = $1 and p.source_bot_instance_id = $2 and p.source_conversation_id = $3 and p.source_message_id = $4
+order by p.source_part_index
+`
+
+type PartsBySourceMessageParams struct {
+	UserID               uuid.UUID
+	SourceBotInstanceID  uuid.NullUUID
+	SourceConversationID *string
+	SourceMessageID      *string
+}
+
+type PartsBySourceMessageRow struct {
+	ID               uuid.UUID
+	NoteID           uuid.UUID
+	Ordinal          int32
+	Kind             string
+	Text             *string
+	TextEditedAt     *time.Time
+	AttachmentID     uuid.NullUUID
+	SourceIdentityID uuid.NullUUID
+	SourcePartIndex  pgtype.Int2
+	NoteState        string
+}
+
+// ---- chat ingestion (M3) ----
+func (q *Queries) PartsBySourceMessage(ctx context.Context, arg PartsBySourceMessageParams) ([]PartsBySourceMessageRow, error) {
+	rows, err := q.db.Query(ctx, partsBySourceMessage,
+		arg.UserID,
+		arg.SourceBotInstanceID,
+		arg.SourceConversationID,
+		arg.SourceMessageID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PartsBySourceMessageRow{}
+	for rows.Next() {
+		var i PartsBySourceMessageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.NoteID,
+			&i.Ordinal,
+			&i.Kind,
+			&i.Text,
+			&i.TextEditedAt,
+			&i.AttachmentID,
+			&i.SourceIdentityID,
+			&i.SourcePartIndex,
+			&i.NoteState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const restoreNote = `-- name: RestoreNote :one
 update notes set state = 'active', deleted_at = null, updated_at = $3, version = version + 1
 where id = $1 and user_id = $2 and state = 'deleted' returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
@@ -750,6 +883,32 @@ func (q *Queries) RestoreNote(ctx context.Context, arg RestoreNoteParams) (Note,
 		&i.UpdatedAt,
 		&i.Version,
 	)
+	return i, err
+}
+
+const senderRecentNote = `-- name: SenderRecentNote :one
+select p.note_id, p.created_at as last_part_at
+from note_parts p join notes n on n.user_id = p.user_id and n.id = p.note_id
+where p.user_id = $1 and p.source_identity_id = $2 and p.source_conversation_id = $3 and n.state = 'active'
+order by p.created_at desc, p.ordinal desc
+limit 1
+`
+
+type SenderRecentNoteParams struct {
+	UserID               uuid.UUID
+	SourceIdentityID     uuid.NullUUID
+	SourceConversationID *string
+}
+
+type SenderRecentNoteRow struct {
+	NoteID     uuid.UUID
+	LastPartAt time.Time
+}
+
+func (q *Queries) SenderRecentNote(ctx context.Context, arg SenderRecentNoteParams) (SenderRecentNoteRow, error) {
+	row := q.db.QueryRow(ctx, senderRecentNote, arg.UserID, arg.SourceIdentityID, arg.SourceConversationID)
+	var i SenderRecentNoteRow
+	err := row.Scan(&i.NoteID, &i.LastPartAt)
 	return i, err
 }
 
@@ -821,17 +980,23 @@ func (q *Queries) TouchNote(ctx context.Context, arg TouchNoteParams) (Note, err
 }
 
 const updateIngestResult = `-- name: UpdateIngestResult :exec
-update ingest_events set result = $3 where bot_instance_id = $1 and event_id = $2
+update ingest_events set result = $3 where bot_instance_id = $1 and event_id = $2 and user_id = $4
 `
 
 type UpdateIngestResultParams struct {
 	BotInstanceID uuid.UUID
 	EventID       string
 	Result        []byte
+	UserID        uuid.UUID
 }
 
 func (q *Queries) UpdateIngestResult(ctx context.Context, arg UpdateIngestResultParams) error {
-	_, err := q.db.Exec(ctx, updateIngestResult, arg.BotInstanceID, arg.EventID, arg.Result)
+	_, err := q.db.Exec(ctx, updateIngestResult,
+		arg.BotInstanceID,
+		arg.EventID,
+		arg.Result,
+		arg.UserID,
+	)
 	return err
 }
 

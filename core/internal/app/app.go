@@ -14,6 +14,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/config"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
 	"github.com/Niboor/notekeeper/core/internal/notes"
+	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
 
@@ -25,6 +26,7 @@ type Services struct {
 	Blobs    *blobs.Service
 	Board    *board.Service
 	Ingest   *ingest.Service
+	Outbox   *outbox.Service
 }
 
 // NewServices constructs the services.
@@ -50,6 +52,7 @@ func NewServices(cfg config.Config, st *store.Store, log *slog.Logger) (*Service
 		Notes:    n,
 		Blobs:    bl,
 		Board:    board.New(st, n),
-		Ingest:   ingest.New(st, b),
+		Ingest:   ingest.New(st, b, bl),
+		Outbox:   outbox.New(st),
 	}, nil
 }

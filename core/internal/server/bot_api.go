@@ -2,14 +2,24 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/outbox"
+	"github.com/Niboor/notekeeper/core/internal/realtime"
+	"github.com/Niboor/notekeeper/core/internal/store"
+	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"log/slog"
 
 	"github.com/Niboor/notekeeper/core/internal/ingest"
@@ -74,6 +84,10 @@ func (a *botAuth) wrap(h http.Handler) http.Handler {
 type botAPI struct {
 	bots   *bots.Service
 	ingest *ingest.Service
+	blobs  *blobs.Service
+	outbox *outbox.Service
+	hub    *realtime.Hub
+	st     *store.Store
 }
 
 func (b *botAPI) GetBotVersion(context.Context, botapi.GetBotVersionRequestObject) (botapi.GetBotVersionResponseObject, error) {
@@ -176,4 +190,140 @@ func (b *botAPI) PostHeartbeat(ctx context.Context, _ botapi.PostHeartbeatReques
 		return nil, err
 	}
 	return botapi.PostHeartbeat204Response{}, nil
+}
+
+// PutUpload stores an attachment for a linked identity: the same path, limits and quota as a user
+// upload (BOT-6, CORE-A3). The file belongs to the identity's user and stays unlinked until an
+// event references it.
+func (b *botAPI) PutUpload(ctx context.Context, req botapi.PutUploadRequestObject) (botapi.PutUploadResponseObject, error) {
+	bot, err := botFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, r := httpx.HTTPFrom(ctx)
+	if r.ContentLength < 0 {
+		return nil, httpx.NewError(http.StatusLengthRequired, "length_required")
+	}
+	if req.Body == nil {
+		return nil, errBadRequest
+	}
+	ident, ok, err := b.bots.ResolveIdentity(ctx, bot, req.Params.XExternalUser)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, httpx.NewError(http.StatusNotFound, "identity_unlinked")
+	}
+	name, err := url.PathUnescape(req.Params.XFilename)
+	if err != nil {
+		return nil, errBadRequest.WithDetail("X-Filename is not valid percent-encoding")
+	}
+	mediaType := ""
+	if req.Params.XMediaType != nil {
+		mediaType = *req.Params.XMediaType
+	}
+	ctx, cancel := context.WithTimeout(ctx, uploadDeadline)
+	defer cancel()
+	a, err := b.blobs.Upload(ctx, ident.UserID, req.Id, name, mediaType, r.ContentLength, req.Body)
+	if err != nil {
+		return nil, mapBlobError(err)
+	}
+	return botapi.PutUpload201JSONResponse{Id: a.ID, Filename: a.Filename, MediaType: a.MediaType, Size: a.Size}, nil
+}
+
+// ClaimOutbox long-polls the outbox: it returns as soon as there is something for this bot instance,
+// or an empty list after `wait` seconds (docs/design/05 section 4.2).
+func (b *botAPI) ClaimOutbox(ctx context.Context, req botapi.ClaimOutboxRequestObject) (botapi.ClaimOutboxResponseObject, error) {
+	bot, err := botFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wait, limit := 0, 10
+	if req.Params.Wait != nil {
+		wait = min(*req.Params.Wait, 25)
+	}
+	if req.Params.Limit != nil {
+		limit = *req.Params.Limit
+	}
+	wake, stop := b.hub.WaitOutbox(bot.InstanceID)
+	defer stop()
+	deadline := time.NewTimer(time.Duration(wait) * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(5 * time.Second) // the notification is an optimisation; polling is the safety net
+	defer poll.Stop()
+	for {
+		items, err := b.outbox.Claim(ctx, bot.InstanceID, limit)
+		if err != nil {
+			return nil, err
+		}
+		if len(items) > 0 || wait == 0 {
+			out := botapi.ClaimOutbox200JSONResponse{Items: make([]botapi.OutboxItem, len(items))}
+			for i, it := range items {
+				out.Items[i] = botapi.OutboxItem{Id: it.ID, Kind: botapi.OutboxItemKind(it.Kind), ExternalUserId: it.ExternalUserID,
+					ConversationId: it.ConversationID, Payload: it.Payload, Attempts: int(it.Attempts), DueAt: it.DueAt}
+			}
+			return out, nil
+		}
+		select {
+		case <-ctx.Done():
+			return botapi.ClaimOutbox200JSONResponse{Items: []botapi.OutboxItem{}}, nil
+		case <-deadline.C:
+			return botapi.ClaimOutbox200JSONResponse{Items: []botapi.OutboxItem{}}, nil
+		case <-wake:
+		case <-poll.C:
+		}
+	}
+}
+
+func (b *botAPI) PostOutboxResult(ctx context.Context, req botapi.PostOutboxResultRequestObject) (botapi.PostOutboxResultResponseObject, error) {
+	bot, err := botFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errBadRequest
+	}
+	r := outbox.Result{State: string(req.Body.State)}
+	if req.Body.Reason != nil {
+		r.Reason = *req.Body.Reason
+	}
+	if req.Body.MessageIds != nil {
+		r.MessageIDs = *req.Body.MessageIds
+	}
+	if err := b.outbox.Report(ctx, bot.InstanceID, req.Id, r); err != nil {
+		if errors.Is(err, outbox.ErrInvalid) {
+			return nil, errBadRequest
+		}
+		return nil, err
+	}
+	return botapi.PostOutboxResult204Response{}, nil
+}
+
+// GetConversationCursor tells a bot the platform time of the newest message Core holds for a
+// conversation, so it can resume after the right message (BOT-10).
+func (b *botAPI) GetConversationCursor(ctx context.Context, req botapi.GetConversationCursorRequestObject) (botapi.GetConversationCursorResponseObject, error) {
+	bot, err := botFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ident, err := b.st.Q().IdentityByConversation(ctx, dbq.IdentityByConversationParams{BotInstanceID: bot.InstanceID, ConversationID: &req.Id})
+	if err != nil {
+		return botapi.GetConversationCursor200JSONResponse{}, nil // unknown conversation: nothing held
+	}
+	var last *time.Time
+	err = b.st.InUserRead(ctx, ident.UserID, func(q *dbq.Queries) error {
+		at, err := q.ConversationLastMessageAt(ctx, dbq.ConversationLastMessageAtParams{UserID: ident.UserID,
+			SourceBotInstanceID: uuid.NullUUID{UUID: bot.InstanceID, Valid: true}, SourceConversationID: &req.Id})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err == nil {
+			last = &at
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return botapi.GetConversationCursor200JSONResponse{LastMessageAt: last}, nil
 }
