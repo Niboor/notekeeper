@@ -122,6 +122,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Me'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/deletion:
+    post:
+      operationId: deleteMyAccount
+      summary: Delete the account and all its data; the password confirms it
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: {type: string, maxLength: 1024}
+      responses:
+        '202': {description: Deletion started; every session ends}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/me/password:
     post:
       operationId: changePassword
@@ -821,6 +840,17 @@ paths:
             schema: {$ref: '#/components/schemas/AdminUpdateUser'}
       responses:
         '204': {description: Updated}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: adminDeleteUser
+      summary: Delete an account with all its data (the data is removed in the background)
+      security:
+        - sessionAuth: [admin]
+        - bearerAuth: [admin]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '202': {description: Deletion started}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/users/{id}/activation-link:
     post:

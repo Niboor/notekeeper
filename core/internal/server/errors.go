@@ -34,6 +34,8 @@ func mapError(err error) *httpx.Error {
 	case errors.As(err, &th):
 		secs := int(math.Ceil(th.RetryAfter.Seconds()))
 		return &httpx.Error{Status: http.StatusTooManyRequests, Code: "throttled", RetryAfter: max(secs, 1)}
+	case errors.Is(err, accounts.ErrProtected):
+		return httpx.NewError(http.StatusConflict, "admin_cannot_be_deleted")
 	case errors.Is(err, accounts.ErrInvalidCredentials):
 		return httpx.NewError(http.StatusUnauthorized, "invalid_credentials")
 	case errors.Is(err, accounts.ErrUnauthenticated), errors.Is(err, bots.ErrUnauthenticated):

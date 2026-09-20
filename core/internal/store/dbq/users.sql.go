@@ -110,6 +110,59 @@ func (q *Queries) CurrentChangeSeq(ctx context.Context, id uuid.UUID) (int64, er
 	return change_seq, err
 }
 
+const deleteBlobChunksBatch = `-- name: DeleteBlobChunksBatch :execrows
+delete from blob_chunks where (blob_id, idx) in (select c.blob_id, c.idx from blob_chunks c where c.user_id = $1 limit $2) and user_id = $1
+`
+
+type DeleteBlobChunksBatchParams struct {
+	UserID uuid.UUID
+	Limit  int32
+}
+
+func (q *Queries) DeleteBlobChunksBatch(ctx context.Context, arg DeleteBlobChunksBatchParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBlobChunksBatch, arg.UserID, arg.Limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteUserAttachments = `-- name: DeleteUserAttachments :execrows
+delete from attachments where user_id = $1
+`
+
+func (q *Queries) DeleteUserAttachments(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserAttachments, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteUserNoteParts = `-- name: DeleteUserNoteParts :execrows
+delete from note_parts where user_id = $1
+`
+
+func (q *Queries) DeleteUserNoteParts(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserNoteParts, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteUserRow = `-- name: DeleteUserRow :execrows
+delete from users where id = $1 and status = 'deleting'
+`
+
+func (q *Queries) DeleteUserRow(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserRow, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensureUserStorage = `-- name: EnsureUserStorage :exec
 insert into user_storage (user_id) values ($1) on conflict do nothing
 `
@@ -194,6 +247,36 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 	return i, err
 }
 
+const identitiesForDeletion = `-- name: IdentitiesForDeletion :many
+select bot_instance_id, external_user_id, conversation_id from external_identities where user_id = $1 and conversation_id is not null
+`
+
+type IdentitiesForDeletionRow struct {
+	BotInstanceID  uuid.UUID
+	ExternalUserID string
+	ConversationID *string
+}
+
+func (q *Queries) IdentitiesForDeletion(ctx context.Context, userID uuid.UUID) ([]IdentitiesForDeletionRow, error) {
+	rows, err := q.db.Query(ctx, identitiesForDeletion, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IdentitiesForDeletionRow{}
+	for rows.Next() {
+		var i IdentitiesForDeletionRow
+		if err := rows.Scan(&i.BotInstanceID, &i.ExternalUserID, &i.ConversationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertChange = `-- name: InsertChange :exec
 insert into changes (user_id, seq, entity_type, entity_id, op, version)
 values ($1, $2, $3, $4, $5, $6)
@@ -258,6 +341,30 @@ func (q *Queries) ListChanges(ctx context.Context, arg ListChangesParams) ([]Lis
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeletingUsers = `-- name: ListDeletingUsers :many
+select id from users where status = 'deleting' order by updated_at limit 50
+`
+
+func (q *Queries) ListDeletingUsers(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listDeletingUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -19,6 +19,8 @@ export function SettingsPage() {
         <GroupingSection />
         <SessionsSection />
         <PasswordSection />
+        <ExportSection />
+        <DeleteAccountSection />
       </div>
     </div>
   )
@@ -309,6 +311,63 @@ function GroupingSection() {
           </option>
         ))}
       </select>
+    </section>
+  )
+}
+
+/** A ZIP of everything the user has, in open formats (AUTH-U5). The browser downloads it straight from the API. */
+function ExportSection() {
+  return (
+    <section className="section" aria-labelledby="export-h">
+      <h2 id="export-h">{t('settings.export.title')}</h2>
+      <p>{t('settings.export.lead')}</p>
+      <a className="btn" href="/api/v1/me/export" download="notekeeper-export.zip">
+        {t('settings.export.button')}
+      </a>
+    </section>
+  )
+}
+
+/** Deleting the account, confirmed by the password (AUTH-U4, AUTH-U9). */
+function DeleteAccountSection() {
+  const { user, logout } = useAuth()
+  const [password, setPassword] = useState('')
+  const [armed, setArmed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const remove = useMutation({
+    mutationFn: async () => unwrapEmpty(await api.POST('/api/v1/me/deletion', { body: { password } })),
+    onSuccess: () => void logout().catch(() => undefined),
+    onError: (e) => setError(e instanceof ApiError && e.status === 409 ? t('settings.delete.admin') : t('settings.delete.wrong')),
+  })
+  if (user?.is_admin) return null
+  return (
+    <section className="section" aria-labelledby="delete-h">
+      <h2 id="delete-h">{t('settings.delete.title')}</h2>
+      <p>{t('settings.delete.lead')}</p>
+      {armed ? (
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setError(null)
+            remove.mutate()
+          }}
+        >
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('settings.delete.password')} autoComplete="current-password" />
+          <button className="btn danger" disabled={!password || remove.isPending}>
+            {t('settings.delete.confirm')}
+          </button>
+        </form>
+      ) : (
+        <button className="btn" onClick={() => setArmed(true)}>
+          {t('settings.delete.title')}
+        </button>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
     </section>
   )
 }

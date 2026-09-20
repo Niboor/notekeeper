@@ -8,6 +8,7 @@ import { Layout } from './components/Layout'
 import { BoardShell } from './features/board/BoardShell'
 import { SearchPage } from './features/search/SearchPage'
 import { TrashPage } from './features/trash/TrashPage'
+import { AdminPage } from './features/admin/AdminPage'
 import { NoteLink } from './features/notes/NoteLink'
 import { RemindersPage } from './features/reminders/RemindersPage'
 import { SettingsPage } from './features/settings/SettingsPage'
@@ -53,6 +54,7 @@ export function App() {
               <Route path="/trash" element={<TrashPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/notes/:id" element={<NoteLink />} />
             </Route>

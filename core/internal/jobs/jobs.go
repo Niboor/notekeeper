@@ -15,6 +15,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/reminders"
@@ -40,6 +41,7 @@ type Deps struct {
 	Outbox    *outbox.Service
 	Shares    *shares.Service
 	Reminders *reminders.Service
+	Accounts  *accounts.Service
 	Log       *slog.Logger
 	Now       func() time.Time
 }
@@ -160,6 +162,24 @@ func (w *ExpireOutboxWorker) Work(ctx context.Context, _ *river.Job[ExpireOutbox
 	return w.D.Outbox.Expire(ctx)
 }
 
+// DeleteUsersArgs removes the data of accounts that are being deleted (AUTH-U9).
+type DeleteUsersArgs struct{}
+
+// Kind identifies the job type.
+func (DeleteUsersArgs) Kind() string { return "delete_users" }
+
+// DeleteUsersWorker performs DeleteUsersArgs.
+type DeleteUsersWorker struct {
+	river.WorkerDefaults[DeleteUsersArgs]
+	D Deps
+}
+
+// Work finishes pending deletions; it can run again after a crash and continues where it stopped.
+func (w *DeleteUsersWorker) Work(ctx context.Context, _ *river.Job[DeleteUsersArgs]) error {
+	_, err := w.D.Accounts.ProcessDeletions(ctx)
+	return err
+}
+
 // FireDueRemindersArgs fires reminders that are due (docs/design/05 section 5.1).
 type FireDueRemindersArgs struct{}
 
@@ -205,6 +225,7 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 	river.AddWorker(workers, &ExpireOutboxWorker{D: d})
 	river.AddWorker(workers, &PurgeShareLinksWorker{D: d})
 	river.AddWorker(workers, &FireDueRemindersWorker{D: d})
+	river.AddWorker(workers, &DeleteUsersWorker{D: d})
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}},
 		Workers: workers,
@@ -221,6 +242,9 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 				nil),
 			river.NewPeriodicJob(river.PeriodicInterval(10*time.Second),
 				func() (river.JobArgs, *river.InsertOpts) { return FireDueRemindersArgs{}, nil },
+				nil),
+			river.NewPeriodicJob(river.PeriodicInterval(15*time.Second),
+				func() (river.JobArgs, *river.InsertOpts) { return DeleteUsersArgs{}, nil },
 				nil),
 			river.NewPeriodicJob(river.PeriodicInterval(time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return PurgeShareLinksArgs{}, nil },

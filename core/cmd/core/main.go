@@ -87,7 +87,7 @@ func serve(ctx context.Context) error {
 	go hub.Run(ctx)
 
 	// Background jobs (River). Its tables are created by `core migrate`, never here (no DDL rights).
-	workers, err := jobs.New(pool, jobs.Deps{Store: st, Blobs: sv.Blobs, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Log: log})
+	workers, err := jobs.New(pool, jobs.Deps{Store: st, Blobs: sv.Blobs, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Accounts: sv.Accounts, Log: log})
 	if err != nil {
 		return err
 	}

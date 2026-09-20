@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/Niboor/notekeeper/core/internal/httpx"
 
 	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/bots"
@@ -184,4 +185,35 @@ func (u *userAPI) AdminDisableBotCredential(ctx context.Context, req userapi.Adm
 		return nil, err
 	}
 	return userapi.AdminDisableBotCredential204Response{}, nil
+}
+
+func (u *userAPI) AdminDeleteUser(ctx context.Context, req userapi.AdminDeleteUserRequestObject) (userapi.AdminDeleteUserResponseObject, error) {
+	p, err := mustPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := u.accts.RequestDeletion(ctx, actorOf(p), req.Id); err != nil {
+		return nil, err
+	}
+	return userapi.AdminDeleteUser202Response{}, nil
+}
+
+// DeleteMyAccount deletes the caller's own account after the password is confirmed (AUTH-U4).
+func (u *userAPI) DeleteMyAccount(ctx context.Context, req userapi.DeleteMyAccountRequestObject) (userapi.DeleteMyAccountResponseObject, error) {
+	p, err := mustPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errBadRequest
+	}
+	if err := u.accts.ConfirmPassword(ctx, p, req.Body.Password); err != nil {
+		return nil, err
+	}
+	if err := u.accts.RequestDeletion(ctx, actorOf(p), p.UserID); err != nil {
+		return nil, err
+	}
+	w, _ := httpx.HTTPFrom(ctx)
+	clearAuthCookies(w)
+	return userapi.DeleteMyAccount202Response{}, nil
 }

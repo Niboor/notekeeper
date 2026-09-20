@@ -103,6 +103,11 @@ export function Layout() {
                 <Link to="/settings" role="menuitem" onClick={() => setOpen(false)}>
                   {t('nav.settings')}
                 </Link>
+                {user?.is_admin && (
+                  <Link to="/admin" role="menuitem" onClick={() => setOpen(false)}>
+                    {t('nav.admin')}
+                  </Link>
+                )}
                 <button role="menuitem" onClick={() => void logout()}>
                   {t('nav.signOut')}
                 </button>

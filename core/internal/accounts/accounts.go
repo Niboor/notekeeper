@@ -474,6 +474,31 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	return nil
 }
 
+// ConfirmPassword checks the password of the signed-in user before something irreversible, with the
+// same throttling as a login (AUTH-U4).
+func (s *Service) ConfirmPassword(ctx context.Context, p Principal, password string) error {
+	acctKey := "acct:" + NormaliseUsername(p.Username)
+	if wait, err := s.throttle.Blocked(ctx, acctKey); err != nil {
+		return err
+	} else if wait > 0 {
+		return &ThrottledError{RetryAfter: wait}
+	}
+	u, err := s.St.Q().GetUser(ctx, p.UserID)
+	if err != nil || u.PasswordHash == nil {
+		return ErrUnauthenticated
+	}
+	ok, _, err := s.Hash.Verify(ctx, password, *u.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		_ = s.throttle.Fail(ctx, acctKey, throttle.Account)
+		return ErrInvalidCredentials
+	}
+	_ = s.throttle.Reset(ctx, acctKey)
+	return nil
+}
+
 // SessionLabel makes a short description such as "Firefox on Linux" from a User-Agent header.
 // It only reads the header; nothing else about the client is kept.
 func SessionLabel(ua string) string {

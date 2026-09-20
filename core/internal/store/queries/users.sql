@@ -68,3 +68,21 @@ select * from users where is_admin;
 
 -- name: SetAdmin :exec
 update users set is_admin = $2, updated_at = $3, version = version + 1 where id = $1;
+
+-- name: ListDeletingUsers :many
+select id from users where status = 'deleting' order by updated_at limit 50;
+
+-- name: DeleteBlobChunksBatch :execrows
+delete from blob_chunks where (blob_id, idx) in (select c.blob_id, c.idx from blob_chunks c where c.user_id = $1 limit $2) and user_id = $1;
+
+-- name: DeleteUserRow :execrows
+delete from users where id = $1 and status = 'deleting';
+
+-- name: IdentitiesForDeletion :many
+select bot_instance_id, external_user_id, conversation_id from external_identities where user_id = $1 and conversation_id is not null;
+
+-- name: DeleteUserNoteParts :execrows
+delete from note_parts where user_id = $1;
+
+-- name: DeleteUserAttachments :execrows
+delete from attachments where user_id = $1;
