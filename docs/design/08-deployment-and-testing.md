@@ -70,6 +70,7 @@ Environment variables; safe defaults; documented in `docs/configuration.md` when
 | `NK_ACTIVATION_TTL` | 7d | AUTH-U8 |
 | `NK_SHARE_MAX_LIFETIME` | 30d | CORE-SH2 |
 | `NK_SHARE_ENABLED` | true | CORE-SH11 |
+| `NK_SHARE_MAX_ACTIVE` | 200 | Links one user may hold at once (SEC-SHR-11); creation is also capped at 30 per hour per user |
 | `NK_MAX_ATTACHMENT_BYTES` | 25 MiB | CORE-A3 |
 | `NK_DEFAULT_QUOTA_BYTES` | 2 GiB | CORE-A3 |
 | `NK_GROUPING_WINDOW` | 60s | GRP-5 (per-user override in settings) |

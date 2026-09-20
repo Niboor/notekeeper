@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { api, ApiError, unwrap, unwrapEmpty } from '../../api/client'
 import { t } from '../../i18n'
+import { formatWhen } from '../share/ShareDialog'
+import { useRevokeAllShares, useRevokeShare, useShareLinks } from '../share/hooks'
 
 /** Settings: linked chats (with pairing codes), signed-in devices, password. */
 export function SettingsPage() {
@@ -10,6 +12,7 @@ export function SettingsPage() {
       <div className="page-narrow">
         <h1>{t('settings.title')}</h1>
         <ChatsSection />
+        <ShareLinksSection />
         <SessionsSection />
         <PasswordSection />
       </div>
@@ -155,6 +158,52 @@ function PasswordSection() {
           {t('settings.password.submit')}
         </button>
       </form>
+    </section>
+  )
+}
+
+/** Every active share link with its usage, and the way to end them (WEB-12, WEB-21, CORE-SH3, CORE-SH14). */
+function ShareLinksSection() {
+  const links = useShareLinks()
+  const revoke = useRevokeShare()
+  const revokeAll = useRevokeAllShares()
+  const [confirming, setConfirming] = useState(false)
+  const items = links.data?.items ?? []
+  return (
+    <section className="section" aria-labelledby="share-links-h">
+      <h2 id="share-links-h">{t('settings.share.title')}</h2>
+      <p>{t('settings.share.lead')}</p>
+      {links.data && items.length === 0 && <p>{t('settings.share.none')}</p>}
+      {items.map((l) => (
+        <div className="row" key={l.id}>
+          <div className="grow">
+            {l.excerpt || '…'}
+            <div className="sub">
+              {t('share.until', { when: formatWhen(l.expires_at) })} · {t('share.views', { count: l.view_count })} ·{' '}
+              {l.last_accessed_at ? t('settings.share.lastAccess', { when: formatWhen(l.last_accessed_at) }) : t('settings.share.never')}
+              {!l.note_active && ` · ${t('settings.share.notWorking')}`}
+            </div>
+          </div>
+          <button className="btn" onClick={() => revoke.mutate(l.id)} aria-label={`${t('share.revoke')}: ${l.excerpt}`}>
+            {t('share.revoke')}
+          </button>
+        </div>
+      ))}
+      {items.length > 0 &&
+        (confirming ? (
+          <button
+            className="btn danger"
+            onClick={() => {
+              revokeAll.mutate(undefined, { onSettled: () => setConfirming(false) })
+            }}
+          >
+            {t('settings.share.confirmAll', { count: items.length })}
+          </button>
+        ) : (
+          <button className="btn" onClick={() => setConfirming(true)}>
+            {t('settings.share.revokeAll')}
+          </button>
+        ))}
     </section>
   )
 }

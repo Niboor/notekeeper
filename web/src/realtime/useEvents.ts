@@ -17,6 +17,9 @@ export function applyChange(qc: QueryClient, c: ChangeEvent): void {
       void qc.invalidateQueries({ queryKey: ['trash'] })
       void qc.invalidateQueries({ queryKey: ['note', c.entity_id] })
       break
+    case 'share_link':
+      void qc.invalidateQueries({ queryKey: ['share-links'] })
+      break
     case 'identity':
       void qc.invalidateQueries({ queryKey: ['identities'] })
       break

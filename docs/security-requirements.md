@@ -134,17 +134,17 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-SHR-1 | Must | unimplemented | Opening a link after expiry, revocation, note dismissal, note deletion, or owner disable/deletion. | CORE-SH2..SH5 |
-| SEC-SHR-2 | Must | unimplemented | Creating a link without an expiry, or with an expiry beyond the configured maximum, by any means including a hand-crafted API request: enforced server-side, not just in the UI. | CORE-SH2 |
-| SEC-SHR-3 | Must | unimplemented | Guessing or enumerating tokens (at least 128 bits, hashed at rest, constant-time comparison), or distinguishing "unknown" from "expired" from "revoked" by response or timing. | CORE-SH6 |
-| SEC-SHR-4 | Must | unimplemented | Reaching anything but the shared note and its attachments with a link: other notes, attachments of other notes (also by guessing IDs or path tricks), any user-API endpoint, the note's page/category, source, reminders, history or owner identity. | CORE-SH4, CORE-SH7 |
-| SEC-SHR-5 | Must | unimplemented | Shared content running script in, or reading storage or cookies of, the authenticated app: separate origin or equivalent isolation, no cookies set or accepted on public endpoints. | CORE-SH7, CORE-SH8 |
-| SEC-SHR-6 | Must | unimplemented | A link leaking through referrers, search-engine indexing or shared caches: `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, non-cacheable responses. | CORE-SH8 |
-| SEC-SHR-7 | Must | unimplemented | Full share tokens appearing in access logs, metrics labels, traces, error reports or referrers: the token lives in the URL fragment and is sent only in a request header to the public API, which is never logged. | CORE-SH10, NFR-S1 |
-| SEC-SHR-8 | Must | unimplemented | A single link (or many links) exhausting bandwidth or CPU: per-link and per-IP limits apply. | CORE-SH9 |
-| SEC-SHR-9 | Must | unimplemented | Creating links for a note the caller does not own. | SEC-ISO-4 |
-| SEC-SHR-10 | Should | unimplemented | The public page being used to pass content off as coming from the operator: it shows a clear notice that the content was shared by a Notekeeper user and is not verified. | — |
-| SEC-SHR-11 | Must | unimplemented | Minting share links in bulk (for example from a stolen session): creation is rate-limited and each user has a cap on simultaneously active links. | CORE-SH1 |
+| SEC-SHR-1 | Must | fully tested | Opening a link after expiry, revocation, note dismissal, note deletion, or owner disable/deletion. | CORE-SH2..SH5 |
+| SEC-SHR-2 | Must | fully tested | Creating a link without an expiry, or with an expiry beyond the configured maximum, by any means including a hand-crafted API request: enforced server-side, not just in the UI. | CORE-SH2 |
+| SEC-SHR-3 | Must | fully tested | Guessing or enumerating tokens (at least 128 bits, hashed at rest, constant-time comparison), or distinguishing "unknown" from "expired" from "revoked" by response or timing. | CORE-SH6 |
+| SEC-SHR-4 | Must | fully tested | Reaching anything but the shared note and its attachments with a link: other notes, attachments of other notes (also by guessing IDs or path tricks), any user-API endpoint, the note's page/category, source, reminders, history or owner identity. | CORE-SH4, CORE-SH7 |
+| SEC-SHR-5 | Must | fully tested | Shared content running script in, or reading storage or cookies of, the authenticated app: separate origin or equivalent isolation, no cookies set or accepted on public endpoints. | CORE-SH7, CORE-SH8 |
+| SEC-SHR-6 | Must | fully tested | A link leaking through referrers, search-engine indexing or shared caches: `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, non-cacheable responses. | CORE-SH8 |
+| SEC-SHR-7 | Must | fully tested | Full share tokens appearing in access logs, metrics labels, traces, error reports or referrers: the token lives in the URL fragment and is sent only in a request header to the public API, which is never logged. | CORE-SH10, NFR-S1 |
+| SEC-SHR-8 | Must | fully tested | A single link (or many links) exhausting bandwidth or CPU: per-link and per-IP limits apply. | CORE-SH9 |
+| SEC-SHR-9 | Must | fully tested | Creating links for a note the caller does not own. | SEC-ISO-4 |
+| SEC-SHR-10 | Should | fully tested | The public page being used to pass content off as coming from the operator: it shows a clear notice that the content was shared by a Notekeeper user and is not verified. | — |
+| SEC-SHR-11 | Must | fully tested | Minting share links in bulk (for example from a stolen session): creation is rate-limited and each user has a cap on simultaneously active links. | CORE-SH1 |
 
 ### 4.6 Content and attachments (SEC-CNT)
 

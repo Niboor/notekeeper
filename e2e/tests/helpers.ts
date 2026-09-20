@@ -51,7 +51,8 @@ export async function openFreshBoard(page: Page, columns: string[] = ['Todo', 'D
     cols[name] = (await api<{ id: string }>(page, 'POST', '/api/v1/categories', { page_id: created.body.id, name })).body.id
   }
   await page.goto(`/p/${created.body.id}`)
-  await expect(page.getByRole('region', { name: columns[0]! })).toBeVisible()
+  // On a phone the columns are tabs and only one is on screen: either the column or its tab shows the board is ready.
+  await expect(page.getByRole('region', { name: columns[0]!, exact: true }).or(page.getByRole('tab', { name: new RegExp(columns[0]!) })).first()).toBeVisible()
   return { pageId: created.body.id, pageName, columns: cols }
 }
 

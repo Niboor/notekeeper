@@ -22,8 +22,14 @@ func TestBucketRefillsAndKeysAreIndependent(t *testing.T) {
 		t.Fatal("another key has its own bucket")
 	}
 	now = now.Add(2 * time.Second)
-	if !l.Allow("a") || !l.Allow("a") || l.Allow("a") {
-		t.Fatal("two seconds must refill exactly two units")
+	granted := 0
+	for range 5 {
+		if l.Allow("a") {
+			granted++
+		}
+	}
+	if granted != 2 {
+		t.Fatalf("two seconds must refill exactly two units, got %d", granted)
 	}
 	if got := l.RetryAfter("a", 1); got < time.Second || got > 2*time.Second {
 		t.Fatalf("retry after %v", got)

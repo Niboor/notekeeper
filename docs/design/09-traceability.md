@@ -59,20 +59,20 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-S3 | Must | fully tested | 01 §5; 02 §1.5 | Integration | 1 |
 | CORE-S4 | Must | fully tested | README §3; 02 §1.2 | Integration | 1 |
 | CORE-S5 | Must | fully tested | README §3; 01 §11 | Integration | 2 |
-| CORE-SH1 | Must | unimplemented | 03 §6; 01 §10; 02 §1.4 | Integration | 0 |
-| CORE-SH2 | Must | unimplemented | 03 §6; 01 §10; 02 §1.4 | Integration | 0 |
-| CORE-SH3 | Must | unimplemented | 02 §1.4; 03 §6 | Integration, E2E | 0 |
-| CORE-SH4 | Must | unimplemented | 02 §3; 07 §7 | Integration, E2E | 0 |
-| CORE-SH5 | Must | unimplemented | 01 §10 (live join) | Integration | 0 |
-| CORE-SH6 | Must | unimplemented | 03 §6; 02 §3 | Integration | 0 |
-| CORE-SH7 | Must | unimplemented | 02 §3; 03 §6 | Authz matrix, Integration | 0 |
-| CORE-SH8 | Must | unimplemented | 07 §7; 08 §1 | Integration, E2E | 0 |
-| CORE-SH9 | Must | unimplemented | 02 §3; README §3 | Integration | 0 |
-| CORE-SH10 | Must | unimplemented | 07 §7; 08 §1 | E2E | 0 |
-| CORE-SH11 | Should | unimplemented | 08 §3 (`NK_SHARE_ENABLED`) | Integration | 0 |
-| CORE-SH12 | Should | unimplemented | 03 §8; 01 §10 | Integration | 0 |
+| CORE-SH1 | Must | fully tested | 03 §6; 01 §10; 02 §1.4 | Integration | 2 |
+| CORE-SH2 | Must | fully tested | 03 §6; 01 §10; 02 §1.4 | Integration | 1 |
+| CORE-SH3 | Must | fully tested | 02 §1.4; 03 §6 | Integration, E2E | 1 |
+| CORE-SH4 | Must | fully tested | 02 §3; 07 §7 | Integration, E2E | 1 |
+| CORE-SH5 | Must | fully tested | 01 §10 (live join) | Integration | 1 |
+| CORE-SH6 | Must | fully tested | 03 §6; 02 §3 | Integration | 1 |
+| CORE-SH7 | Must | fully tested | 02 §3; 03 §6 | Authz matrix, Integration | 1 |
+| CORE-SH8 | Must | fully tested | 07 §7; 08 §1 | Integration, E2E | 1 |
+| CORE-SH9 | Must | fully tested | 02 §3; README §3 | Integration | 1 |
+| CORE-SH10 | Must | fully tested | 07 §7; 08 §1 | E2E | 2 |
+| CORE-SH11 | Should | fully tested | 08 §3 (`NK_SHARE_ENABLED`) | Integration | 1 |
+| CORE-SH12 | Should | fully tested | 03 §8; 01 §10 | Integration | 1 |
 | CORE-SH13 | Could | unimplemented | deferred (Could) | - | 0 |
-| CORE-SH14 | Should | unimplemented | 02 §1.4 | Integration | 0 |
+| CORE-SH14 | Should | fully tested | 02 §1.4 | Integration | 1 |
 
 ## Accounts and authentication
 
@@ -201,7 +201,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | WEB-18 | Should | unimplemented | 05 §5; 02 §1.4 | E2E | 0 |
 | WEB-19 | Must | unimplemented | 02 §1.6; 07 §1 | E2E | 0 |
 | WEB-20 | Should | fully tested | 07 §5 | E2E | 1 |
-| WEB-21 | Must | unimplemented | 02 §1.4; 03 §6 | E2E | 0 |
+| WEB-21 | Must | fully tested | 02 §1.4; 03 §6 | E2E | 2 |
 | WEB-N1 | Must | fully tested | 07 §2 | E2E | 1 |
 | WEB-N2 | Must | unimplemented | 02 §1; 07 §1 | Review | 0 |
 | WEB-N3 | Must | unimplemented | 07 §9; 02 §1.2 (board endpoint) | E2E | 0 |
@@ -324,7 +324,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-BOT-13 | Must | fully tested | 03 §4.3; 05 §4.2 | Integration | 2 |
 | SEC-CNT-1 | Must | implemented | 07 §5 | Unit, E2E | 1 |
 | SEC-CNT-2 | Must | fully tested | 07 §5 | Unit, E2E | 1 |
-| SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 1 |
+| SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 2 |
 | SEC-CNT-4 | Must | fully tested | 02 §1.3 | Integration | 1 |
 | SEC-CNT-5 | Must | implemented | 02 §1.3 (no media processing) | Review | 0 |
 | SEC-CNT-6 | Must | fully tested | 01 §6.2 | Integration (races) | 1 |
@@ -363,15 +363,15 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-OPS-6 | Must | unimplemented | 08 §6 | CI check | 0 |
 | SEC-OPS-7 | Must | unimplemented | 08 §2 | CI check | 0 |
 | SEC-OPS-8 | Should | unimplemented | 08 §2, §1 | CI check | 0 |
-| SEC-SHR-1 | Must | unimplemented | 01 §10 | Integration | 0 |
-| SEC-SHR-2 | Must | unimplemented | 03 §6; 02 §3 | Integration | 0 |
-| SEC-SHR-3 | Must | unimplemented | 03 §6; 02 §3 | Integration | 0 |
-| SEC-SHR-4 | Must | unimplemented | 02 §3 | Authz matrix | 0 |
-| SEC-SHR-5 | Must | unimplemented | 08 §1; 07 §7 | E2E, Integration (headers) | 0 |
-| SEC-SHR-6 | Must | unimplemented | 03 §6; 07 §7 | Integration | 0 |
-| SEC-SHR-7 | Must | unimplemented | 03 §6; 07 §7 | Integration | 0 |
-| SEC-SHR-8 | Must | unimplemented | 02 §3, §1.4 | Integration | 0 |
-| SEC-SHR-9 | Must | unimplemented | 02 §3, §1.4 | Integration | 0 |
-| SEC-SHR-10 | Should | unimplemented | 07 §7 | E2E | 0 |
-| SEC-SHR-11 | Must | unimplemented | 03 §6 | Integration | 0 |
+| SEC-SHR-1 | Must | fully tested | 01 §10 | Integration | 1 |
+| SEC-SHR-2 | Must | fully tested | 03 §6; 02 §3 | Integration | 1 |
+| SEC-SHR-3 | Must | fully tested | 03 §6; 02 §3 | Integration | 1 |
+| SEC-SHR-4 | Must | fully tested | 02 §3 | Authz matrix | 1 |
+| SEC-SHR-5 | Must | fully tested | 08 §1; 07 §7 | E2E, Integration (headers) | 1 |
+| SEC-SHR-6 | Must | fully tested | 03 §6; 07 §7 | Integration | 1 |
+| SEC-SHR-7 | Must | fully tested | 03 §6; 07 §7 | Integration | 2 |
+| SEC-SHR-8 | Must | fully tested | 02 §3, §1.4 | Integration | 2 |
+| SEC-SHR-9 | Must | fully tested | 02 §3, §1.4 | Integration | 1 |
+| SEC-SHR-10 | Should | fully tested | 07 §7 | E2E | 1 |
+| SEC-SHR-11 | Must | fully tested | 03 §6 | Integration | 1 |
 

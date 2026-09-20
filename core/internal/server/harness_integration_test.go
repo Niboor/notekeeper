@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,7 +33,26 @@ func TestMain(m *testing.M) { os.Exit(testdb.Main(m)) }
 const password = "correct horse battery staple"
 
 // stack is a complete Core (user and bot listeners on real HTTP servers) over a fresh database.
+// syncBuffer collects what Core logged, so tests can prove that secrets never reach the logs.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 type stack struct {
+	logs   *syncBuffer
 	t      *testing.T
 	db     *testdb.DB
 	st     *store.Store
@@ -65,7 +85,8 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	if os.Getenv("NK_TEST_LOG") != "" {
 		logOut = os.Stderr // request failures with their errors, for debugging a failing test
 	}
-	log := slog.New(slog.NewTextHandler(logOut, nil))
+	logs := &syncBuffer{}
+	log := slog.New(slog.NewTextHandler(io.MultiWriter(logOut, logs), nil))
 	st := store.New(d.App)
 	svc, err := app.NewServices(cfg, st, log)
 	if err != nil {
@@ -79,7 +100,7 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &stack{t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot), public: httptest.NewServer(routers.Public)}
+	s := &stack{logs: logs, t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot), public: httptest.NewServer(routers.Public)}
 	t.Cleanup(func() {
 		hub.Shutdown()
 		s.user.CloseClientConnections()

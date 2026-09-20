@@ -33,7 +33,7 @@ func newPublicAPI(s *shares.Service, trusted []netip.Prefix) *publicAPI {
 
 type tokenKey struct{}
 
-const shareTokenHeader = "X-Share-Token"
+const shareTokenHeader = "X-Share-Token" //nolint:gosec // the name of a header, not a credential
 
 // guard runs before the generated code: it limits by address, extracts the token, limits by link, and
 // makes every response non-cacheable and non-indexable with no cookie in either direction (SEC-SHR-5,

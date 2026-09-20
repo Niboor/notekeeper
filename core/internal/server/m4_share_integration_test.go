@@ -537,3 +537,34 @@ func TestExpiredLinksArePurgedAfterAGrace(t *testing.T) {
 }
 
 var _ = store.ErrNotFound
+
+// A share token never reaches the logs, whether the request succeeded, failed or was limited: it
+// travels in a header the access log does not record (CORE-SH10, SEC-SHR-7).
+func TestShareTokensNeverReachTheLogs(t *testing.T) {
+	s := newStack(t)
+	u := s.appUser("alice")
+	n, att := u.noteWithFile("hello", "a.txt", "text/plain", []byte("data"))
+	created := u.share(n.ID, "1d")
+	token := created.token(t)
+	s.publicDo(token, "GET", "/api/public/v1/share", nil)
+	s.publicDo(token, "GET", "/api/public/v1/share/attachments/"+att, nil)
+	s.publicDo(token, "GET", "/api/public/v1/share/attachments/"+uuid.NewString(), nil)
+	u.c.do("DELETE", "/api/v1/share-links/"+created.Link.ID, nil)
+	s.publicDo(token, "GET", "/api/public/v1/share", nil) // revoked
+	dead := strings.Repeat("z", 32)
+	for range 200 {
+		s.publicDo(dead, "GET", "/api/public/v1/share", nil) // until the address limit applies
+	}
+	logs := s.logs.String()
+	if !strings.Contains(logs, "/api/public/v1/share") {
+		t.Fatal("the test must see the access log, or it proves nothing")
+	}
+	for _, secret := range []string{token, dead, created.URL} {
+		if strings.Contains(logs, secret) {
+			t.Fatalf("a share token appears in the logs")
+		}
+	}
+	if s.count(`select count(*) from audit_log where detail::text like '%'||$1||'%'`, token) != 0 {
+		t.Fatal("a token appears in the audit log")
+	}
+}

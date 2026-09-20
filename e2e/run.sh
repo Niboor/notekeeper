@@ -28,6 +28,9 @@ export NK_DATABASE_URL="postgres://nk_app:nk_app_dev@localhost:5432/$DB?sslmode=
 export NK_MIGRATE_DATABASE_URL="postgres://nk_migrate:nk_migrate_dev@localhost:5432/$DB?sslmode=disable"
 export NK_TOKEN_KEYS="e2e:$(head -c 32 /dev/urandom | base64)"
 export NK_APP_URL="http://localhost:$WEB"
+# The share page is served from another origin (share.localhost is a different host from localhost),
+# so the app's cookies do not exist there (CORE-SH8, SEC-SHR-5).
+export NK_SHARE_URL="http://share.localhost:$WEB"
 export NK_USER_ADDR=":$CORE_USER" NK_BOT_ADDR=":$CORE_BOT" NK_PUBLIC_ADDR=":$CORE_PUBLIC" NK_OPS_ADDR=":$CORE_OPS"
 export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL=warn
 
@@ -45,9 +48,11 @@ export E2E_BOT_KEY="$(.bin/core admin bot-credential e2e-bot | grep -o 'nkb\.[^ 
 export E2E_BOT_URL="http://localhost:$CORE_BOT"
 export E2E_BASE_URL="http://localhost:$WEB"
 
-(cd web && NK_API_PROXY="http://localhost:$CORE_USER" npx vite preview --port "$WEB" --strictPort >"$ROOT/e2e/web.log" 2>&1) &
+# exec, so that the recorded pid is the server itself and the cleanup really stops it
+(cd web && NK_API_PROXY="http://localhost:$CORE_USER" NK_PUBLIC_PROXY="http://localhost:$CORE_PUBLIC" exec ./node_modules/.bin/vite preview --port "$WEB" --strictPort >"$ROOT/e2e/web.log" 2>&1) &
 pids+=($!)
 for _ in $(seq 1 60); do curl -fs "http://localhost:$WEB/" >/dev/null && break; sleep 0.5; done
 
 cd e2e
+if [ -n "${E2E_HOLD:-}" ]; then echo "stack is up on $E2E_BASE_URL; Ctrl-C to stop"; sleep "${E2E_HOLD}"; exit 0; fi
 npx playwright test "$@"

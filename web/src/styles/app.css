@@ -102,3 +102,19 @@
 :root { color-scheme: light dark; }
 :root[data-theme=light] { color-scheme: light; }
 :root[data-theme=dark] { color-scheme: dark; }
+
+/* ---- sharing (WEB-21) ---- */
+.dialog { max-width: min(520px, calc(100vw - 32px)); width: 100%; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface, var(--bg)); color: var(--ink); }
+.dialog::backdrop { background: rgb(0 0 0 / .4); }
+.dialog h2 { margin: 0 0 8px; font-size: 17px; }
+.dialog h3 { margin: 18px 0 6px; font-size: 14px; }
+.dialog select, .share-url input { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--field); color: var(--ink); }
+.share-url { margin-top: 12px; }
+.share-url input { width: 100%; font-family: var(--font-mono, monospace); font-size: 13px; }
+.plain-list { list-style: none; margin: 0; padding: 0; }
+.share-page { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+.share-notice { margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: 13px; }
+.share-note { margin: 0; }
+.share-note .note-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+.share-gone { color: var(--muted); }
+button.file { font: inherit; cursor: pointer; text-align: left; }

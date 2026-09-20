@@ -412,7 +412,7 @@ create table share_links (
 );
 ```
 
-A link is valid **only as a live condition** evaluated on every request: `revoked_at is null and expires_at > now()` joined with `notes.state = 'active'` and `users.status = 'active'`. There is no stored "valid" flag and no cache, so dismissing a note disables the link and restoring it re-enables it until the original expiry (CORE-SH5). Expired rows are purged a week after expiry.
+A link is valid **only as a live condition** evaluated on every request: `revoked_at is null and expires_at > now()` joined with `notes.state = 'active'` and `users.status = 'active'`. There is no stored "valid" flag and no cache, so dismissing a note disables the link and restoring it re-enables it until the original expiry (CORE-SH5). Expired rows are purged a week after expiry. `share_links` is not under row-level security, because the token, not a session, identifies the owner: `LookupShare` resolves the token hash to the owner and note joined with the owner's status, and everything after that (the note's state, parts and files) is read in the owner's row-level-security context and scoped to that note (decision 54). The 192-bit token is random, so the timing of the hash lookup reveals nothing that can be used to guess it.
 
 ## 11. Operational tables
 

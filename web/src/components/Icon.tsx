@@ -7,6 +7,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M21 21l-4.3-4.3" />
     </>
   ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </>
+  ),
   x: <path d="M18 6L6 18M6 6l12 12" />,
   more: (
     <>
@@ -47,7 +53,7 @@ const ICONS: Record<string, ReactNode> = {
   trash: <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />,
 }
 
-export type IconName = 'search' | 'x' | 'more' | 'sun' | 'moon' | 'inbox' | 'chat' | 'pen' | 'file' | 'plus' | 'check' | 'trash' | 'clip'
+export type IconName = 'search' | 'x' | 'more' | 'sun' | 'moon' | 'inbox' | 'chat' | 'pen' | 'file' | 'plus' | 'check' | 'trash' | 'clip' | 'link'
 
 /** A stroke icon in the style of the Paper prototype. */
 export function Icon({ name, className = '' }: { name: IconName; className?: string }) {

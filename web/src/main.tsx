@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { SharePage } from './features/share/SharePage'
 import { applyStoredTheme } from './components/theme'
 import './styles/index.css'
 
@@ -11,6 +12,6 @@ if (!root) throw new Error('missing #root element')
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {window.location.pathname === '/s' ? <SharePage /> : <App />}
   </StrictMode>,
 )
