@@ -13,6 +13,7 @@ pids=()
 cleanup() {
   for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
   wait 2>/dev/null || true
+  rm -rf "$ROOT/e2e/.tls"   # the throwaway certificate of E2E_TLS runs (a private key on disk trips the secret scan)
 }
 trap cleanup EXIT
 

@@ -19,6 +19,7 @@ export function placePopover(el: HTMLElement, anchor: HTMLElement, align: 'left'
     return
   }
   delete el.dataset.sheet
+  const scrolled = el.scrollTop // measuring below removes the height limit for a moment, which would reset it
   const a = anchor.getBoundingClientRect()
   const vw = document.documentElement.clientWidth
   const vh = window.innerHeight
@@ -36,6 +37,7 @@ export function placePopover(el: HTMLElement, anchor: HTMLElement, align: 'left'
   el.style.maxHeight = `${Math.floor(room)}px`
   el.style.left = `${Math.round(Math.min(Math.max(left, MARGIN), Math.max(vw - w - MARGIN, MARGIN)))}px`
   el.style.top = `${Math.round(flip ? a.top - GAP - height : a.bottom + GAP)}px`
+  el.scrollTop = scrolled
 }
 
 interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
@@ -57,12 +59,16 @@ export function Popover({ anchor, popRef, align = 'right', sheet = false, classN
     const a = anchor.current
     if (!el || !a) return
     const place = () => placePopover(el, a, align, sheet)
+    // Scrolling anything the anchor sits in moves the panel with it; scrolling the panel itself does not.
+    const follow = (e: Event) => {
+      if (!el.contains(e.target as Node)) place()
+    }
     place()
     window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true) // any scrolling ancestor of the anchor
+    window.addEventListener('scroll', follow, true)
     return () => {
       window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('scroll', follow, true)
     }
   }, [anchor, popRef, align, sheet])
   return createPortal(<div {...rest} ref={popRef} className={`popover ${className}`} />, document.body)

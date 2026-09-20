@@ -66,6 +66,26 @@ test('a card menu stays inside the window, also low on the screen', async ({ pag
   expect(await everyItemIsOnTop(menu.getByRole('menuitem'))).toBe(true)
 })
 
+test('a long card menu scrolls and stays where it was scrolled to', async ({ page }) => {
+  await openFreshBoard(page)
+  for (let i = 0; i < 24; i++) {
+    const other = await api<{ id: string }>(page, 'POST', '/api/v1/pages', { name: `Elsewhere ${i}` })
+    await api(page, 'POST', '/api/v1/categories', { page_id: other.body.id, name: 'Column' }) // a place to move to
+  }
+  await createNote(page, 'note with a long menu')
+  await page.reload()
+  const note = card(lane(page, 'Inbox'), 'note with a long menu')
+  await note.hover()
+  await note.getByRole('button', { name: 'More actions' }).click()
+  const menu = page.getByRole('menu')
+  expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+  expect(inViewport(page, (await menu.boundingBox())!)).toBe(true)
+  await menu.hover()
+  await page.mouse.wheel(0, 300)
+  await page.waitForTimeout(400) // the scroll must not send the list back to the top
+  expect(await menu.evaluate((el) => el.scrollTop)).toBeGreaterThan(100)
+})
+
 test('the editor grows with the note and gives the focus back to the card', async ({ page }) => {
   await openFreshBoard(page)
   const text = Array.from({ length: 9 }, (_, i) => `line ${i + 1}`).join('\n')

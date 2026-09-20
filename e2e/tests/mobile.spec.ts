@@ -32,7 +32,10 @@ test('a phone shows one column at a time and moves notes through the menu', asyn
 // A menu is a bottom sheet that fits the screen, however many places a note can move to.
 test('the card menu is a sheet inside the screen and every move target can be reached', async ({ page }) => {
   await openFreshBoard(page)
-  for (let i = 0; i < 6; i++) await api(page, 'POST', '/api/v1/pages', { name: `Another page ${i}` })
+  for (let i = 0; i < 12; i++) {
+    const other = await api<{ id: string }>(page, 'POST', '/api/v1/pages', { name: `Another page ${i}` })
+    await api(page, 'POST', '/api/v1/categories', { page_id: other.body.id, name: 'Column' }) // a place to move to
+  }
   await createNote(page, 'phone menu note')
   await page.reload()
   await card(page, 'phone menu note').getByRole('button', { name: 'More actions' }).click()
@@ -45,7 +48,10 @@ test('the card menu is a sheet inside the screen and every move target can be re
   expect(box.x).toBeGreaterThanOrEqual(0)
   expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1)
   const items = menu.getByRole('menuitem')
+  expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true) // the list is longer than the sheet
   await items.last().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(400) // scrolling the list must not send it back to the top
+  expect(await menu.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
   const last = (await items.last().boundingBox())!
   expect(last.y + last.height).toBeLessThanOrEqual(vp.height)
 })
