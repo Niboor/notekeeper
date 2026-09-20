@@ -4,23 +4,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { t } from '../i18n'
 import { NotificationsBell } from '../features/reminders/NotificationsBell'
 import { Icon } from './Icon'
+import { useOnline } from './useOnline'
 import { useTheme } from './theme'
 import { TopbarSlot } from './topbar'
-
-function useOnline(): boolean {
-  const [online, setOnline] = useState(() => navigator.onLine)
-  useEffect(() => {
-    const up = () => setOnline(true)
-    const down = () => setOnline(false)
-    window.addEventListener('online', up)
-    window.addEventListener('offline', down)
-    return () => {
-      window.removeEventListener('online', up)
-      window.removeEventListener('offline', down)
-    }
-  }, [])
-  return online
-}
 
 /** The signed-in frame: top bar with brand, theme toggle and account menu, and an offline banner. */
 export function Layout() {

@@ -214,3 +214,25 @@ test('merge two notes, split one out, and restore an earlier text', async ({ pag
   await expect(card(todo, 'merge one')).toBeVisible()
   await expect(card(todo, 'merge one, edited')).toHaveCount(0)
 })
+
+// WEB-N8: the app is installable and its shell opens without a network; nothing from the API is cached.
+test('the app shell works offline and the API is never cached', async ({ page, context }) => {
+  await openFreshBoard(page)
+  await page.evaluate(async () => (await navigator.serviceWorker.ready).active?.state)
+  const manifest = await (await page.request.get('/manifest.webmanifest')).json()
+  expect(manifest.display).toBe('standalone')
+  expect(manifest.icons.some((i: { sizes: string }) => i.sizes === '512x512')).toBe(true)
+  await page.reload() // now controlled by the worker
+  await expect(page.getByRole('button', { name: 'New note' })).toBeVisible()
+  const cached = await page.evaluate(async () => {
+    const urls: string[] = []
+    for (const name of await caches.keys()) for (const req of await (await caches.open(name)).keys()) urls.push(new URL(req.url).pathname)
+    return urls
+  })
+  expect(cached.length).toBeGreaterThan(0)
+  expect(cached.filter((u) => u.startsWith('/api/'))).toEqual([])
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByText(/offline/i).first()).toBeVisible({ timeout: 15_000 }) // the shell renders and says so
+  await context.setOffline(false)
+})

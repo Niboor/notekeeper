@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { useAdoptBrowserTimezone } from './auth/useAdoptBrowserTimezone'
+import { useOnline } from './components/useOnline'
 import { ToastProvider } from './components/Toast'
 import { Layout } from './components/Layout'
 import { BoardShell } from './features/board/BoardShell'
@@ -20,9 +21,10 @@ import { useEvents } from './realtime/useEvents'
 function RequireAuth() {
   const { user } = useAuth()
   useAdoptBrowserTimezone()
+  const online = useOnline()
   const location = useLocation()
   useEvents(!!user)
-  if (user === undefined) return <div className="spinner-page">{t('common.loading')}</div>
+  if (user === undefined) return <div className="spinner-page">{online ? t('common.loading') : t('common.offline')}</div>
   if (user === null) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   return <Layout />
 }

@@ -34,20 +34,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   // First load: the cookies decide whether we are signed in. A 401 is renewed silently by the fetch wrapper.
+  // Without a network the answer is unknown, so the page keeps waiting and asks again the moment the
+  // browser is back online (the offline start of the installed app, WEB-N8).
   useEffect(() => {
     let cancelled = false
-    void api.GET('/api/v1/me').then((res) => {
-      if (cancelled) return
-      if (res.data) {
-        setUser(res.data)
-        // Renew before the first access token lapses; later renewals reschedule themselves.
-        scheduleRefresh(new Date(Date.now() + 15 * 60_000))
-      } else {
-        setUser(null)
-      }
-    })
+    const check = () => {
+      api
+        .GET('/api/v1/me')
+        .then((res) => {
+          if (cancelled) return
+          if (res.data) {
+            setUser(res.data)
+            // Renew before the first access token lapses; later renewals reschedule themselves.
+            scheduleRefresh(new Date(Date.now() + 15 * 60_000))
+          } else {
+            setUser(null)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) window.addEventListener('online', check, { once: true })
+        })
+    }
+    check()
     return () => {
       cancelled = true
+      window.removeEventListener('online', check)
     }
   }, [])
 
