@@ -1,6 +1,6 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { refreshSession } from '../api/session'
+import { api } from '../api/client'
 
 interface ChangeEvent {
   entity_type: string
@@ -59,7 +59,7 @@ export function applyChange(qc: QueryClient, c: ChangeEvent): void {
  * Keeps the cache live through one EventSource per tab (WEB-11). The browser reconnects on its
  * own and sends Last-Event-ID, so nothing is missed; "hello" (a fresh connection) and "resync"
  * refetch everything. The server ends each stream when its access token lapses, after which the
- * browser reconnects with the renewed cookie; if the stream is refused outright we renew and retry.
+ * browser reconnects with the renewed cookie; if the stream is refused outright we check the session (renewing it when it lapsed) and retry.
  */
 export function useEvents(enabled: boolean): void {
   const qc = useQueryClient()
@@ -89,15 +89,19 @@ export function useEvents(enabled: boolean): void {
         retry = setTimeout(open, 500)
       })
       source.onerror = () => {
-        // CLOSED means the browser gave up (a 401, too many streams, a proxy error during a deploy): renew the
-        // session, then reopen, waiting longer after every failure so that a server that keeps refusing is
-        // not hammered (and a refresh token is not rotated once a second) (CR-054).
+        // CLOSED means the browser gave up: a 401, too many streams (another tab, or a browser that keeps the
+        // streams of closed pages for a while), a proxy error during a deploy. Only the first is a matter of the
+        // session, and asking for /me finds that out and renews the session when it is needed. Renewing it
+        // straight away would rotate the refresh token on every refusal, and a token that other tabs still
+        // hold then looks stolen (CR-054). Waiting longer after every failure keeps a server that keeps
+        // refusing from being hammered.
         if (source?.readyState === EventSource.CLOSED && !closed) {
           const wait = Math.min(30000, 1000 * 2 ** failures) * (0.75 + Math.random() * 0.5)
           failures++
-          void refreshSession().then((ok) => {
-            if (ok && !closed) retry = setTimeout(open, wait)
-          })
+          const again = () => {
+            if (!closed) retry = setTimeout(open, wait)
+          }
+          api.GET('/api/v1/me').then(({ response }) => response.status !== 401 && again(), again) // a network error: try again later too
         }
       }
     }

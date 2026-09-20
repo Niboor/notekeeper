@@ -98,9 +98,8 @@ jobs:
       - name: Browser end-to-end tests (Chromium)
         run: e2e/run.sh
 
-  # Firefox and WebKit run the @cross tests (WEB-N6), each in its own job. Firefox passes and blocks; WebKit is
-  # still being proven: its tests report without failing the job. WebKit does not accept the Secure cookies of an
-  # http origin, so it runs against https with a throwaway certificate.
+  # Firefox and WebKit run the @cross tests (WEB-N6), each in its own job; both block. WebKit does not accept the
+  # Secure cookies of an http origin, so it runs against https with a throwaway certificate.
   e2e-cross-browser:
     name: ${{ matrix.browser }} (@cross tests)
     runs-on: ubuntu-latest
@@ -109,8 +108,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {browser: firefox, tls: '', proven: true}
-          - {browser: webkit, tls: '1', proven: false}
+          - {browser: firefox, tls: ''}
+          - {browser: webkit, tls: '1'}
     steps:
       - uses: actions/checkout@v4
       # The tests log in through Chromium once, whatever browser they then run in.
@@ -119,7 +118,6 @@ jobs:
           web: true
           playwright: chromium ${{ matrix.browser }}
       - name: Browser tests on ${{ matrix.browser }}
-        continue-on-error: ${{ !matrix.proven }}
         env:
           E2E_BROWSERS: all
           E2E_TLS: ${{ matrix.tls }}
