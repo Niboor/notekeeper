@@ -197,9 +197,11 @@ func (c *Client) Upload(ctx context.Context, id uuid.UUID, externalUser, filenam
 			switch {
 			case err == nil && status >= 200 && status < 300:
 				return nil
-			case err == nil && status >= 400 && status < 500 && status != http.StatusTooManyRequests && status != http.StatusRequestTimeout:
+			case err == nil && status >= 400 && status < 500 && status != http.StatusTooManyRequests && status != http.StatusRequestTimeout && status != http.StatusConflict:
 				return &PermanentError{Status: status, Code: code}
 			case err == nil:
+				// 409: an earlier attempt at this upload id (a bot that was killed mid-upload) is
+				// still being cleaned up by Core. That passes, so it is worth another attempt.
 				err = fmt.Errorf("core answered %d", status)
 			}
 		}

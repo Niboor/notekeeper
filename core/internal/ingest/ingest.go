@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -319,9 +320,14 @@ func (s *Service) created(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 			return Outcome{}, err
 		}
 	}
+	var lost []lostFile
 	for i, p := range ev.Parts {
-		if err := s.insertChatPart(ctx, tx, bot, ident, ev, i, p, noteID, ordinal+int32(i), decision); err != nil {
+		l, err := s.insertChatPart(ctx, tx, bot, ident, ev, i, p, noteID, ordinal+int32(i), decision)
+		if err != nil {
 			return Outcome{}, err
+		}
+		if l != nil {
+			lost = append(lost, *l)
 		}
 	}
 	if decision.Target == grouping.Existing {
@@ -334,7 +340,11 @@ func (s *Service) created(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 	if err := tx.Change(ctx, "note", noteID, "upsert", &version); err != nil {
 		return Outcome{}, err
 	}
-	return Outcome{Result: result, NoteID: &noteID, Feedback: Feedback{React: "ok"}}, nil
+	fb := Feedback{React: "ok"}
+	if len(lost) > 0 {
+		fb = failureFeedback(lost)
+	}
+	return Outcome{Result: result, NoteID: &noteID, Feedback: fb}, nil
 }
 
 // decide gathers the facts the pure grouping policy needs: the related note (reply or thread) and
@@ -374,7 +384,7 @@ func (s *Service) decide(ctx context.Context, tx *store.UserTx, ident bots.Ident
 
 // insertChatPart stores one part of a chat message with its source reference and history entry.
 func (s *Service) insertChatPart(ctx context.Context, tx *store.UserTx, bot *bots.Principal, ident bots.Identity, ev Event, index int, p Part,
-	noteID uuid.UUID, ordinal int32, d grouping.Decision) error {
+	noteID uuid.UUID, ordinal int32, d grouping.Decision) (*lostFile, error) {
 	partID, _ := uuid.NewV7()
 	params := dbq.InsertNotePartParams{
 		ID: partID, UserID: tx.UserID, NoteID: noteID, Ordinal: ordinal, AttachReason: d.Reason, CreatedAt: ev.Timestamp,
@@ -385,7 +395,9 @@ func (s *Service) insertChatPart(ctx context.Context, tx *store.UserTx, bot *bot
 	if d.RelatedPartID != nil && index == 0 {
 		params.RelatedPartID = uuid.NullUUID{UUID: *d.RelatedPartID, Valid: true}
 	}
+	var lost *lostFile
 	failed := func(name, reason string, size int64) {
+		lost = &lostFile{name: name, reason: reason}
 		params.Kind, params.FailedFilename, params.FailedReason = "failed_attachment", &name, &reason
 		if size > 0 {
 			params.FailedSize = &size
@@ -405,7 +417,7 @@ func (s *Service) insertChatPart(ctx context.Context, tx *store.UserTx, bot *bot
 	default: // PartAttachment: the bot uploaded the file first; CORE-A9 says a lost upload must not lose the message
 		linked, err := s.linkUpload(ctx, tx, p)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if linked == uuid.Nil {
 			failed(p.Filename, "upload_missing", p.Size)
@@ -414,17 +426,56 @@ func (s *Service) insertChatPart(ctx context.Context, tx *store.UserTx, bot *bot
 		}
 	}
 	if _, err := tx.Q.InsertNotePart(ctx, params); err != nil {
-		return fmt.Errorf("insert part: %w", err)
+		return nil, fmt.Errorf("insert part: %w", err)
 	}
 	if params.Text != nil && p.Type == PartText { // the first history entry of a text part
 		vid, _ := uuid.NewV7()
 		evID := ev.EventID
 		if err := tx.Q.InsertPartVersion(ctx, dbq.InsertPartVersionParams{ID: vid, UserID: tx.UserID, PartID: partID, Text: *params.Text,
 			Origin: "chat", EditedAt: ev.Timestamp, Applied: true, SourceEventID: &evID}); err != nil {
-			return fmt.Errorf("insert version: %w", err)
+			return nil, fmt.Errorf("insert version: %w", err)
 		}
 	}
-	return nil
+	return lost, nil
+}
+
+// lostFile is an attachment that could not be kept.
+type lostFile struct{ name, reason string }
+
+var reasonWords = map[string]string{
+	"too_large": "it is too large", "quota_exceeded": "your storage is full", "upload_missing": "the upload was lost",
+	"download_failed": "I could not download it from the chat", "corrupt": "it arrived damaged",
+	"size_unknown": "its size could not be determined", "unsupported_encryption": "its encryption is not supported",
+	"upload_failed": "it could not be stored",
+}
+
+// failureFeedback tells the person which files were not kept and why (CORE-A9, MX-7). The text of
+// the message is safe either way, and the reply says so.
+func failureFeedback(lost []lostFile) Feedback {
+	var b strings.Builder
+	b.WriteString("Saved, but I could not keep ")
+	if len(lost) == 1 {
+		b.WriteString("the file")
+	} else {
+		b.WriteString("these files")
+	}
+	for i, l := range lost {
+		if i > 0 {
+			b.WriteString(";")
+		}
+		why, ok := reasonWords[l.reason]
+		if !ok {
+			why = "it could not be stored"
+		}
+		name := l.name
+		if name == "" {
+			name = "file"
+		}
+		fmt.Fprintf(&b, " %q: %s", name, why)
+	}
+	b.WriteString(".")
+	text := b.String()
+	return Feedback{React: "⚠️", ReplyText: &text}
 }
 
 // linkUpload resolves the upload an attachment part refers to. It returns uuid.Nil when the upload

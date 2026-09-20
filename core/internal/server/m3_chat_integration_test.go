@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,11 @@ type eventOut struct {
 	Result string  `json:"result"`
 	NoteID *string `json:"note_id"`
 	Code   *string `json:"code"`
+
+	Feedback struct {
+		React     *string `json:"react"`
+		ReplyText *string `json:"reply_text"`
+	} `json:"feedback"`
 }
 
 // chatter links a new user's chat to the given bot key. Every event timestamp is relative to base,
@@ -398,6 +404,12 @@ func TestMissingUploadKeepsTheMessage(t *testing.T) {
 	if out.Result != "created" {
 		t.Fatalf("%+v", out)
 	}
+	// The person is told which files were not kept and why, and that the text is safe (CORE-A9, MX-7).
+	if out.Feedback.React == nil || *out.Feedback.React == "ok" || out.Feedback.ReplyText == nil ||
+		!strings.Contains(*out.Feedback.ReplyText, "lost.png") || !strings.Contains(*out.Feedback.ReplyText, "upload was lost") ||
+		!strings.Contains(*out.Feedback.ReplyText, "huge.mov") || !strings.Contains(*out.Feedback.ReplyText, "too large") {
+		t.Fatalf("feedback: %+v", out.Feedback)
+	}
 	n := ch.get(*out.NoteID)
 	if len(n.Parts) != 3 || n.Parts[1].Kind != "failed_attachment" || n.Parts[1].Failed.Reason != "upload_missing" ||
 		n.Parts[2].Failed == nil || n.Parts[2].Failed.Reason != "too_large" || ch.texts(n)[0] != "look at this" {
@@ -418,10 +430,12 @@ func TestBotUploads(t *testing.T) {
 	key := s.makeBot("m", "example.org")
 	ch := s.chatter("alice", key)
 	id := uuid.NewString()
-	if res := ch.botUpload(id, "ok.png", randomBytes(300_000)); res.Status != 201 {
+	first := randomBytes(300_000)
+	if res := ch.botUpload(id, "ok.png", first); res.Status != 201 {
 		t.Fatalf("upload: %d %s", res.Status, res.Body)
 	}
-	// Repeating the same upload id is not an error, and does not double-count storage.
+	// Repeating the same upload id is not an error, does not double-count storage, and the first
+	// bytes stay: a retry after a truncated attempt can never replace what was already stored.
 	if res := ch.botUpload(id, "ok.png", randomBytes(300_000)); res.Status != 201 {
 		t.Fatalf("repeat: %d %s", res.Status, res.Body)
 	}
@@ -440,6 +454,10 @@ func TestBotUploads(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != 404 {
 		t.Fatalf("unlinked uploader: %d", res.StatusCode)
+	}
+	ch.attachNote(id)
+	if dl := ch.c.do("GET", "/api/v1/attachments/"+id, nil); !bytes.Equal(dl.Body, first) {
+		t.Fatal("a repeated upload replaced the stored file")
 	}
 	// The upload belongs to alice: nobody else can link it into a note.
 	bob := s.appUser("bob")

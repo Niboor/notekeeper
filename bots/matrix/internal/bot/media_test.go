@@ -40,6 +40,7 @@ type mediaRig struct {
 	coreCode   string
 	lastHeader http.Header
 	chunked    bool // homeserver does not announce a length
+	conflicts  int  // Core answers 409 (an earlier attempt is still being cleaned up) this many times first
 }
 
 func newMediaRig(t *testing.T) *mediaRig {
@@ -73,6 +74,13 @@ func newMediaRig(t *testing.T) *mediaRig {
 		r.lastHeader = req.Header.Clone()
 		if req.ContentLength != int64(len(body)) {
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.conflicts > 0 {
+			r.conflicts--
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"code":"upload_in_progress","title":"x","status":409}`))
 			return
 		}
 		if r.coreStatus != 0 {
@@ -237,4 +245,17 @@ func randomData(n int) []byte {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return b
+}
+
+// A bot killed mid-upload leaves an unfinished upload under the id its replay will use; Core
+// answers 409 until it has cleaned up, and that must not turn a fetchable file into a failed one.
+func TestUploadConflictFromAnEarlierAttemptIsRetried(t *testing.T) {
+	r := newMediaRig(t)
+	r.served = randomData(1000)
+	r.conflicts = 2
+	evt, res := imageEvent("mxc://x/abc", len(r.served), nil)
+	r.bot.fetchMedia(t.Context(), evt, &res)
+	if (*res.Event.Parts)[0].UploadId == nil || !bytes.Equal(r.uploaded, r.served) {
+		t.Fatalf("part after two conflicts: %+v", (*res.Event.Parts)[0])
+	}
 }

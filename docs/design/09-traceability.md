@@ -166,7 +166,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | MX-4 | Must | fully tested | 06 §5 | Unit, E2E | 2 |
 | MX-5 | Must | fully tested | 06 §5 | Unit, E2E | 3 |
 | MX-6 | Must | fully tested | 06 §5 | Unit, E2E | 3 |
-| MX-7 | Must | fully tested | 06 §6 | E2E | 1 |
+| MX-7 | Must | fully tested | 06 §6 | E2E | 2 |
 | MX-8 | Must | implemented | 06 §6 | E2E | 2 |
 | MX-9 | Must | fully tested | 06 §3 | E2E | 1 |
 | MX-10 | Must | fully tested | 01 §3; 04 §2 | Integration | 1 |
