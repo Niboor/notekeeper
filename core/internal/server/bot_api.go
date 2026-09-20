@@ -159,6 +159,10 @@ func (b *botAPI) PostCommand(ctx context.Context, req botapi.PostCommandRequestO
 	}
 	c := req.Body
 	cmd := ingest.Command{Name: c.Command, Args: deref(c.Args), Sender: c.Sender, Conversation: c.Conversation, ReplyTo: deref(c.ReplyTo)}
+	cmd.MessageID = deref(c.MessageId)
+	if c.Timestamp != nil {
+		cmd.Timestamp = *c.Timestamp
+	}
 	out, err := b.ingest.HandleCommand(ctx, bot, cmd)
 	if err != nil {
 		return nil, err
@@ -326,4 +330,23 @@ func (b *botAPI) GetConversationCursor(ctx context.Context, req botapi.GetConver
 		return nil, err
 	}
 	return botapi.GetConversationCursor200JSONResponse{LastMessageAt: last}, nil
+}
+
+// GetOutboxAttachment lets a bot fetch a file that a reminder it has claimed lists, and nothing else
+// (BOT-15, SEC-BOT-3): the item must be claimed by this instance, the file must be in its payload,
+// and the bytes come from the item's own user.
+func (b *botAPI) GetOutboxAttachment(ctx context.Context, req botapi.GetOutboxAttachmentRequestObject) (botapi.GetOutboxAttachmentResponseObject, error) {
+	bot, err := botFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user, err := b.outbox.AttachmentOwner(ctx, bot.InstanceID, req.Id, req.AttachmentId)
+	if err != nil {
+		return nil, err
+	}
+	reader, att, err := b.blobs.Open(ctx, user, req.AttachmentId)
+	if err != nil {
+		return nil, err
+	}
+	return botapi.GetOutboxAttachment200ApplicationoctetStreamResponse{Body: reader, ContentLength: att.Size}, nil
 }

@@ -59,6 +59,8 @@ type Event struct {
 	ReplyTo      string
 	Thread       string
 	Parts        []Part
+	// Standalone always starts a new note, whatever came just before (a note made by a command).
+	Standalone bool
 }
 
 // Part is one piece of an event.
@@ -111,17 +113,18 @@ var ErrInvalid = errors.New("invalid event")
 
 // Service ingests events.
 type Service struct {
-	St    *store.Store
-	Bots  *bots.Service
-	Blobs *blobs.Service
-	Now   func() time.Time
+	St        *store.Store
+	Bots      *bots.Service
+	Blobs     *blobs.Service
+	Reminders *reminders.Service
+	Now       func() time.Time
 	// DefaultWindow is the grouping window when a user has not set one (GRP-5).
 	DefaultWindow time.Duration
 }
 
 // New creates the service.
-func New(st *store.Store, b *bots.Service, bl *blobs.Service) *Service {
-	return &Service{St: st, Bots: b, Blobs: bl, Now: time.Now, DefaultWindow: time.Minute}
+func New(st *store.Store, b *bots.Service, bl *blobs.Service, rem *reminders.Service) *Service {
+	return &Service{St: st, Bots: b, Blobs: bl, Reminders: rem, Now: time.Now, DefaultWindow: time.Minute}
 }
 
 // window returns the grouping window of a user: their setting, else the deployment default.
@@ -294,9 +297,11 @@ func (s *Service) created(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 	if err != nil {
 		return Outcome{}, err
 	}
-	decision, err := s.decide(ctx, tx, ident, ev, s.window(user.Settings))
-	if err != nil {
-		return Outcome{}, err
+	decision := grouping.Decision{Target: grouping.New, Reason: grouping.ReasonFirst}
+	if !ev.Standalone {
+		if decision, err = s.decide(ctx, tx, ident, ev, s.window(user.Settings)); err != nil {
+			return Outcome{}, err
+		}
 	}
 
 	var noteID uuid.UUID

@@ -18,6 +18,7 @@ type Command struct {
 	Sender       string
 	Conversation string
 	ReplyTo      string
+	MessageID    string // the message that carried the command, for idempotency
 	Timestamp    time.Time
 }
 
@@ -31,6 +32,10 @@ const helpText = "Everything you send me becomes a note in your Notekeeper Inbox
 	"Commands:\n" +
 	"• `!link CODE` – link this chat to your account (create the code in the app under Settings → Chats)\n" +
 	"• `!unlink` – stop saving what you send from this chat\n" +
+	"• `!remind WHEN` as a reply to a message – remind you about that note, e.g. `!remind tomorrow 9am`\n" +
+	"• `!remind WHEN TEXT` – save TEXT as a note and remind you, e.g. `!remind in 2 hours call the dentist`\n" +
+	"• `!snooze DURATION` as a reply to a reminder – e.g. `!snooze 30m` or `!snooze tomorrow`\n" +
+	"• `!done` as a reply to a reminder – mark it done\n" +
 	"• `!help` – this message"
 
 func reply(ok bool, text string) CommandOutcome {
@@ -68,6 +73,10 @@ func (s *Service) HandleCommand(ctx context.Context, bot *bots.Principal, cmd Co
 			return CommandOutcome{}, err
 		}
 		return reply(true, "Unlinked. I won't save anything you send from this chat until you link it again."), nil
+	case "remind":
+		return s.remind(ctx, bot, ident, cmd)
+	case "snooze", "done":
+		return s.answerReminder(ctx, bot, ident, name, cmd)
 	default:
 		return reply(false, fmt.Sprintf("I don't know the command `!%s`. Send `!help` to see what I understand.", name)), nil
 	}

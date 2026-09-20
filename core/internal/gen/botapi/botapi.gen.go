@@ -319,6 +319,9 @@ type ServerInterface interface {
 	// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
 	// (GET /bot/v1/outbox)
 	ClaimOutbox(w http.ResponseWriter, r *http.Request, params ClaimOutboxParams)
+	// GetOutboxAttachment Download a file that a claimed reminder lists, to send it into the chat
+	// (GET /bot/v1/outbox/{id}/attachments/{attachmentId})
+	GetOutboxAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, attachmentId openapi_types.UUID)
 	// PostOutboxResult Report what happened to a claimed outbox item
 	// (POST /bot/v1/outbox/{id}/result)
 	PostOutboxResult(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -367,6 +370,12 @@ func (_ Unimplemented) GetIdentity(w http.ResponseWriter, r *http.Request, exter
 // ClaimOutbox Long-poll the outbox for items addressed to this bot instance
 // (GET /bot/v1/outbox)
 func (_ Unimplemented) ClaimOutbox(w http.ResponseWriter, r *http.Request, params ClaimOutboxParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetOutboxAttachment Download a file that a claimed reminder lists, to send it into the chat
+// (GET /bot/v1/outbox/{id}/attachments/{attachmentId})
+func (_ Unimplemented) GetOutboxAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, attachmentId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -528,6 +537,41 @@ func (siw *ServerInterfaceWrapper) ClaimOutbox(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ClaimOutbox(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOutboxAttachment operation middleware
+func (siw *ServerInterfaceWrapper) GetOutboxAttachment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "attachmentId" -------------
+	var attachmentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "attachmentId", chi.URLParam(r, "attachmentId"), &attachmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attachmentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOutboxAttachment(w, r, id, attachmentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -808,6 +852,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/bot/v1/outbox", wrapper.ClaimOutbox)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/bot/v1/outbox/{id}/attachments/{attachmentId}", wrapper.GetOutboxAttachment)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/bot/v1/outbox/{id}/result", wrapper.PostOutboxResult)
 	})
 	r.Group(func(r chi.Router) {
@@ -1050,6 +1097,52 @@ func (response ClaimOutboxdefaultApplicationProblemPlusJSONResponse) VisitClaimO
 	return err
 }
 
+type GetOutboxAttachmentRequestObject struct {
+	Id           openapi_types.UUID `json:"id"`
+	AttachmentId openapi_types.UUID `json:"attachmentId"`
+}
+
+type GetOutboxAttachmentResponseObject interface {
+	VisitGetOutboxAttachmentResponse(w http.ResponseWriter) error
+}
+
+type GetOutboxAttachment200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetOutboxAttachment200ApplicationoctetStreamResponse) VisitGetOutboxAttachmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetOutboxAttachmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetOutboxAttachmentdefaultApplicationProblemPlusJSONResponse) VisitGetOutboxAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostOutboxResultRequestObject struct {
 	Id   openapi_types.UUID `json:"id"`
 	Body *PostOutboxResultJSONRequestBody
@@ -1166,6 +1259,9 @@ type StrictServerInterface interface {
 	// ClaimOutbox Long-poll the outbox for items addressed to this bot instance
 	// (GET /bot/v1/outbox)
 	ClaimOutbox(ctx context.Context, request ClaimOutboxRequestObject) (ClaimOutboxResponseObject, error)
+	// GetOutboxAttachment Download a file that a claimed reminder lists, to send it into the chat
+	// (GET /bot/v1/outbox/{id}/attachments/{attachmentId})
+	GetOutboxAttachment(ctx context.Context, request GetOutboxAttachmentRequestObject) (GetOutboxAttachmentResponseObject, error)
 	// PostOutboxResult Report what happened to a claimed outbox item
 	// (POST /bot/v1/outbox/{id}/result)
 	PostOutboxResult(ctx context.Context, request PostOutboxResultRequestObject) (PostOutboxResultResponseObject, error)
@@ -1380,6 +1476,33 @@ func (sh *strictHandler) ClaimOutbox(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// GetOutboxAttachment operation middleware
+func (sh *strictHandler) GetOutboxAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, attachmentId openapi_types.UUID) {
+	var request GetOutboxAttachmentRequestObject
+
+	request.Id = id
+	request.AttachmentId = attachmentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOutboxAttachment(ctx, request.(GetOutboxAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOutboxAttachment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOutboxAttachmentResponseObject); ok {
+		if err := validResponse.VisitGetOutboxAttachmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostOutboxResult operation middleware
 func (sh *strictHandler) PostOutboxResult(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request PostOutboxResultRequestObject
@@ -1471,49 +1594,52 @@ func (sh *strictHandler) GetBotVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"VAuyZO4qFihNlkySUbK6Wv0vAAD//w==",
+	"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",
+	"AAAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

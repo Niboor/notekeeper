@@ -421,6 +421,14 @@ type ClientInterface interface {
 	// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
 	ClaimOutbox(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetOutboxAttachment Download a file that a claimed reminder lists, to send it into the chat
+	//
+	// Only files listed in the payload of an item this bot instance has claimed, and only while
+	// the claim lasts. A bot key never reads anything else of a user's files (BOT-15, SEC-BOT-3).
+	//
+	// Corresponds with GET /bot/v1/outbox/{id}/attachments/{attachmentId} (the `GetOutboxAttachment` operationId).
+	GetOutboxAttachment(ctx context.Context, id openapi_types.UUID, attachmentId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostOutboxResultWithBody Report what happened to a claimed outbox item
 	//
 	// Takes any type of body and a specified content type.
@@ -576,6 +584,24 @@ func (c *Client) GetIdentity(ctx context.Context, externalUserId string, reqEdit
 // Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
 func (c *Client) ClaimOutbox(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewClaimOutboxRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetOutboxAttachment Download a file that a claimed reminder lists, to send it into the chat
+//
+// Only files listed in the payload of an item this bot instance has claimed, and only while
+// the claim lasts. A bot key never reads anything else of a user's files (BOT-15, SEC-BOT-3).
+//
+// Corresponds with GET /bot/v1/outbox/{id}/attachments/{attachmentId} (the `GetOutboxAttachment` operationId).
+func (c *Client) GetOutboxAttachment(ctx context.Context, id openapi_types.UUID, attachmentId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOutboxAttachmentRequest(c.Server, id, attachmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -897,6 +923,47 @@ func NewClaimOutboxRequest(server string, params *ClaimOutboxParams) (*http.Requ
 	return req, nil
 }
 
+// NewGetOutboxAttachmentRequest constructs an http.Request for the GetOutboxAttachment method
+func NewGetOutboxAttachmentRequest(server string, id openapi_types.UUID, attachmentId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "attachmentId", attachmentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bot/v1/outbox/%s/attachments/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostOutboxResultRequest calls the generic PostOutboxResult builder with application/json body
 func NewPostOutboxResultRequest(server string, id openapi_types.UUID, body PostOutboxResultJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1145,6 +1212,16 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /bot/v1/outbox (the `ClaimOutbox` operationId).
 	ClaimOutboxWithResponse(ctx context.Context, params *ClaimOutboxParams, reqEditors ...RequestEditorFn) (*ClaimOutboxResponse, error)
+
+	// GetOutboxAttachmentWithResponse Download a file that a claimed reminder lists, to send it into the chat
+	//
+	// Only files listed in the payload of an item this bot instance has claimed, and only while
+	// the claim lasts. A bot key never reads anything else of a user's files (BOT-15, SEC-BOT-3).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bot/v1/outbox/{id}/attachments/{attachmentId} (the `GetOutboxAttachment` operationId).
+	GetOutboxAttachmentWithResponse(ctx context.Context, id openapi_types.UUID, attachmentId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetOutboxAttachmentResponse, error)
 
 	// PostOutboxResultWithBodyWithResponse Report what happened to a claimed outbox item
 	//
@@ -1468,6 +1545,47 @@ func (r ClaimOutboxResponse) ContentType() string {
 	return ""
 }
 
+type GetOutboxAttachmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetOutboxAttachmentResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetOutboxAttachmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOutboxAttachmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOutboxAttachmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetOutboxAttachmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostOutboxResultResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1706,6 +1824,22 @@ func (c *ClientWithResponses) ClaimOutboxWithResponse(ctx context.Context, param
 		return nil, err
 	}
 	return ParseClaimOutboxResponse(rsp)
+}
+
+// GetOutboxAttachmentWithResponse Download a file that a claimed reminder lists, to send it into the chat
+//
+// Only files listed in the payload of an item this bot instance has claimed, and only while
+// the claim lasts. A bot key never reads anything else of a user's files (BOT-15, SEC-BOT-3).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bot/v1/outbox/{id}/attachments/{attachmentId} (the `GetOutboxAttachment` operationId).
+func (c *ClientWithResponses) GetOutboxAttachmentWithResponse(ctx context.Context, id openapi_types.UUID, attachmentId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetOutboxAttachmentResponse, error) {
+	rsp, err := c.GetOutboxAttachment(ctx, id, attachmentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOutboxAttachmentResponse(rsp)
 }
 
 // PostOutboxResultWithBodyWithResponse Report what happened to a claimed outbox item
@@ -1950,6 +2084,32 @@ func ParseClaimOutboxResponse(rsp *http.Response) (*ClaimOutboxResponse, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOutboxAttachmentResponse parses an HTTP response from a GetOutboxAttachmentWithResponse call
+func ParseGetOutboxAttachmentResponse(rsp *http.Response) (*GetOutboxAttachmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOutboxAttachmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

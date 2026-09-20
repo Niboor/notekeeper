@@ -163,3 +163,26 @@ func (s *Service) Expire(ctx context.Context) error {
 	}
 	return nil
 }
+
+// AttachmentOwner says whose file a bot may fetch for a claimed item, or ErrNotFound. The item must
+// be claimed by this bot instance and must list the file in its payload (BOT-15, SEC-BOT-3).
+func (s *Service) AttachmentOwner(ctx context.Context, instance, item, attachment uuid.UUID) (uuid.UUID, error) {
+	row, err := s.St.Q().GetClaimedOutbox(ctx, dbq.GetClaimedOutboxParams{ID: item, BotInstanceID: instance})
+	if err != nil || !row.UserID.Valid {
+		return uuid.Nil, ErrNotFound
+	}
+	var p struct {
+		Attachments []struct {
+			ID uuid.UUID `json:"id"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal(row.Payload, &p); err != nil {
+		return uuid.Nil, ErrNotFound
+	}
+	for _, a := range p.Attachments {
+		if a.ID == attachment {
+			return row.UserID.UUID, nil
+		}
+	}
+	return uuid.Nil, ErrNotFound
+}

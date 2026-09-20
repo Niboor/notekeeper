@@ -50,15 +50,16 @@ func NewServices(cfg config.Config, st *store.Store, log *slog.Logger) (*Service
 	b := bots.New(st)
 	bl := blobs.New(st, blobs.Config{MaxSize: cfg.MaxAttachmentBytes, DefaultQuota: cfg.DefaultQuotaBytes})
 	n := notes.New(st, bl)
+	rem := reminders.New(st, reminders.Config{AppURL: cfg.AppURL})
 	return &Services{
 		Accounts:  accounts.New(st, keys, hasher, acfg, log),
 		Bots:      b,
 		Notes:     n,
 		Blobs:     bl,
 		Board:     board.New(st, n),
-		Ingest:    ingest.New(st, b, bl),
+		Ingest:    ingest.New(st, b, bl, rem),
 		Outbox:    outbox.New(st),
-		Reminders: reminders.New(st, reminders.Config{AppURL: cfg.AppURL}),
+		Reminders: rem,
 		Shares:    shares.New(st, n, bl, shares.Config{Enabled: cfg.ShareEnabled, MaxLifetime: cfg.ShareMaxLifetime, MaxActive: cfg.ShareMaxActive}),
 	}, nil
 }

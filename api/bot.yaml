@@ -152,6 +152,31 @@ paths:
                     type: array
                     items: {$ref: '#/components/schemas/OutboxItem'}
         default: {$ref: '#/components/responses/Problem'}
+  /bot/v1/outbox/{id}/attachments/{attachmentId}:
+    get:
+      operationId: getOutboxAttachment
+      summary: Download a file that a claimed reminder lists, to send it into the chat
+      description: |
+        Only files listed in the payload of an item this bot instance has claimed, and only while
+        the claim lasts. A bot key never reads anything else of a user's files (BOT-15, SEC-BOT-3).
+      security:
+        - botAuth: [deliver]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: attachmentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The file
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
   /bot/v1/outbox/{id}/result:
     post:
       operationId: postOutboxResult
