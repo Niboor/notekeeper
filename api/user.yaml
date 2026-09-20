@@ -1117,6 +1117,15 @@ components:
         name: {type: string}
         archived: {type: boolean}
         version: {type: integer}
+        categories:
+          type: array
+          description: "Only in the page list, in order: for navigation and the Move-to menu"
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: {type: string, format: uuid}
+              name: {type: string}
     CreatePage:
       type: object
       required: [name]

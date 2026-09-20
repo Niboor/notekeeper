@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '../auth/AuthProvider'
+import { ToastProvider } from '../components/Toast'
 
 export interface Route {
   method?: string
@@ -10,7 +11,7 @@ export interface Route {
   status?: number
   body?: unknown
   /** Called with the request; may return a different response body. */
-  handler?: (req: Request) => unknown
+  handler?: (req: Request) => unknown | Promise<unknown>
 }
 
 /** A fetch double: answers by method and path and records every request it saw. */
@@ -25,7 +26,7 @@ export function fakeFetch(routes: Route[]) {
       (r) => (r.method ?? 'GET') === method && (typeof r.path === 'string' ? r.path === url.pathname : r.path.test(url.pathname)),
     )
     if (!route) return new Response(JSON.stringify({ code: 'not_found' }), { status: 404 })
-    const body = route.handler ? route.handler(req) : route.body
+    const body = route.handler ? await route.handler(req) : route.body
     if (body instanceof Response) return body
     return new Response(body === undefined ? null : JSON.stringify(body), {
       status: route.status ?? 200,
@@ -40,7 +41,9 @@ export function renderApp(ui: ReactElement, opts: { route?: string } = {}) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[opts.route ?? '/']}>
-        <AuthProvider>{ui}</AuthProvider>
+        <AuthProvider>
+          <ToastProvider>{ui}</ToastProvider>
+        </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )

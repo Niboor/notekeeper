@@ -352,6 +352,36 @@ func (q *Queries) InsertPage(ctx context.Context, arg InsertPageParams) (Page, e
 	return i, err
 }
 
+const listAllCategories = `-- name: ListAllCategories :many
+select id, page_id, name from categories where user_id = $1 order by page_id, position, id
+`
+
+type ListAllCategoriesRow struct {
+	ID     uuid.UUID
+	PageID uuid.UUID
+	Name   string
+}
+
+func (q *Queries) ListAllCategories(ctx context.Context, userID uuid.UUID) ([]ListAllCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, listAllCategories, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllCategoriesRow{}
+	for rows.Next() {
+		var i ListAllCategoriesRow
+		if err := rows.Scan(&i.ID, &i.PageID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategoriesOfPage = `-- name: ListCategoriesOfPage :many
 select id, user_id, page_id, name, position, created_at, updated_at, version from categories where user_id = $1 and page_id = $2 order by position, id
 `

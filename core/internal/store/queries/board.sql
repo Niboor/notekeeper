@@ -39,6 +39,9 @@ insert into categories (id, user_id, page_id, name, position) values ($1, $2, $3
 -- name: GetCategory :one
 select * from categories where id = $1 and user_id = $2;
 
+-- name: ListAllCategories :many
+select id, page_id, name from categories where user_id = $1 order by page_id, position, id;
+
 -- name: ListCategoriesOfPage :many
 select * from categories where user_id = $1 and page_id = $2 order by position, id;
 

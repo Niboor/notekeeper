@@ -2,8 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
+import { ToastProvider } from './components/Toast'
 import { Layout } from './components/Layout'
-import { InboxPage } from './features/inbox/InboxPage'
+import { BoardShell } from './features/board/BoardShell'
+import { SearchPage } from './features/search/SearchPage'
+import { TrashPage } from './features/trash/TrashPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { t } from './i18n'
 import { ActivatePage } from './pages/ActivatePage'
@@ -36,15 +39,20 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <ToastProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/activate" element={<ActivatePage />} />
             <Route element={<RequireAuth />}>
-              <Route path="/" element={<InboxPage />} />
+              <Route path="/" element={<BoardShell />} />
+              <Route path="/p/:pageId" element={<BoardShell />} />
+              <Route path="/trash" element={<TrashPage />} />
+              <Route path="/search" element={<SearchPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

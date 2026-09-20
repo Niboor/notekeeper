@@ -145,13 +145,32 @@ func categoryGroup(tx *store.UserTx, page, exclude uuid.UUID, now time.Time) pos
 
 // ---- pages ----------------------------------------------------------------------------------
 
-// ListPages returns the user's pages in order.
-func (s *Service) ListPages(ctx context.Context, user uuid.UUID) ([]dbq.Page, error) {
-	var out []dbq.Page
+// PageWithCategories is a page with the names of its categories, for navigation.
+type PageWithCategories struct {
+	Page       dbq.Page
+	Categories []dbq.ListAllCategoriesRow
+}
+
+// ListPages returns the user's pages in order, each with its categories.
+func (s *Service) ListPages(ctx context.Context, user uuid.UUID) ([]PageWithCategories, error) {
+	var out []PageWithCategories
 	err := s.St.InUserRead(ctx, user, func(q *dbq.Queries) error {
-		var err error
-		out, err = q.ListPages(ctx, user)
-		return err
+		pages, err := q.ListPages(ctx, user)
+		if err != nil {
+			return err
+		}
+		cats, err := q.ListAllCategories(ctx, user)
+		if err != nil {
+			return err
+		}
+		byPage := map[uuid.UUID][]dbq.ListAllCategoriesRow{}
+		for _, c := range cats {
+			byPage[c.PageID] = append(byPage[c.PageID], c)
+		}
+		for _, p := range pages {
+			out = append(out, PageWithCategories{Page: p, Categories: byPage[p.ID]})
+		}
+		return nil
 	})
 	return out, err
 }

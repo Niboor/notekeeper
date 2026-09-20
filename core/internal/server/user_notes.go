@@ -35,7 +35,16 @@ func (u *userAPI) ListPages(ctx context.Context, _ userapi.ListPagesRequestObjec
 	}
 	out := userapi.ListPages200JSONResponse{Items: make([]userapi.Page, len(rows))}
 	for i, r := range rows {
-		out.Items[i] = pageOf(r)
+		page := pageOf(r.Page)
+		cats := make([]struct {
+			Id   uuid.UUID `json:"id"`
+			Name string    `json:"name"`
+		}, len(r.Categories))
+		for j, c := range r.Categories {
+			cats[j].Id, cats[j].Name = c.ID, c.Name
+		}
+		page.Categories = &cats
+		out.Items[i] = page
 	}
 	return out, nil
 }

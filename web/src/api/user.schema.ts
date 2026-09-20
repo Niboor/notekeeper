@@ -892,6 +892,12 @@ export interface components {
             name: string;
             archived?: boolean;
             version: number;
+            /** @description Only in the page list, in order: for navigation and the Move-to menu */
+            categories?: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            }[];
         };
         CreatePage: {
             /**

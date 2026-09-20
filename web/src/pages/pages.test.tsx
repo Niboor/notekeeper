@@ -1,9 +1,8 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cancelScheduledRefresh } from '../api/session'
-import { InboxPage } from '../features/inbox/InboxPage'
 import { fakeFetch, me, renderApp } from '../test/helpers'
 import { ActivatePage, tokenFromHash } from './ActivatePage'
 import { LoginPage } from './LoginPage'
@@ -76,35 +75,5 @@ describe('ActivatePage', () => {
     await user.click(screen.getByRole('button', { name: /Set password/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('not valid any more')
     expect(JSON.parse(f.calls.find((c) => c.path.endsWith('/activate'))!.body)).toEqual({ token: 'tok-1', password: 'correct horse battery' })
-  })
-})
-
-describe('InboxPage', () => {
-  const note = (id: string, text: string) => ({
-    id, state: 'active', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), version: 1,
-    parts: [{ id: id + 'p', kind: 'text', text, attach_reason: 'first', created_at: new Date().toISOString(), source_bot_type: 'matrix' }],
-  })
-
-  it('shows notes with their origin and the live count', async () => {
-    vi.stubGlobal('fetch', fakeFetch([
-      { path: '/api/v1/me', body: me },
-      { path: '/api/v1/inbox/notes', body: { items: [note('a', 'buy milk'), note('b', '<img src=x onerror=alert(1)>')], total: 2 } },
-    ]))
-    renderApp(<InboxPage />)
-    expect(await screen.findByText('buy milk')).toBeInTheDocument()
-    expect(screen.getAllByText(/via Matrix/)).toHaveLength(2)
-    expect(screen.getByText('2')).toBeInTheDocument()
-    // Note text is shown as text, never as markup.
-    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull()
-  })
-
-  it('explains an empty Inbox and pages on demand', async () => {
-    vi.stubGlobal('fetch', fakeFetch([
-      { path: '/api/v1/me', body: me },
-      { path: '/api/v1/inbox/notes', body: { items: [], total: 0 } },
-    ]))
-    renderApp(<InboxPage />)
-    await waitFor(() => expect(screen.getByText(/Send a message to the bot/)).toBeInTheDocument())
   })
 })
