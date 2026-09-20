@@ -87,7 +87,7 @@ jobs:
       - name: Browser end-to-end tests (Chromium)
         run: e2e/run.sh
 
-  # Firefox and WebKit run the @cross tests (WEB-N6). Firefox passes and blocks; WebKit is still being proven.
+  # Firefox and WebKit run the @cross tests (WEB-N6); both block.
   e2e-cross-browser:
     name: browsers other than Chromium
     runs-on: ubuntu-latest
@@ -115,9 +115,8 @@ jobs:
       - name: Browser tests on Firefox
         run: E2E_BROWSERS=all e2e/run.sh --project=firefox
       # WebKit does not accept the Secure cookies of an http origin, so it runs against https with a throwaway
-      # certificate. Not proven yet: it reports without failing the job.
+      # certificate.
       - name: Browser tests on WebKit (https)
-        continue-on-error: true
         run: E2E_BROWSERS=all E2E_TLS=1 e2e/run.sh --project=webkit
 
   images:
