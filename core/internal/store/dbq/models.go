@@ -305,6 +305,8 @@ type UserStorage struct {
 	UsedBytes     int64
 	ReservedBytes int64
 	QuotaBytes    *int64
+	NoteCount     int64
+	TextBytes     int64
 }
 
 type UserToken struct {

@@ -80,6 +80,7 @@ func serve(ctx context.Context) error {
 	}
 	defer pool.Close()
 	st := store.New(pool)
+	st.SetLimits(store.Limits{MaxNotes: cfg.MaxNotesPerUser, MaxTextBytes: cfg.MaxTextBytesPerUser})
 	sv, err := app.NewServices(cfg, st, log)
 	if err != nil {
 		return err

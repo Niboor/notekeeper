@@ -278,8 +278,8 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-ADM-4 | Must | fully tested | 02 §1.6; 03 §1 | Authz matrix | 1 |
 | SEC-API-1 | Must | fully tested | 01 §8 (query builder); sqlc | Integration | 1 |
 | SEC-API-2 | Must | fully tested | README §2; 08 §5 | Authz matrix | 1 |
-| SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 4 |
-| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 2 |
+| SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 5 |
+| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 3 |
 | SEC-API-5 | Must | fully tested | README §3 | Integration | 1 |
 | SEC-API-6 | Must | fully tested | 03 §2.4 | Integration | 1 |
 | SEC-API-7 | Must | fully tested | README §3; 01 §6.2 | Integration | 3 |
@@ -327,7 +327,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 2 |
 | SEC-CNT-4 | Must | fully tested | 02 §1.3 | Integration | 1 |
 | SEC-CNT-5 | Must | fully tested | 02 §1.3 (no media processing) | Review | 1 |
-| SEC-CNT-6 | Must | fully tested | 01 §6.2 | Integration (races) | 1 |
+| SEC-CNT-6 | Must | fully tested | 01 §6.2 | Integration (races) | 2 |
 | SEC-CNT-7 | Must | fully tested | 05 §5.3 | Unit, E2E | 1 |
 | SEC-CNT-8 | Must | fully tested | 06 §5 | E2E | 1 |
 | SEC-CNT-9 | Should | unimplemented | deferred: an upload-completion hook point exists in 01 §6.2 step 4 | - | 0 |
@@ -350,7 +350,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-ISO-9 | Must | fully tested | 01 §6.3 | Integration | 1 |
 | SEC-ISO-10 | Should | fully tested | README §3 (RLS) | Integration | 1 |
 | SEC-MX-1 | Must | fully tested | 06 §4 | E2E | 2 |
-| SEC-MX-2 | Must | fully tested | 06 §7 | E2E | 1 |
+| SEC-MX-2 | Must | fully tested | 06 §7 | E2E | 2 |
 | SEC-MX-3 | Must | fully tested | 06 §8; 06 §1 | Integration (log scan) | 1 |
 | SEC-MX-4 | Must | fully tested | 06 §2 | E2E | 1 |
 | SEC-MX-5 | Must | fully tested | 06 §8 | Review | 1 |

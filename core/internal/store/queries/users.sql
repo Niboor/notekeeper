@@ -9,7 +9,13 @@ select * from users where id = $1;
 select * from users where lower(username) = lower($1);
 
 -- name: LockUser :one
-select id, status, is_admin from users where id = $1 for update;
+select u.id, u.status, u.is_admin, coalesce(s.note_count, 0)::bigint as note_count, coalesce(s.text_bytes, 0)::bigint as text_bytes
+from users u left join user_storage s on s.user_id = u.id
+where u.id = $1 for update of u;
+
+-- name: UserUsage :one
+select coalesce(s.note_count, 0)::bigint as note_count, coalesce(s.text_bytes, 0)::bigint as text_bytes
+from user_storage s where s.user_id = $1;
 
 -- name: NextChangeSeq :one
 update users set change_seq = change_seq + 1 where id = $1 returning change_seq;

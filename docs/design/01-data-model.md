@@ -285,9 +285,15 @@ create table user_storage (
   user_id      uuid primary key references users(id) on delete cascade,
   used_bytes   bigint not null default 0,
   reserved_bytes bigint not null default 0,
-  quota_bytes  bigint                              -- null = deployment default (CORE-A3)
+  quota_bytes  bigint,                             -- null = deployment default (CORE-A3)
+  note_count   bigint not null default 0,          -- kept by triggers (migration 0008)
+  text_bytes   bigint not null default 0           -- text of all parts and of their history, kept by triggers
 );
 ```
+
+### 6.0 Notes and text limits (SEC-API-3, SEC-CNT-6)
+
+Files are limited by the quota above. Notes and their text have their own per-account limits (`NK_MAX_NOTES_PER_USER`, `NK_MAX_TEXT_BYTES_PER_USER`), so a single account cannot fill the shared database with small requests. `note_count` and `text_bytes` are maintained by **statement-level triggers** with transition tables on `notes`, `note_parts` and `note_part_versions` (migration 0008), so every writer is counted, cascades included, and a statement that touches many rows makes one update. The counters are plain sums; a row trigger that prunes history can delete rows before the insert's own statement trigger has added them, so a counter may dip below zero for a moment inside a statement and is exact when it ends. `LockUser` reads both counters together with the user row; `store.InUserTx` reads them again just before commit and returns `store.LimitError` when the change made the account grow past a limit (a lowered limit never blocks deleting or shrinking). A change is refused with `413 notes_limit` or `413 text_limit`; from chat, `rejected` with code `storage_full` and a reply the person can read (a limit is an answer, never a failure the bot would retry). `InUserScoped` (account deletion, the chunks of an upload in progress) does not check, on purpose: it never adds notes or text. Note history is also capped at the newest **200 versions per part**, by an insert trigger that deletes the oldest.
 
 ### 6.1 Reading
 

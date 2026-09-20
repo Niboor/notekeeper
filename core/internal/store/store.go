@@ -32,9 +32,31 @@ var ErrNotFound = errors.New("not found")
 
 // Store wraps the connection pool.
 type Store struct {
-	pool *pgxpool.Pool
-	q    *dbq.Queries
+	pool   *pgxpool.Pool
+	q      *dbq.Queries
+	limits Limits
 }
+
+// Limits bound what one user may hold, so that no single account can fill the shared database
+// (SEC-API-3, SEC-CNT-6). A zero value means no limit. Files have their own quota (package blobs).
+type Limits struct {
+	MaxNotes     int64 // notes, in the Inbox, on pages and in the Trash
+	MaxTextBytes int64 // the text of all note parts and of their history
+}
+
+// ErrLimitReached is wrapped by LimitError.
+var ErrLimitReached = errors.New("storage limit reached")
+
+// LimitError says which of the user's limits a change would exceed.
+type LimitError struct{ What string } // "notes" or "text"
+
+func (e *LimitError) Error() string { return "storage limit reached: " + e.What }
+
+// Is makes errors.Is(err, ErrLimitReached) true.
+func (e *LimitError) Is(target error) bool { return target == ErrLimitReached }
+
+// SetLimits sets the limits InUserTx enforces. Call it once at startup.
+func (s *Store) SetLimits(l Limits) { s.limits = l }
 
 // New wraps pool.
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool, q: dbq.New(pool)} }
@@ -101,6 +123,23 @@ func (s *Store) InUserTx(ctx context.Context, userID uuid.UUID, fn func(tx *User
 	tx := &UserTx{Tx: pgtx, Q: q, UserID: userID, Status: u.Status}
 	if err := fn(tx); err != nil {
 		return err
+	}
+	// The limits are enforced here, at the one place every change of a user's notes goes through, and
+	// only against growth: an account that is over a limit (it was lowered) can still delete and edit
+	// downwards. The counters are kept by triggers, so cascades and every writer are counted
+	// (migration 0008). InUserScoped, used for deleting an account and for the chunks of an upload in
+	// progress, deliberately does not check: it never adds notes or text.
+	if s.limits.MaxNotes > 0 || s.limits.MaxTextBytes > 0 {
+		after, err := q.UserUsage(ctx, userID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("read usage: %w", err)
+		}
+		switch {
+		case s.limits.MaxNotes > 0 && after.NoteCount > s.limits.MaxNotes && after.NoteCount > u.NoteCount:
+			return &LimitError{What: "notes"}
+		case s.limits.MaxTextBytes > 0 && after.TextBytes > s.limits.MaxTextBytes && after.TextBytes > u.TextBytes:
+			return &LimitError{What: "text"}
+		}
 	}
 	if tx.lastSeq > 0 {
 		payload := userID.String() + ":" + strconv.FormatInt(tx.lastSeq, 10)

@@ -154,6 +154,11 @@ func TestUploadLinkAndDownload(t *testing.T) {
 	if r := u.c.doWith("GET", "/api/v1/attachments/"+id, nil, func(r *http.Request) { r.Header.Set("Range", "bytes=99999999-") }); r.Status != 416 {
 		t.Fatalf("unsatisfiable range: %d", r.Status)
 	}
+	// Many ranges in one request are refused: each would cost a database read (SR-009).
+	many := strings.TrimSuffix(strings.Repeat("0-10,", 400), ",")
+	if r := u.c.doWith("GET", "/api/v1/attachments/"+id, nil, func(r *http.Request) { r.Header.Set("Range", "bytes="+many) }); r.Status != 416 || !strings.HasPrefix(r.Header.Get("Content-Range"), "bytes */") {
+		t.Fatalf("multi-range: %d %v", r.Status, r.Header)
+	}
 	// The note shows the attachment.
 	var got noteJSONWithAtt
 	u.get("/api/v1/notes/"+note.ID, &got)

@@ -7,7 +7,10 @@ data:
   # Public addresses: used for links, host checks and cookies. Replace in the overlay.
   NK_APP_URL: "https://notes.example.org"
   NK_SHARE_URL: "https://share.example.net"
-  # Ingress addresses whose X-Forwarded-For is believed, for per-address limits.
+  # The addresses of the ingress controller pods (kubectl get pods -o wide -n <ingress namespace>) or their
+  # namespace's pod range: the only peers whose X-Forwarded-For is believed. Too narrow or unset, and every
+  # visitor shares the ingress address for the per-address limits and the login throttle (Core logs a
+  # warning); too wide, and any pod that can reach Core can claim to be any client. Replace in the overlay.
   NK_TRUSTED_PROXIES: "10.0.0.0/8"
   NK_LOG_LEVEL: "info"
   NK_MAX_ATTACHMENT_BYTES: "26214400"

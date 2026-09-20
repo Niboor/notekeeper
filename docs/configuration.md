@@ -33,7 +33,7 @@ missing here, or documented here but read by nothing.
 | `NK_OPS_ADDR` | `:9090` | Health (`/healthz`, `/readyz`) and metrics (`/metrics`). Never route it from an ingress |
 | `NK_APP_HOSTS` | host of `NK_APP_URL` | Comma-separated host names the user API answers to |
 | `NK_SHARE_HOSTS` | host of `NK_SHARE_URL` | Comma-separated host names the share API answers to |
-| `NK_TRUSTED_PROXIES` | none | Comma-separated CIDRs of the ingress or proxies whose `X-Forwarded-For` is believed, so that per-address limits see the real client |
+| `NK_TRUSTED_PROXIES` | none | Comma-separated CIDRs of the ingress or proxies whose `X-Forwarded-For` is believed, so that per-address limits see the real client. **Set it when Core runs behind an ingress**: left empty (or wrong), every visitor shares the ingress address, and the per-address rate limit and login throttle act on everyone together. Core logs a warning when it sees `X-Forwarded-For` from a peer that is not trusted. Use the addresses of the ingress pods, not a whole cluster range, or any pod could pretend to be any client (SEC-AUTH-2) |
 | `NK_SHUTDOWN_TIMEOUT` | `25s` | How long a stopping replica drains requests and event streams |
 | `NK_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. Logs are JSON on stdout and never contain note text, file names or secrets |
 
@@ -61,6 +61,8 @@ missing here, or documented here but read by nothing.
 | `NK_SHARE_MAX_LIFETIME` | `720h` (30 days) | The longest a share link may live (CORE-SH2) |
 | `NK_SHARE_MAX_ACTIVE` | `200` | Links one user may hold at once (SEC-SHR-11) |
 | `NK_SHARE_CREATED_PER_HOUR` | `30` | Links one user may create per hour (SEC-SHR-11) |
+| `NK_MAX_NOTES_PER_USER` | `100000` | Notes one account may hold (Inbox, pages and Trash). Past it, creating a note is refused with `413 notes_limit` and a chat message is answered with a reply; deleting notes for good makes room (SEC-API-3) |
+| `NK_MAX_TEXT_BYTES_PER_USER` | `268435456` | Text one account may hold, counting all note text and its history (256 MiB). Past it, growth is refused with `413 text_limit`; editing downwards still works (SEC-CNT-6). Files have their own quota, `NK_DEFAULT_QUOTA_BYTES` |
 | `NK_RATE_USER_PER_MIN` | `1800` | Requests per minute per signed-in user on the user API |
 | `NK_RATE_IP_PER_MIN` | `3000` | Requests per minute per client address on the user API |
 | `NK_RATE_BOT_PER_MIN` | `6000` | Requests per minute per bot instance |

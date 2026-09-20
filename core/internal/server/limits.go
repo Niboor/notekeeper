@@ -1,9 +1,12 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -25,6 +28,8 @@ type limits struct {
 
 	mu      sync.Mutex
 	uploads map[string]int
+
+	forwardedWarned atomic.Int64 // unix nanoseconds of the last warning about X-Forwarded-For
 }
 
 func newLimits(cfg config.Config, trusted []netip.Prefix, reg prometheus.Registerer) *limits {
@@ -64,6 +69,9 @@ func (l *limits) ip(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Forwarded-For") != "" && !httpx.PeerTrusted(r, l.trusted) {
+			l.warnForwarded(r)
+		}
 		ip := httpx.ClientIP(r, l.trusted)
 		if !l.perIP.Allow(ip) {
 			l.refuse(w, r, "ip", l.perIP, ip)
@@ -71,6 +79,21 @@ func (l *limits) ip(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// warnForwarded says, at most every ten minutes, that a request carried X-Forwarded-For from a peer that
+// is not a trusted proxy. Behind a real ingress that means NK_TRUSTED_PROXIES is missing or wrong, and
+// then every visitor shares the ingress address: the per-address limits and the login throttle would act
+// on all of them together (SR-004, docs/operations.md).
+func (l *limits) warnForwarded(r *http.Request) {
+	now := time.Now().UnixNano()
+	last := l.forwardedWarned.Load()
+	if now-last < int64(10*time.Minute) || !l.forwardedWarned.CompareAndSwap(last, now) {
+		return
+	}
+	slog.Warn("a request carried X-Forwarded-For from a peer that is not a trusted proxy; addresses are taken from the connection. "+
+		"If Core runs behind an ingress, set NK_TRUSTED_PROXIES to the ingress addresses, or all clients share one address for throttling",
+		"peer", r.RemoteAddr, "trusted_proxies_configured", len(l.trusted))
 }
 
 // user limits the requests of a signed-in person, after authentication.

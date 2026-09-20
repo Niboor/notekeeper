@@ -13,6 +13,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/notify"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
+	"github.com/Niboor/notekeeper/core/internal/throttle"
 )
 
 const tokenActivation = "activation"
@@ -183,8 +184,25 @@ func (s *Service) ActivationLinkFor(ctx context.Context, username string) (Activ
 // The token is single use and is consumed atomically (SEC-AUTH-4). A password that fails the
 // policy is rejected without consuming the token.
 func (s *Service) Activate(ctx context.Context, token, password string, c ClientInfo) (Tokens, error) {
+	// This is reachable without signing in and hashing a password is expensive, so: attempts are counted
+	// per address, and the token is looked at (without using it) before any hashing. A request with a
+	// bad token costs one lookup and cannot queue behind, or in front of, real sign-ins (SR-003).
+	attempt := throttle.Charge{Key: "act:" + c.IP, Policy: throttle.Activation}
+	wait, err := s.throttle.Attempt(ctx, attempt)
+	if err != nil {
+		return Tokens{}, err
+	}
+	if wait > 0 {
+		return Tokens{}, &ThrottledError{RetryAfter: wait}
+	}
 	if err := auth.CheckPolicy(password); err != nil {
 		return Tokens{}, fmt.Errorf("%w: %w", ErrInvalidInput, err)
+	}
+	if _, err := s.St.Q().PeekUserToken(ctx, dbq.PeekUserTokenParams{TokenHash: auth.HashToken(token), Kind: tokenActivation, ExpiresAt: s.Now()}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Tokens{}, ErrInvalidToken
+		}
+		return Tokens{}, err
 	}
 	hash, err := s.Hash.Hash(ctx, password)
 	if err != nil {
@@ -225,6 +243,7 @@ func (s *Service) Activate(ctx context.Context, token, password string, c Client
 		return Tokens{}, err
 	}
 	out.Principal = s.principalOf(user, sid)
+	_ = s.throttle.Success(ctx, []string{attempt.Key})
 	if hadPassword { // a reset, not the first activation of a new account
 		s.notice(ctx, user.ID, "", "🔐 The password of your Notekeeper account was reset with a link.")
 		s.notice(ctx, user.ID, notify.MuteSession, signInNotice(c, s.Now()))

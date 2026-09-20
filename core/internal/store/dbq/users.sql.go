@@ -473,19 +473,29 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 }
 
 const lockUser = `-- name: LockUser :one
-select id, status, is_admin from users where id = $1 for update
+select u.id, u.status, u.is_admin, coalesce(s.note_count, 0)::bigint as note_count, coalesce(s.text_bytes, 0)::bigint as text_bytes
+from users u left join user_storage s on s.user_id = u.id
+where u.id = $1 for update of u
 `
 
 type LockUserRow struct {
-	ID      uuid.UUID
-	Status  string
-	IsAdmin bool
+	ID        uuid.UUID
+	Status    string
+	IsAdmin   bool
+	NoteCount int64
+	TextBytes int64
 }
 
 func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error) {
 	row := q.db.QueryRow(ctx, lockUser, id)
 	var i LockUserRow
-	err := row.Scan(&i.ID, &i.Status, &i.IsAdmin)
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.IsAdmin,
+		&i.NoteCount,
+		&i.TextBytes,
+	)
 	return i, err
 }
 
@@ -609,6 +619,23 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 		&i.UpdatedAt,
 		&i.Version,
 	)
+	return i, err
+}
+
+const userUsage = `-- name: UserUsage :one
+select coalesce(s.note_count, 0)::bigint as note_count, coalesce(s.text_bytes, 0)::bigint as text_bytes
+from user_storage s where s.user_id = $1
+`
+
+type UserUsageRow struct {
+	NoteCount int64
+	TextBytes int64
+}
+
+func (q *Queries) UserUsage(ctx context.Context, userID uuid.UUID) (UserUsageRow, error) {
+	row := q.db.QueryRow(ctx, userUsage, userID)
+	var i UserUsageRow
+	err := row.Scan(&i.NoteCount, &i.TextBytes)
 	return i, err
 }
 

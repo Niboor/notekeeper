@@ -152,6 +152,9 @@ func (s *Service) remind(ctx context.Context, bot *bots.Principal, ident bots.Id
 	if errors.Is(err, errRollback) {
 		err = nil // the reply was set; nothing was saved
 	}
+	if le := (*store.LimitError)(nil); errors.As(err, &le) {
+		return reply(false, limitReply(le)), nil
+	}
 	return out, err
 }
 

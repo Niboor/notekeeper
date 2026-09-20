@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -206,33 +207,115 @@ func TestLoginFailuresAreIndistinguishableAndThrottled(t *testing.T) {
 		t.Fatalf("errors must be identical: %v / %v", errWrong, errUnknown)
 	}
 
-	// After a failure the account is throttled, even for the correct password, and that holds
-	// whether or not the account exists (SEC-AUTH-2, SEC-AUTH-3).
-	for _, name := range []string{"alice", "nobody"} {
-		_, err := e.login(name, goodPassword, "9.9.9.9")
-		var th *accounts.ThrottledError
-		if name == "alice" && !errors.As(err, &th) {
-			t.Fatalf("%s: want throttled, got %v", name, err)
-		}
-		if name == "nobody" {
-			if _, err := e.login(name, "x", "9.9.9.8"); err != nil {
-				_ = err // first failure just records
-			}
-			_, err = e.login(name, "x", "9.9.9.7")
-			if !errors.As(err, &th) {
-				t.Fatalf("unknown account must throttle like a real one, got %v", err)
-			}
-		}
+	// After a failure the account is throttled for that address, even for the correct password, and that
+	// holds whether or not the account exists (SEC-AUTH-2, SEC-AUTH-3).
+	var th *accounts.ThrottledError
+	if _, err := e.login("alice", goodPassword, "3.3.3.3"); !errors.As(err, &th) {
+		t.Fatalf("alice: want throttled, got %v", err)
+	}
+	if _, err := e.login("nobody", "x", "3.3.3.4"); !errors.As(err, &th) {
+		t.Fatalf("an unknown account must throttle like a real one, got %v", err)
 	}
 
 	// Waiting lifts the block; there is no permanent lock (SEC-AUTH-2).
 	e.clk.Advance(3 * time.Second)
-	if _, err := e.login("alice", goodPassword, "9.9.9.9"); err != nil {
+	if _, err := e.login("alice", goodPassword, "3.3.3.3"); err != nil {
 		t.Fatalf("after the delay: %v", err)
 	}
 	// Success resets the counter.
-	if _, err := e.login("alice", goodPassword, "9.9.9.9"); err != nil {
+	if _, err := e.login("alice", goodPassword, "3.3.3.3"); err != nil {
 		t.Fatalf("second login right after success: %v", err)
+	}
+}
+
+// An outsider who keeps guessing a known username from their own address does not keep the real user out:
+// the person signing in from anywhere else gets straight in (SEC-AUTH-2, SR-002).
+func TestOutsiderCannotLockTheRealUserOut(t *testing.T) {
+	e := newEnv(t)
+	e.activeUser(t, "alice")
+	for range 12 {
+		_, err := e.login("alice", "guess guess guess", "66.66.66.66")
+		var th *accounts.ThrottledError
+		if errors.As(err, &th) { // the attacker patiently waits, and guesses again
+			e.clk.Advance(th.RetryAfter + time.Millisecond)
+			_, _ = e.login("alice", "guess guess guess", "66.66.66.66")
+		}
+	}
+	var th *accounts.ThrottledError
+	if _, err := e.login("alice", goodPassword, "66.66.66.66"); !errors.As(err, &th) {
+		t.Fatalf("the attacker's own address must be slowed down, got %v", err)
+	}
+	if _, err := e.login("alice", goodPassword, "10.1.2.3"); err != nil {
+		t.Fatalf("the real user, from another address, was locked out: %v", err)
+	}
+}
+
+// Guessing that is spread over many addresses is slowed down too, but never for longer than half a
+// minute, so it cannot become a lock-out either (SEC-AUTH-2).
+func TestGuessingFromManyAddressesIsSlowedButNeverLocksOut(t *testing.T) {
+	e := newEnv(t)
+	e.activeUser(t, "alice")
+	for i := range 80 {
+		_, _ = e.login("alice", "guess guess guess", fmt.Sprintf("77.0.%d.%d", i/200, i%200+1))
+	}
+	_, err := e.login("alice", goodPassword, "10.9.9.9")
+	var th *accounts.ThrottledError
+	if !errors.As(err, &th) {
+		t.Fatalf("after 80 distributed guesses the account must be slowed down, got %v", err)
+	}
+	if th.RetryAfter > 30*time.Second {
+		t.Fatalf("the account-wide delay must stay short, got %v", th.RetryAfter)
+	}
+	e.clk.Advance(th.RetryAfter + time.Second)
+	if _, err := e.login("alice", goodPassword, "10.9.9.9"); err != nil {
+		t.Fatalf("after the short delay: %v", err)
+	}
+}
+
+// Attempts that arrive at the same moment cannot all pass: counting and checking are one step per key,
+// so a burst gets one guess, not a thousand (SEC-AUTH-2, SR-001).
+func TestBurstOfLoginAttemptsIsLimited(t *testing.T) {
+	e := newEnv(t)
+	e.activeUser(t, "alice")
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wrong := 0
+	for range 60 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := e.login("alice", "guess guess guess", "88.88.88.88"); errors.Is(err, accounts.ErrInvalidCredentials) {
+				mu.Lock()
+				wrong++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if wrong != 1 {
+		t.Fatalf("%d of 60 simultaneous guesses were evaluated, want exactly 1", wrong)
+	}
+}
+
+// Checking the password for a sensitive action has its own throttle: wrong guesses there never lock the
+// account's sign-in (SR-006).
+func TestPasswordConfirmationDoesNotLockSignIn(t *testing.T) {
+	e := newEnv(t)
+	_, tok := e.activeUser(t, "alice")
+	p := tok.Principal
+	for range 6 {
+		err := e.svc.ConfirmPassword(context.Background(), p, "not the password")
+		var th *accounts.ThrottledError
+		if errors.As(err, &th) {
+			e.clk.Advance(th.RetryAfter + time.Millisecond)
+		}
+	}
+	if _, err := e.login("alice", goodPassword, "5.5.5.5"); err != nil {
+		t.Fatalf("sign-in was locked by wrong guesses at the confirmation: %v", err)
+	}
+	e.clk.Advance(time.Hour)
+	if err := e.svc.ConfirmPassword(context.Background(), p, goodPassword); err != nil {
+		t.Fatalf("right password: %v", err)
 	}
 }
 
@@ -504,5 +587,31 @@ func TestSessionLabel(t *testing.T) {
 		if got := accounts.SessionLabel(ua); got != want {
 			t.Errorf("SessionLabel(%q) = %q, want %q", ua, got, want)
 		}
+	}
+}
+
+// Activation is reachable without signing in and hashing is expensive: a bad token is refused before any
+// hashing, and one address cannot keep trying (SEC-API-4, SEC-AUTH-4, SR-003).
+func TestActivationWithBadTokensIsCheapAndThrottled(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	client := accounts.ClientInfo{IP: "5.6.7.8"}
+	var th *accounts.ThrottledError
+	for i := range 11 { // ten free attempts; the block that follows the eleventh applies to the twelfth
+		if _, err := e.svc.Activate(ctx, "not-a-real-token", goodPassword, client); !errors.Is(err, accounts.ErrInvalidToken) {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+	}
+	if _, err := e.svc.Activate(ctx, "not-a-real-token", goodPassword, client); !errors.As(err, &th) {
+		t.Fatalf("the twelfth attempt from one address must be throttled, got %v", err)
+	}
+	// Another address is unaffected, and a bad token does not reach the hasher: the answer is instant even
+	// when every hashing slot is taken.
+	start := time.Now()
+	if _, err := e.svc.Activate(ctx, "not-a-real-token", goodPassword, accounts.ClientInfo{IP: "5.6.7.9"}); !errors.Is(err, accounts.ErrInvalidToken) {
+		t.Fatalf("another address: %v", err)
+	}
+	if time.Since(start) > 50*time.Millisecond {
+		t.Fatalf("a bad token took %v: it must be refused before hashing", time.Since(start))
 	}
 }

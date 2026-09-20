@@ -36,6 +36,16 @@ func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 	return peer.String()
 }
 
+// PeerTrusted reports whether the direct peer of the request is one of the trusted proxies.
+func PeerTrusted(r *http.Request, trusted []netip.Prefix) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	peer, err := netip.ParseAddr(host)
+	return err == nil && inPrefixes(trusted, peer)
+}
+
 func inPrefixes(prefixes []netip.Prefix, a netip.Addr) bool {
 	for _, p := range prefixes {
 		if p.Contains(a) {

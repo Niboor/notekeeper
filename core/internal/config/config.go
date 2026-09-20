@@ -60,6 +60,9 @@ type Config struct {
 	ShareMaxActive   int
 	// ShareCreatedPerHour is how many links one user may create per hour (SEC-SHR-11, SEC-BASE-5).
 	ShareCreatedPerHour int
+	// MaxNotesPerUser and MaxTextBytesPerUser bound one account's notes and their text (history
+	// included); files have their own quota (SEC-API-3, SEC-CNT-6, SEC-BASE-5). Zero means no limit.
+	MaxNotesPerUser, MaxTextBytesPerUser int64
 
 	// Rate limits per minute (SEC-API-4, SEC-BOT-10, NFR-S4): per address and per signed-in user on the
 	// user API, per bot instance and per linked person on the bot API, and the uploads one user may run at once.
@@ -174,6 +177,15 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.ShareCreatedPerHour = int(shareRate)
+	maxNotes, err := number(getenv, "NK_MAX_NOTES_PER_USER", 100000)
+	if err != nil {
+		return Config{}, err
+	}
+	maxText, err := number(getenv, "NK_MAX_TEXT_BYTES_PER_USER", 256<<20)
+	if err != nil {
+		return Config{}, err
+	}
+	c.MaxNotesPerUser, c.MaxTextBytesPerUser = int64(maxNotes), int64(maxText)
 	c.Argon2MemoryKiB, c.Argon2Iterations, c.Argon2Parallelism, c.Argon2Concurrency = uint32(mem), uint32(iter), uint8(par), int(conc)
 	return c, nil
 }

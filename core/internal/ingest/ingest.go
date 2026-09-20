@@ -92,6 +92,7 @@ const (
 	CodeInvalid          = "invalid_event"
 	CodeUserInactive     = "user_inactive"
 	CodeBeforeLink       = "before_link"
+	CodeStorageFull      = "storage_full"
 )
 
 // Feedback tells the bot what to show, so bots contain no wording of their own (BOT-8).
@@ -305,7 +306,20 @@ func (s *Service) Handle(ctx context.Context, bot *bots.Principal, ev Event) (Ou
 		}
 		return tx.Q.UpdateIngestResult(ctx, dbq.UpdateIngestResultParams{BotInstanceID: bot.InstanceID, EventID: ev.EventID, Result: final, UserID: tx.UserID})
 	})
+	if le := (*store.LimitError)(nil); errors.As(err, &le) {
+		// The account is full. This is an answer, not a failure: the bot shows it, and never retries it.
+		obs.Ingest.WithLabelValues(ev.Kind, ResultRejected).Inc()
+		return Outcome{Result: ResultRejected, Code: CodeStorageFull, Feedback: Feedback{React: "⚠️", ReplyText: ptr(limitReply(le))}}, nil
+	}
 	return out, err
+}
+
+// limitReply is what a person is told when a limit stops a message from being saved.
+func limitReply(le *store.LimitError) string {
+	if le.What == "notes" {
+		return "Your Notekeeper is full: it holds the most notes an account may have, so this message was not saved. Delete some notes for good in the app, then send it again."
+	}
+	return "Your Notekeeper is full: the notes hold the most text an account may have, so this message was not saved. Delete some notes for good in the app, then send it again."
 }
 
 func contentOf(parts []Part) grouping.Content {

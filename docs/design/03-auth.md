@@ -59,13 +59,23 @@ Revoking sets `revoked_at` on the session (one row), and sends `NOTIFY nk_sessio
 
 ## 3. Login and throttling
 
-1. Normalise the username (`lower`, Unicode NFC).
-2. Check `auth_throttle` for `acct:<username>` and `ip:<address>`. Either blocked → `429` with `Retry-After`. The account key is used **whether or not the user exists**, so throttling reveals nothing (SEC-AUTH-3).
+1. Normalise the username (`lower`, Unicode NFC). A name longer than 64 bytes is hashed before it is used in a key, so a caller cannot make keys of any size.
+2. **Count the attempt before checking anything.** One attempt is charged to three `auth_throttle` keys, each in its own short transaction that locks the key's row (`EnsureThrottle`, `LockThrottle`, `SetThrottle`), so the check and the count cannot be separated by another request; requests that arrive at the same moment cannot all pass (SR-001). The keys are used **whether or not the user exists**, so throttling reveals nothing (SEC-AUTH-3):
+
+   | Key | Policy | Meant to stop |
+   |---|---|---|
+   | `acct:<name>\|<address>` (the pair) | no free attempts, delay `2^n` seconds up to 15 minutes | guessing at one account from one address, and a person mistyping is slowed at once |
+   | `acct:<name>` | 50 free attempts, delay `2^(n-50)` seconds **up to 30 seconds** | guessing spread over many addresses |
+   | `ip:<address>` | 20 free attempts, delay up to 15 minutes | one address trying many accounts |
+
+   A key that is already blocked refuses the attempt without counting it, so retrying while blocked does not lengthen the wait. Because the strict key includes the address, an outsider who keeps guessing a known username slows down only their own address; the person it belongs to signs in from theirs at once. The account-wide key never delays for longer than half a minute, so a botnet cannot keep the real user out either (SEC-AUTH-2, SR-002).
 3. Look up the user; if none, or not `active`, or no password, verify the password against a fixed dummy hash (equal work, equal timing) and fail with the same generic `401`.
-4. Verify with argon2id. On failure increment both counters: the delay after *n* consecutive failures is `min(2^n seconds, 15 minutes)` (delay, never a permanent lock, SEC-AUTH-2). On success reset the account counter.
+4. Verify with argon2id. A wrong password needs nothing more (it is already counted), and the attempt is written to the audit log with the address. A right one forgets the pair key and takes one failure back from the other two keys (so someone signing in successfully cannot wipe what a guesser on the same address or account has piled up).
 5. If the stored hash uses old parameters, re-hash and store (SEC-BASE-1).
 
-Argon2id defaults: 64 MiB, 3 iterations, parallelism 2, tunable. A semaphore bounds concurrent hash operations per replica so a burst of logins cannot exhaust memory (SEC-API-4). The client address comes from `X-Forwarded-For`, trusted only from configured ingress addresses.
+Other password checks have their own keys so they never lock the sign-in: confirming the current password (change password, delete account) uses `pw:<user id>` with the strict policy (SR-006), pairing codes use `pair:<instance>:<identity>`, and activation links are counted per address (`act:<address>`, ten free attempts). **Activation** looks at the token (without using it) before it hashes the new password, so a request with a bad token costs one lookup and cannot queue in front of real sign-ins for the hashing slots (SR-003).
+
+Argon2id defaults: 64 MiB, 3 iterations, parallelism 2, tunable. A semaphore bounds concurrent hash operations per replica so a burst of logins cannot exhaust memory (SEC-API-4). The client address comes from `X-Forwarded-For`, trusted only from configured ingress addresses (`NK_TRUSTED_PROXIES`). Because the strict login key includes the address, a wrong setting matters: with the ingress address for every visitor the pair key becomes account-wide, so Core logs a warning when it sees `X-Forwarded-For` from an untrusted peer (SR-004).
 
 ## 4. Accounts
 

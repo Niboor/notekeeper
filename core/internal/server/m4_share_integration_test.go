@@ -163,6 +163,9 @@ func TestShareLinkLifecycle(t *testing.T) {
 	if part.Status != 206 || !bytes.Equal(part.Body, file[100:200]) {
 		t.Fatalf("range: %d", part.Status)
 	}
+	if r := s.publicDo(token, "GET", "/api/public/v1/share/attachments/"+att, map[string]string{"Range": "bytes=0-1,5-6,9-12"}); r.Status != 416 {
+		t.Fatalf("a share link holder asking for many ranges: %d", r.Status) // SR-009
+	}
 
 	// The owner sees usage (CORE-SH3).
 	links := u.shareLinks("")

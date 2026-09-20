@@ -45,6 +45,22 @@ func (q *Queries) DeleteUserTokens(ctx context.Context, arg DeleteUserTokensPara
 	return err
 }
 
+const ensureThrottle = `-- name: EnsureThrottle :exec
+insert into auth_throttle (key, failures, blocked_until, updated_at) values ($1, 0, null, $2) on conflict (key) do nothing
+`
+
+type EnsureThrottleParams struct {
+	Key       string
+	UpdatedAt time.Time
+}
+
+// The three statements below are used together in one transaction, so that counting an attempt is
+// serialised per key by the row lock (SR-001).
+func (q *Queries) EnsureThrottle(ctx context.Context, arg EnsureThrottleParams) error {
+	_, err := q.db.Exec(ctx, ensureThrottle, arg.Key, arg.UpdatedAt)
+	return err
+}
+
 const getThrottle = `-- name: GetThrottle :one
 select failures, blocked_until, updated_at from auth_throttle where key = $1
 `
@@ -136,6 +152,41 @@ func (q *Queries) ListUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockThrottle = `-- name: LockThrottle :one
+select failures, blocked_until, updated_at from auth_throttle where key = $1 for update
+`
+
+type LockThrottleRow struct {
+	Failures     int32
+	BlockedUntil *time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) LockThrottle(ctx context.Context, key string) (LockThrottleRow, error) {
+	row := q.db.QueryRow(ctx, lockThrottle, key)
+	var i LockThrottleRow
+	err := row.Scan(&i.Failures, &i.BlockedUntil, &i.UpdatedAt)
+	return i, err
+}
+
+const peekUserToken = `-- name: PeekUserToken :one
+select user_id from user_tokens where token_hash = $1 and kind = $2 and used_at is null and expires_at > $3
+`
+
+type PeekUserTokenParams struct {
+	TokenHash []byte
+	Kind      string
+	ExpiresAt time.Time
+}
+
+// Looks at a token without using it, so that a request with a bad token is refused before any expensive work (SR-003).
+func (q *Queries) PeekUserToken(ctx context.Context, arg PeekUserTokenParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, peekUserToken, arg.TokenHash, arg.Kind, arg.ExpiresAt)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const purgeChanges = `-- name: PurgeChanges :execrows
@@ -265,6 +316,27 @@ delete from auth_throttle where key = $1
 
 func (q *Queries) ResetThrottle(ctx context.Context, key string) error {
 	_, err := q.db.Exec(ctx, resetThrottle, key)
+	return err
+}
+
+const setThrottle = `-- name: SetThrottle :exec
+update auth_throttle set failures = $1, blocked_until = $2, updated_at = $3 where key = $4
+`
+
+type SetThrottleParams struct {
+	Failures     int32
+	BlockedUntil *time.Time
+	UpdatedAt    time.Time
+	Key          string
+}
+
+func (q *Queries) SetThrottle(ctx context.Context, arg SetThrottleParams) error {
+	_, err := q.db.Exec(ctx, setThrottle,
+		arg.Failures,
+		arg.BlockedUntil,
+		arg.UpdatedAt,
+		arg.Key,
+	)
 	return err
 }
 

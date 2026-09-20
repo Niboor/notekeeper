@@ -10,6 +10,10 @@ update user_tokens set used_at = $3
 where token_hash = $1 and kind = $2 and used_at is null and expires_at > $3
 returning user_id;
 
+-- Looks at a token without using it, so that a request with a bad token is refused before any expensive work (SR-003).
+-- name: PeekUserToken :one
+select user_id from user_tokens where token_hash = $1 and kind = $2 and used_at is null and expires_at > $3;
+
 -- name: GetThrottle :one
 select failures, blocked_until, updated_at from auth_throttle where key = $1;
 
@@ -20,6 +24,17 @@ on conflict (key) do update set
   failures = case when auth_throttle.updated_at < $3 then 1 else auth_throttle.failures + 1 end,
   updated_at = $2
 returning failures;
+
+-- The three statements below are used together in one transaction, so that counting an attempt is
+-- serialised per key by the row lock (SR-001).
+-- name: EnsureThrottle :exec
+insert into auth_throttle (key, failures, blocked_until, updated_at) values (@key, 0, null, @updated_at) on conflict (key) do nothing;
+
+-- name: LockThrottle :one
+select failures, blocked_until, updated_at from auth_throttle where key = $1 for update;
+
+-- name: SetThrottle :exec
+update auth_throttle set failures = @failures, blocked_until = @blocked_until, updated_at = @updated_at where key = @key;
 
 -- name: ResetThrottle :exec
 delete from auth_throttle where key = $1;

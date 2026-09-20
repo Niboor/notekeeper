@@ -100,6 +100,14 @@ func (d attachmentDownload) serve(w http.ResponseWriter) error {
 	if len(d.att.SHA256) > 0 {
 		h.Set("ETag", fmt.Sprintf(`"%x"`, d.att.SHA256[:16]))
 	}
+	// A request for several ranges makes Go read and send each one, and a few kilobytes of header can
+	// ask for hundreds of overlapping pieces, each of which costs a database read. Browsers and media
+	// players ask for one range at a time, so more than one is refused (SR-009, SEC-SHR-8).
+	if strings.Contains(d.r.Header.Get("Range"), ",") {
+		h.Set("Content-Range", fmt.Sprintf("bytes */%d", d.att.Size))
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return nil
+	}
 	http.ServeContent(w, d.r, "", time.Time{}, d.reader)
 	return nil
 }

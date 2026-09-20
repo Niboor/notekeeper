@@ -4,6 +4,8 @@ package accounts
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -178,8 +180,14 @@ type LoginInput struct {
 // Login verifies credentials, throttles failures and creates a fresh session (SEC-AUTH-9).
 func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 	username := NormaliseUsername(in.Username)
-	acctKey, ipKey := "acct:"+username, "ip:"+in.Client.IP
-	wait, err := s.throttle.Blocked(ctx, acctKey, ipKey)
+	name := throttleName(username)
+	// One attempt is counted against three keys before anything is checked (see throttle.Attempt), so
+	// requests that arrive together cannot all pass, and an outsider guessing a known username slows
+	// down their own address, not the person it belongs to (SEC-AUTH-2, SR-001, SR-002).
+	pair := throttle.Charge{Key: "acct:" + name + "|" + in.Client.IP, Policy: throttle.Pair}
+	acct := throttle.Charge{Key: "acct:" + name, Policy: throttle.Account}
+	ip := throttle.Charge{Key: "ip:" + in.Client.IP, Policy: throttle.IP}
+	wait, err := s.throttle.Attempt(ctx, pair, acct, ip)
 	if err != nil {
 		return Tokens{}, err
 	}
@@ -208,15 +216,13 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 	} else {
 		s.Hash.VerifyDummy(ctx, in.Password) // equal work whether or not the account exists
 	}
-	if !ok {
+	if !ok { // the attempt is already counted
 		obs.AuthEvents.WithLabelValues("failed").Inc()
-		_ = s.throttle.Fail(ctx, acctKey, throttle.Account)
-		_ = s.throttle.Fail(ctx, ipKey, throttle.IP)
 		_ = store.Audit(ctx, s.St.Q(), store.AuditEntry{ActorKind: "anonymous", Action: "login.failed",
-			Detail: map[string]any{"known_user": found}})
+			Detail: map[string]any{"known_user": found, "ip": in.Client.IP}})
 		return Tokens{}, ErrInvalidCredentials
 	}
-	_ = s.throttle.Reset(ctx, acctKey)
+	_ = s.throttle.Success(ctx, []string{pair.Key}, acct, ip)
 
 	var out Tokens
 	var sid uuid.UUID
@@ -437,23 +443,9 @@ func (s *Service) RevokeSession(ctx context.Context, p Principal, id uuid.UUID) 
 // ChangePassword sets a new password after verifying the current one, keeps the current
 // session and revokes all others (AUTH-U4, SEC-AUTH-6).
 func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next string, c ClientInfo) error {
-	acctKey := "acct:" + NormaliseUsername(p.Username)
-	if wait, err := s.throttle.Blocked(ctx, acctKey); err != nil {
-		return err
-	} else if wait > 0 {
-		return &ThrottledError{RetryAfter: wait}
-	}
-	u, err := s.St.Q().GetUser(ctx, p.UserID)
-	if err != nil || u.PasswordHash == nil {
-		return ErrUnauthenticated
-	}
-	ok, _, err := s.Hash.Verify(ctx, current, *u.PasswordHash)
+	u, err := s.confirm(ctx, p, current)
 	if err != nil {
 		return err
-	}
-	if !ok {
-		_ = s.throttle.Fail(ctx, acctKey, throttle.Account)
-		return ErrInvalidCredentials
 	}
 	if err := auth.CheckPolicy(next); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidInput, err)
@@ -481,26 +473,45 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 // ConfirmPassword checks the password of the signed-in user before something irreversible, with the
 // same throttling as a login (AUTH-U4).
 func (s *Service) ConfirmPassword(ctx context.Context, p Principal, password string) error {
-	acctKey := "acct:" + NormaliseUsername(p.Username)
-	if wait, err := s.throttle.Blocked(ctx, acctKey); err != nil {
-		return err
-	} else if wait > 0 {
-		return &ThrottledError{RetryAfter: wait}
+	_, err := s.confirm(ctx, p, password)
+	return err
+}
+
+// confirm checks the password of a signed-in user. Its throttle key belongs to that user and this
+// purpose alone, not to the login of the account: someone holding a stolen session who guesses here
+// slows down only further guesses here, and cannot lock the owner out of signing in (SR-006).
+func (s *Service) confirm(ctx context.Context, p Principal, password string) (dbq.User, error) {
+	key := throttle.Charge{Key: "pw:" + p.UserID.String(), Policy: throttle.Secret}
+	wait, err := s.throttle.Attempt(ctx, key)
+	if err != nil {
+		return dbq.User{}, err
+	}
+	if wait > 0 {
+		return dbq.User{}, &ThrottledError{RetryAfter: wait}
 	}
 	u, err := s.St.Q().GetUser(ctx, p.UserID)
 	if err != nil || u.PasswordHash == nil {
-		return ErrUnauthenticated
+		return dbq.User{}, ErrUnauthenticated
 	}
 	ok, _, err := s.Hash.Verify(ctx, password, *u.PasswordHash)
 	if err != nil {
-		return err
+		return dbq.User{}, err
 	}
 	if !ok {
-		_ = s.throttle.Fail(ctx, acctKey, throttle.Account)
-		return ErrInvalidCredentials
+		return dbq.User{}, ErrInvalidCredentials
 	}
-	_ = s.throttle.Reset(ctx, acctKey)
-	return nil
+	_ = s.throttle.Success(ctx, []string{key.Key})
+	return u, nil
+}
+
+// throttleName bounds the length of a username used in a throttle key: anything longer than a
+// username can be is hashed, so a caller cannot make keys of any size (SR-007).
+func throttleName(username string) string {
+	if len(username) <= 64 {
+		return username
+	}
+	sum := sha256.Sum256([]byte(username))
+	return "long:" + hex.EncodeToString(sum[:16])
 }
 
 // SessionLabel makes a short description such as "Firefox on Linux" from a User-Agent header.

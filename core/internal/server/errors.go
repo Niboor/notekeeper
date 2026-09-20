@@ -53,6 +53,10 @@ func mapError(err error) *httpx.Error {
 		return reminderError(err)
 	case shareError(err) != nil:
 		return shareError(err)
+	case errors.Is(err, store.ErrLimitReached):
+		var le *store.LimitError
+		errors.As(err, &le)
+		return httpx.NewError(http.StatusRequestEntityTooLarge, le.What+"_limit") // notes_limit or text_limit
 	case errors.Is(err, store.ErrNotFound):
 		return errNotFound
 	case errors.Is(err, notes.ErrInvalidCursor):
