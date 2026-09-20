@@ -4,7 +4,9 @@ name: Release
 #
 #   git tag v1.2.3 && git push origin v1.2.3
 #
-# The whole CI workflow (unit, integration, browser and image tests, vulnerability scans) must pass first.
+# The whole CI workflow (unit, integration, browser and image tests, vulnerability scans) must pass first: when
+# the tagged commit has already passed it on master, that result counts and the tests are not run again;
+# otherwise they run here.
 # Images: ghcr.io/<owner>/notekeeper-core, notekeeper-web and notekeeper-matrix-bot, tagged 1.2.3, 1.2 and
 # (for a version without a pre-release suffix) latest, built for linux/amd64.
 on:
@@ -19,13 +21,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Has this commit passed CI?
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      passed: ${{ steps.find.outputs.passed }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success" --jq '.total_count')"
+          echo "successful CI runs on push for ${GITHUB_SHA}: ${count}"
+          if [ "${count}" -gt 0 ]; then echo "passed=true" >> "$GITHUB_OUTPUT"; else echo "passed=false" >> "$GITHUB_OUTPUT"; fi
+
   ci:
     name: Tests
+    needs: gate
+    if: needs.gate.outputs.passed != 'true'
     uses: ./.github/workflows/ci.yml
 
   publish:
     name: Publish ${{ matrix.image }}
-    needs: ci
+    needs: [gate, ci]
+    # Runs when the tests passed here, or were skipped because the commit had passed them on master.
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'skipped' && needs.gate.outputs.passed == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

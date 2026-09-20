@@ -487,9 +487,38 @@ func TestWorkflowsForPullRequestsMergesAndReleases(t *testing.T) {
 	if branches, _ := get(triggers, "push", "branches").([]any); len(branches) == 0 {
 		t.Error("ci.yml does not run on pushes to the main branch")
 	}
-	for _, job := range []string{"check", "e2e", "images", "e2e-stack"} {
+	jobs, _ := get(ci, "jobs").(obj)
+	for _, job := range []string{"generate", "lint", "unit", "integration-core", "integration-bot", "security", "e2e", "e2e-cross-browser", "images", "e2e-stack", "passed"} {
 		if get(ci, "jobs", job) == nil {
 			t.Errorf("ci.yml has no %s job", job)
+		}
+	}
+	// "CI passed" is the one status to require: it must wait for every other job, or a job added later could fail unnoticed.
+	waits := map[string]bool{}
+	for _, n := range get(ci, "jobs", "passed", "needs").([]any) {
+		waits[n.(string)] = true
+	}
+	for job := range jobs {
+		if job != "passed" && !waits[job] {
+			t.Errorf("the passed job does not wait for %s", job)
+		}
+	}
+	// Everything `make check` runs also runs in CI, in some job, so that splitting the check into jobs drops nothing.
+	ciText := repoFile(t, ".github", "workflows", "ci.yml")
+	makefile := repoFile(t, "Makefile")
+	checkLine := regexp.MustCompile(`(?m)^check:\s*([^#\n]*)`).FindStringSubmatch(makefile)
+	if checkLine == nil {
+		t.Fatal("the Makefile has no check target")
+	}
+	for _, target := range strings.Fields(checkLine[1]) {
+		wanted := []string{target}
+		if target == "test-integration" {
+			wanted = []string{"test-integration-core", "test-integration-bot"} // run side by side in CI
+		}
+		for _, w := range wanted {
+			if !regexp.MustCompile(`(?m)run:\s*make\b[^\n]*\b` + regexp.QuoteMeta(w) + `\b`).MatchString(ciText) {
+				t.Errorf("`make check` runs %s, but no job of ci.yml does", w)
+			}
 		}
 	}
 	rt, _ := release["on"].(obj)
@@ -500,8 +529,21 @@ func TestWorkflowsForPullRequestsMergesAndReleases(t *testing.T) {
 	if get(release, "jobs", "ci", "uses") != "./.github/workflows/ci.yml" {
 		t.Error("the release does not run the CI workflow first")
 	}
-	if needs := get(release, "jobs", "publish", "needs"); needs != "ci" {
-		t.Errorf("publishing does not wait for the tests: needs = %v", needs)
+	// Publishing waits for the tests and for the gate that says whether they can be skipped (the commit already
+	// passed them on master); it runs only when they passed here or were skipped for that reason.
+	needs := map[string]bool{}
+	for _, n := range get(release, "jobs", "publish", "needs").([]any) {
+		needs[n.(string)] = true
+	}
+	if !needs["ci"] || !needs["gate"] {
+		t.Errorf("publishing does not wait for the tests and the gate: needs = %v", needs)
+	}
+	condition, _ := get(release, "jobs", "publish", "if").(string)
+	if !strings.Contains(condition, "needs.ci.result == 'success'") || !strings.Contains(condition, "needs.gate.outputs.passed == 'true'") {
+		t.Errorf("publishing is not tied to the tests having passed: if = %q", condition)
+	}
+	if get(release, "jobs", "ci", "if") == nil {
+		t.Error("the release runs the tests even when the commit has already passed them")
 	}
 	if get(release, "permissions", "packages") != nil {
 		t.Error("write access to packages is granted to the whole release workflow, not only to publishing")

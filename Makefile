@@ -104,8 +104,15 @@ test-web: ## Web unit tests and type check
 	cd web && npm run typecheck && npm test
 
 .PHONY: test-integration
-test-integration: check-libolm ## Integration tests against real PostgreSQL and Synapse (Docker required)
+test-integration: test-integration-core test-integration-bot ## Integration tests against real PostgreSQL and Synapse (Docker required)
+
+# The two halves are separate targets so that CI can run them side by side; `make test-integration` runs both.
+.PHONY: test-integration-core
+test-integration-core: ## Core integration tests against real PostgreSQL 16 and newest (Docker required)
 	cd core && go test -race -tags integration -count=1 ./...
+
+.PHONY: test-integration-bot
+test-integration-bot: check-libolm ## Matrix bot integration tests against a real Synapse (Docker required)
 	cd bots/matrix && go test -race -tags integration -count=1 -timeout 10m ./...
 
 .PHONY: test-e2e

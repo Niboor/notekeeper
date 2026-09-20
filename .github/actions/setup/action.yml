@@ -1,0 +1,95 @@
+name: Set up the toolchain
+description: >
+  What the CI jobs share: Go, Node, the pinned developer tools (restored from a cache, built only when
+  the versions in the Makefile change), libolm, the web dependencies and the Playwright browsers
+  (also cached). Each job asks for what it needs. Run actions/checkout first.
+
+inputs:
+  go:
+    description: Install Go (with its module and build caches)
+    default: 'true'
+  node:
+    description: Install Node (with the npm cache)
+    default: 'true'
+  tools:
+    description: Provide the pinned tools of `make tools` in .bin/
+    default: 'false'
+  libolm:
+    description: Install libolm with headers (the Matrix bot needs it)
+    default: 'false'
+  web:
+    description: Install the web dependencies (npm ci)
+    default: 'false'
+  playwright:
+    description: Space-separated Playwright browsers to install, with their system libraries (empty for none)
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - if: inputs.go == 'true'
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.work
+        cache-dependency-path: |
+          core/go.sum
+          bots/matrix/go.sum
+          bots/sdk/go.sum
+
+    - if: inputs.node == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: |
+          web/package-lock.json
+          e2e/package-lock.json
+
+    # Compiling the ten tools takes about four minutes; the binaries only change when a pinned version in the
+    # Makefile or the Go version does. The cache is saved right after a build, before anything else writes to .bin.
+    - name: Restore the pinned tools
+      if: inputs.tools == 'true'
+      id: tools
+      uses: actions/cache/restore@v4
+      with:
+        path: .bin
+        key: tools-${{ runner.os }}-${{ hashFiles('Makefile', 'go.work') }}
+    - name: Build the pinned tools
+      if: inputs.tools == 'true' && steps.tools.outputs.cache-hit != 'true'
+      shell: bash
+      run: make tools
+    - name: Save the pinned tools
+      if: inputs.tools == 'true' && steps.tools.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: .bin
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+
+    - name: Install libolm
+      if: inputs.libolm == 'true'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libolm-dev
+
+    - name: Install web dependencies
+      if: inputs.web == 'true'
+      shell: bash
+      run: make web-install
+
+    # The browsers are cached; the system libraries they need come from apt on every run.
+    - name: Restore the Playwright browsers
+      if: inputs.playwright != ''
+      id: playwright
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}-${{ inputs.playwright }}
+    - name: Install the Playwright browsers
+      if: inputs.playwright != ''
+      shell: bash
+      working-directory: e2e
+      env:
+        BROWSERS: ${{ inputs.playwright }}
+        CACHED: ${{ steps.playwright.outputs.cache-hit }}
+      run: |
+        npm ci
+        if [ "$CACHED" = true ]; then npx playwright install-deps $BROWSERS; else npx playwright install --with-deps $BROWSERS; fi

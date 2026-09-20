@@ -1,10 +1,23 @@
-# Keeps the pinned versions current (SEC-OPS-6). Each update arrives as a pull request that runs the full CI.
+# Keeps the pinned versions current (SEC-OPS-6). Updates arrive as pull requests that run the full CI. Within
+# an ecosystem the minor and patch updates come together in one pull request (one CI run for many bumps); a
+# major update is a pull request of its own, because it needs a look.
 version: 2
 updates:
-  - {package-ecosystem: github-actions, directory: /, schedule: {interval: weekly}}
-  - {package-ecosystem: gomod, directory: /core, schedule: {interval: weekly}}
-  - {package-ecosystem: gomod, directory: /bots/sdk, schedule: {interval: weekly}}
-  - {package-ecosystem: gomod, directory: /bots/matrix, schedule: {interval: weekly}}
-  - {package-ecosystem: npm, directory: /web, schedule: {interval: weekly}}
-  - {package-ecosystem: npm, directory: /e2e, schedule: {interval: weekly}}
-  - {package-ecosystem: docker, directory: /deploy/docker, schedule: {interval: weekly}}
+  - package-ecosystem: github-actions
+    directories: [/, /.github/actions/setup]
+    schedule: {interval: weekly}
+    groups:
+      actions: {patterns: ['*']}
+  - package-ecosystem: gomod
+    directories: [/core, /bots/sdk, /bots/matrix]
+    schedule: {interval: weekly}
+    groups:
+      go-modules: {patterns: ['*'], update-types: [minor, patch]}
+  - package-ecosystem: npm
+    directories: [/web, /e2e]
+    schedule: {interval: weekly}
+    groups:
+      npm-packages: {patterns: ['*'], update-types: [minor, patch]}
+  - package-ecosystem: docker
+    directory: /deploy/docker
+    schedule: {interval: weekly}

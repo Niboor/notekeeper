@@ -4,12 +4,16 @@
 FROM golang:1.26-bookworm AS build
 ARG VERSION=dev
 WORKDIR /src
-COPY go.work ./
+# The dependencies come first, in a layer of their own: it changes only with a go.mod or go.sum, so a change
+# to the sources reuses it (from the layer cache in CI).
+COPY go.work go.work.sum ./
+COPY core/go.mod core/go.sum ./core/
+COPY bots/sdk/go.mod bots/sdk/go.sum ./bots/sdk/
+COPY bots/matrix/go.mod bots/matrix/go.sum ./bots/matrix/
+RUN cd core && go mod download
 COPY core ./core
 COPY bots/sdk ./bots/sdk
-COPY bots/matrix/go.mod bots/matrix/go.sum ./bots/matrix/
-RUN \
-    cd core && CGO_ENABLED=0 GOFLAGS=-trimpath go build -ldflags "-s -w -X github.com/Niboor/notekeeper/core/internal/version.Version=${VERSION}" -o /out/core ./cmd/core
+RUN cd core && CGO_ENABLED=0 GOFLAGS=-trimpath go build -ldflags "-s -w -X github.com/Niboor/notekeeper/core/internal/version.Version=${VERSION}" -o /out/core ./cmd/core
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/core /core

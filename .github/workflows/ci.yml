@@ -1,7 +1,10 @@
 name: CI
 
 # Every job below runs on every pull request, on every merge to master (main), and as the gate of a
-# release (release.yml calls this workflow before it publishes anything).
+# release (release.yml calls this workflow, unless the tagged commit has already passed it on master).
+#
+# `make check` is what a developer runs; here its parts run side by side as separate jobs, calling the
+# same Makefile targets, and "CI passed" at the end is the one status that says everything is green.
 on:
   push:
     branches: [master, main]
@@ -11,48 +14,77 @@ on:
 permissions:
   contents: read
 
-# A new push to a pull request replaces its running checks; runs on master are never cancelled, so every
-# merge gets a full result.
+# A new push to a pull request replaces its running checks. Every commit on master has a group of its
+# own: runs on master are never cancelled and do not wait for each other, so each merge gets a full,
+# prompt result.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    name: make check
+  # ---- the parts of `make check` ------------------------------------------------------------------
+
+  generate:
+    name: generated code and docs are current
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {tools: true, web: true}
+      - run: make generate-check docs-check
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.work
-          cache-dependency-path: |
-            core/go.sum
-            bots/matrix/go.sum
-            bots/sdk/go.sum
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {tools: true, libolm: true, web: true}
+      - run: make lint
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {libolm: true, web: true}
+      - run: make test
 
-      # The Matrix bot needs a C compiler (present) and libolm with headers (make check-libolm).
-      - name: Install libolm
-        run: sudo apt-get update && sudo apt-get install -y libolm-dev
+  integration-core:
+    name: core integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {node: false}
+      - run: make test-integration-core
 
-      - name: Install pinned tools
-        run: make tools
+  integration-bot:
+    name: bot integration tests (Synapse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {node: false, libolm: true}
+      - run: make test-integration-bot
 
-      - name: Install web dependencies
-        run: make web-install
+  security:
+    name: secret and vulnerability scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {node: false, tools: true, libolm: true}
+      - run: make secrets vuln
 
-      # Lint, unit tests, integration tests (Docker: PostgreSQL 16 and latest, Synapse),
-      # generation drift, traceability, secret scan and vulnerability scans.
-      - name: make check
-        run: make check
+  # ---- browsers ------------------------------------------------------------------------------------
 
   e2e:
     name: make test-e2e
@@ -60,65 +92,41 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.work
-          cache-dependency-path: |
-            core/go.sum
-            bots/matrix/go.sum
-            bots/sdk/go.sum
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            web/package-lock.json
-            e2e/package-lock.json
-
-      - name: Install web dependencies
-        run: make web-install
-
-      # Browsers and their system libraries; the tests then drive the built web app and a real Core.
-      - name: Install Playwright browser
-        run: cd e2e && npm ci && npx playwright install --with-deps chromium
-
+      - uses: ./.github/actions/setup
+        with: {web: true, playwright: chromium}
+      # The tests drive the built web app and a real Core.
       - name: Browser end-to-end tests (Chromium)
         run: e2e/run.sh
 
-  # Firefox and WebKit run the @cross tests (WEB-N6); both block.
+  # Firefox and WebKit run the @cross tests (WEB-N6), each in its own job; both block. WebKit does not accept the
+  # Secure cookies of an http origin, so it runs against https with a throwaway certificate.
   e2e-cross-browser:
-    name: browsers other than Chromium
+    name: ${{ matrix.browser }} (@cross tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {browser: firefox, tls: ''}
+          - {browser: webkit, tls: '1'}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      # The tests log in through Chromium once, whatever browser they then run in.
+      - uses: ./.github/actions/setup
         with:
-          go-version-file: go.work
-          cache-dependency-path: |
-            core/go.sum
-            bots/matrix/go.sum
-            bots/sdk/go.sum
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            web/package-lock.json
-            e2e/package-lock.json
-      - name: Install web dependencies
-        run: make web-install
-      - name: Install Playwright browsers
-        run: cd e2e && npm ci && npx playwright install --with-deps chromium firefox webkit
-      - name: Browser tests on Firefox
-        run: E2E_BROWSERS=all e2e/run.sh --project=firefox
-      # WebKit does not accept the Secure cookies of an http origin, so it runs against https with a throwaway
-      # certificate.
-      - name: Browser tests on WebKit (https)
-        run: E2E_BROWSERS=all E2E_TLS=1 e2e/run.sh --project=webkit
+          web: true
+          playwright: chromium ${{ matrix.browser }}
+      - name: Browser tests on ${{ matrix.browser }}
+        env:
+          E2E_BROWSERS: all
+          E2E_TLS: ${{ matrix.tls }}
+        run: e2e/run.sh --project=${{ matrix.browser }}
 
+  # ---- the images -----------------------------------------------------------------------------------
+
+  # The images are built with the layer cache, which the stack tests below and the release share (one cache per
+  # image), so a change to the sources rebuilds only what depends on it.
   images:
     name: scan image ${{ matrix.image }}
     runs-on: ubuntu-latest
@@ -129,9 +137,17 @@ jobs:
         image: [core, web, matrix-bot]
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Build the image
-        run: docker build -f deploy/docker/Dockerfile.${{ matrix.image == 'matrix-bot' && 'bot' || matrix.image }} -t notekeeper/${{ matrix.image }}:dev .
-      # Known vulnerabilities in the built image (SEC-OPS-6); the source dependencies are scanned by make check.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.${{ matrix.image == 'matrix-bot' && 'bot' || matrix.image }}
+          load: true
+          tags: notekeeper/${{ matrix.image }}:dev
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      # Known vulnerabilities in the built image (SEC-OPS-6); the source dependencies are scanned by the security job.
       - name: Scan the image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -146,15 +162,48 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            web/package-lock.json
-            e2e/package-lock.json
-      - name: Install Playwright
-        run: cd e2e && npm ci && npx playwright install --with-deps chromium
-      # Builds the three images, starts them behind nginx and runs the browser tests through it.
+          go: false
+          playwright: chromium
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the Core image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.core
+          load: true
+          tags: notekeeper/core:dev
+          cache-from: type=gha,scope=core
+          cache-to: type=gha,mode=max,scope=core
+      - name: Build the web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.web
+          load: true
+          tags: notekeeper/web:dev
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      # Starts the images behind nginx and runs the browser tests through it.
       - name: Browser tests against the built images
+        env:
+          E2E_SKIP_BUILD: '1' # built above, with the cache
         run: e2e/run-stack.sh
+
+  # ---- the verdict -----------------------------------------------------------------------------------
+
+  # One status for "everything passed", whatever jobs are added or split above: use this one as the required
+  # check when the branch is protected.
+  passed:
+    name: CI passed
+    if: always()
+    needs: [generate, lint, unit, integration-core, integration-bot, security, e2e, e2e-cross-browser, images, e2e-stack]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "not everything passed"; exit 1; }; done
