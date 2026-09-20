@@ -96,8 +96,10 @@ test('hold a note over a page tab to move it to another page', async ({ page }) 
   await page.mouse.move(b.x + b.width / 2, b.y + 60, { steps: 15 })
   await page.mouse.up()
   await expect(card(arrivals, 'travelling note')).toBeVisible()
-  const moved = await api<{ items: { category_id: string }[] }>(page, 'GET', `/api/v1/categories/${target.body.id}/notes`)
-  expect(moved.body.items).toHaveLength(1)
+  // The card shows at once; the move reaches the server a moment later.
+  await expect
+    .poll(async () => (await api<{ items: { category_id: string }[] }>(page, 'GET', `/api/v1/categories/${target.body.id}/notes`)).body.items.length)
+    .toBe(1)
 })
 
 // WEB-6, CORE-N8, WEB-7: dismiss with one click, undo, and the Trash.
