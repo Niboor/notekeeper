@@ -41,7 +41,7 @@ jobs:
           - {image: web, dockerfile: Dockerfile.web}
           - {image: matrix-bot, dockerfile: Dockerfile.bot}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
@@ -94,7 +94,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create the release with generated notes and the image list
         env:
           GH_TOKEN: ${{ github.token }}
