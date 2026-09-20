@@ -264,19 +264,41 @@ type resolved struct {
 }
 
 // resolve applies the live validity check (CORE-SH5, CORE-SH6): every failure, whatever the
-// reason, is the same ErrNotFound, so a token cannot be probed for "expired" or "revoked".
+// reason, is the same ErrNotFound, and every failure does the same work, a link lookup and a look
+// at the note, so neither the body nor the timing tells "unknown" from "revoked" from "trashed"
+// (SEC-SHR-3). A malformed token or a disabled feature runs the same two steps on a stand-in.
 func (s *Service) resolve(ctx context.Context, token string) (resolved, error) {
-	if !s.Cfg.Enabled || !validToken(token) {
-		return resolved{}, ErrNotFound
+	usable := s.Cfg.Enabled && validToken(token)
+	if !usable {
+		token = "" // hashed and looked up like any other unknown token
 	}
+	var r resolved
+	found := false
 	row, err := s.St.Q().LookupShare(ctx, dbq.LookupShareParams{TokenHash: hashToken(token), ExpiresAt: s.Now()})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return resolved{}, ErrNotFound
+	switch {
+	case err == nil:
+		r, found = resolved{linkID: row.ID, user: row.UserID, note: row.NoteID, expiry: row.ExpiresAt}, usable
+	case !errors.Is(err, pgx.ErrNoRows):
+		return resolved{}, err
 	}
+	// The note must be in play too; without a link this asks about nothing and finds nothing.
+	user, note := r.user, r.note
+	active := false
+	err = s.St.InUserRead(ctx, user, func(q *dbq.Queries) error {
+		n, err := q.GetNote(ctx, dbq.GetNoteParams{ID: note, UserID: user})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		active = err == nil && n.State == "active"
+		return err
+	})
 	if err != nil {
 		return resolved{}, err
 	}
-	return resolved{linkID: row.ID, user: row.UserID, note: row.NoteID, expiry: row.ExpiresAt}, nil
+	if !found || !active {
+		return resolved{}, ErrNotFound
+	}
+	return r, nil
 }
 
 // LinkKey identifies a link for rate limiting without revealing the token.
@@ -291,9 +313,6 @@ func (s *Service) Open(ctx context.Context, token string) (Shared, error) {
 	n, err := s.Notes.Get(ctx, r.user, r.note)
 	if err != nil {
 		return Shared{}, err // a missing note is ErrNotFound like everything else
-	}
-	if n.Note.State != "active" {
-		return Shared{}, ErrNotFound // a note in the Trash switches its links off (CORE-SH5)
 	}
 	out := Shared{CreatedAt: n.Note.CreatedAt, ExpiresAt: r.expiry}
 	for _, p := range n.Parts {
@@ -328,13 +347,6 @@ func (s *Service) OpenAttachment(ctx context.Context, token string, attachment u
 		return nil, blobs.Attachment{}, err
 	}
 	err = s.St.InUserRead(ctx, r.user, func(q *dbq.Queries) error {
-		n, err := q.GetNote(ctx, dbq.GetNoteParams{ID: r.note, UserID: r.user})
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && n.State != "active") {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
 		has, err := q.NoteHasAttachment(ctx, dbq.NoteHasAttachmentParams{UserID: r.user, NoteID: r.note, AttachmentID: uuid.NullUUID{UUID: attachment, Valid: true}})
 		if err != nil {
 			return err

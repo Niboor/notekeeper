@@ -442,6 +442,18 @@ func TestPublicListenerIsIsolatedAndReadOnly(t *testing.T) {
 			t.Errorf("%s: %d", m, res.Status)
 		}
 	}
+	// The session cookies are host-only (no Domain attribute), so a browser never sends them to the
+	// share hostname, whatever its name: the isolation of the share origin rests on this (SEC-SHR-5).
+	login := s.newClient().do("POST", "/api/v1/auth/login", map[string]any{"username": "alice", "password": password})
+	if cookies := login.Header.Values("Set-Cookie"); len(cookies) < 2 {
+		t.Fatalf("login set %d cookies", len(cookies))
+	} else {
+		for _, c := range cookies {
+			if strings.Contains(strings.ToLower(c), "domain=") {
+				t.Fatalf("a session cookie is not host-only: %s", c)
+			}
+		}
+	}
 	// A session cookie is ignored and no cookie is ever set.
 	res := s.publicDo(token, "GET", "/api/public/v1/share", map[string]string{"Cookie": "__Host-nka=" + u.c.cookies["__Host-nka"]})
 	if res.Status != 200 || res.Header.Get("Set-Cookie") != "" {
