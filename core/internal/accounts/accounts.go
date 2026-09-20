@@ -17,6 +17,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/auth"
 	"github.com/Niboor/notekeeper/core/internal/notify"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"github.com/Niboor/notekeeper/core/internal/throttle"
@@ -183,6 +184,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 		return Tokens{}, err
 	}
 	if wait > 0 {
+		obs.AuthEvents.WithLabelValues("throttled").Inc()
 		return Tokens{}, &ThrottledError{RetryAfter: wait}
 	}
 
@@ -207,6 +209,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 		s.Hash.VerifyDummy(ctx, in.Password) // equal work whether or not the account exists
 	}
 	if !ok {
+		obs.AuthEvents.WithLabelValues("failed").Inc()
 		_ = s.throttle.Fail(ctx, acctKey, throttle.Account)
 		_ = s.throttle.Fail(ctx, ipKey, throttle.IP)
 		_ = store.Audit(ctx, s.St.Q(), store.AuditEntry{ActorKind: "anonymous", Action: "login.failed",
@@ -229,6 +232,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 		return Tokens{}, err
 	}
 	out.Principal = s.principalOf(u, sid)
+	obs.AuthEvents.WithLabelValues("succeeded").Inc()
 	s.notice(ctx, u.ID, notify.MuteSession, signInNotice(in.Client, s.Now()))
 	return out, nil
 }

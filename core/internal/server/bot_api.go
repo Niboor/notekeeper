@@ -16,6 +16,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/store"
@@ -66,14 +67,17 @@ func (a *botAuth) wrap(h http.Handler) http.Handler {
 		p, err := a.bots.Authenticate(r.Context(), token)
 		if err != nil {
 			if mapped := mapError(err); mapped != nil && mapped != errUnauthenticated {
+				obs.BotRejected.WithLabelValues("refused").Inc()
 				httpx.WriteError(w, r, mapped)
 				return
 			}
+			obs.BotRejected.WithLabelValues("bad_key").Inc()
 			a.log.Warn("bot authentication failed", "request_id", httpx.RequestIDFrom(r.Context()))
 			httpx.WriteError(w, r, errUnauthenticated)
 			return
 		}
 		if scope != "any" && !p.HasScope(scope) {
+			obs.BotRejected.WithLabelValues("wrong_scope").Inc()
 			httpx.WriteError(w, r, errForbidden)
 			return
 		}

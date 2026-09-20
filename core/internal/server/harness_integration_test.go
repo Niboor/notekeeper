@@ -60,6 +60,7 @@ type stack struct {
 	user   *httptest.Server
 	bot    *httptest.Server
 	public *httptest.Server
+	ops    *httptest.Server
 	hub    *realtime.Hub
 	cfg    config.Config
 }
@@ -100,13 +101,14 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &stack{logs: logs, t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot), public: httptest.NewServer(routers.Public)}
+	s := &stack{logs: logs, t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot), public: httptest.NewServer(routers.Public), ops: httptest.NewServer(routers.Ops)}
 	t.Cleanup(func() {
 		hub.Shutdown()
 		s.user.CloseClientConnections()
 		s.user.Close()
 		s.bot.Close()
 		s.public.Close()
+		s.ops.Close()
 		cancel()
 	})
 	return s

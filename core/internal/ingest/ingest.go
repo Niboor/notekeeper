@@ -20,6 +20,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/grouping"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
@@ -197,6 +198,7 @@ func (s *Service) Handle(ctx context.Context, bot *bots.Principal, ev Event) (Ou
 	}
 	if !ok {
 		out := Outcome{Result: ResultRejected, Code: CodeIdentityUnlinked}
+		obs.Ingest.WithLabelValues(ev.Kind, ResultRejected).Inc()
 		if due, err := s.Bots.UnlinkNoticeDue(ctx, bot, ev.Sender); err == nil && due {
 			reply := unlinkedReply
 			out.Feedback.ReplyText = &reply
@@ -257,6 +259,7 @@ func (s *Service) Handle(ctx context.Context, bot *bots.Principal, ev Event) (Ou
 				return err
 			}
 		}
+		obs.Ingest.WithLabelValues(ev.Kind, out.Result).Inc()
 		final, err := json.Marshal(out)
 		if err != nil {
 			return err
@@ -346,6 +349,7 @@ func (s *Service) created(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 	if err := tx.Change(ctx, "note", noteID, "upsert", &version); err != nil {
 		return Outcome{}, err
 	}
+	obs.Grouping.WithLabelValues(decision.Reason).Inc()
 	fb := Feedback{React: "ok"}
 	if len(lost) > 0 {
 		fb = failureFeedback(lost)

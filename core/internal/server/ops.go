@@ -15,7 +15,7 @@ type Readiness func(ctx context.Context) error
 
 // opsRouter serves liveness, readiness and metrics. It is bound to the ops listener, which
 // is cluster-internal and never routed by ingress (SEC-OPS-4).
-func opsRouter(reg *prometheus.Registry, ready Readiness) http.Handler {
+func opsRouter(reg prometheus.Gatherer, ready Readiness) http.Handler {
 	r := chi.NewRouter()
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")

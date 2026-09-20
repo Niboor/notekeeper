@@ -194,6 +194,8 @@ func APIHeaders() func(http.Handler) http.Handler {
 			h.Set("X-Content-Type-Options", "nosniff")
 			h.Set("Referrer-Policy", "no-referrer")
 			h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+			// Browsers ignore this over plain HTTP; behind TLS it keeps them from ever downgrading (SEC-API-8, SEC-DATA-3).
+			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 			next.ServeHTTP(w, r)
 		})
 	}

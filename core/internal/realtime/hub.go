@@ -68,6 +68,17 @@ type Hub struct {
 	outbox map[uuid.UUID]map[chan struct{}]struct{}
 }
 
+// StreamCount is the number of open event streams, for metrics.
+func (h *Hub) StreamCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, set := range h.streams {
+		n += len(set)
+	}
+	return n
+}
+
 // NewHub creates a hub that listens using the given connection string (the same database as
 // the pool, but its own connection).
 func NewHub(url string, log *slog.Logger) *Hub {

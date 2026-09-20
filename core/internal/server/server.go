@@ -26,6 +26,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
 	"github.com/Niboor/notekeeper/core/internal/notes"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/reminders"
@@ -168,7 +169,20 @@ func NewRouters(d Deps) (Routers, error) {
 			publicapi.ChiServerOptions{BaseRouter: g, ErrorHandlerFunc: badRequest})
 	})
 
-	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(reg, d.Ready), hub: d.Hub}, nil
+	if d.Store != nil {
+		reg.MustRegister(obs.NewStateCollector(d.Store.Pool(), streamCount(d.Hub), func(ctx context.Context) (map[string]int64, error) {
+			rows, err := d.Store.Q().OutboxDepth(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := map[string]int64{}
+			for _, r := range rows {
+				out[r.State] += r.N
+			}
+			return out, nil
+		}))
+	}
+	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(prometheus.Gatherers{reg, obs.Registry}, d.Ready), hub: d.Hub}, nil
 }
 
 func stashHTTPUser(f userapi.StrictHandlerFunc, _ string) userapi.StrictHandlerFunc {
@@ -208,4 +222,11 @@ func (r Routers) Listeners(cfg config.Config) []httpx.Listener {
 func uploadRoute(r *http.Request) bool {
 	return r.Method == http.MethodPut &&
 		(strings.HasPrefix(r.URL.Path, "/api/v1/attachments/") || strings.HasPrefix(r.URL.Path, "/bot/v1/uploads/"))
+}
+
+func streamCount(h *realtime.Hub) func() int {
+	if h == nil {
+		return nil
+	}
+	return h.StreamCount
 }

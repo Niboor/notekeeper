@@ -2,14 +2,15 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/netip"
-	"strconv"
 
 	"github.com/google/uuid"
 
 	"github.com/Niboor/notekeeper/core/internal/gen/publicapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/ratelimit"
 	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/version"
@@ -52,16 +53,19 @@ func (p *publicAPI) guard(next http.Handler) http.Handler {
 		}
 		ip := httpx.ClientIP(r, p.trusted)
 		if !p.perIP.Allow(ip) {
+			obs.ShareRequests.WithLabelValues("limited").Inc()
 			tooMany(w, r, p.perIP.RetryAfter(ip, 1).Seconds())
 			return
 		}
 		token := r.Header.Get(shareTokenHeader)
 		if token == "" {
+			obs.ShareRequests.WithLabelValues("not_found").Inc()
 			httpx.WriteError(w, r, errNotFound)
 			return
 		}
 		key := shares.LinkKey(token)
 		if !p.perLink.Allow(key) {
+			obs.ShareRequests.WithLabelValues("limited").Inc()
 			tooMany(w, r, p.perLink.RetryAfter(key, 1).Seconds())
 			return
 		}
@@ -85,8 +89,10 @@ func (p *publicAPI) GetPublicVersion(context.Context, publicapi.GetPublicVersion
 func (p *publicAPI) GetSharedNote(ctx context.Context, _ publicapi.GetSharedNoteRequestObject) (publicapi.GetSharedNoteResponseObject, error) {
 	n, err := p.shares.Open(ctx, tokenOf(ctx))
 	if err != nil {
+		countShare(err)
 		return nil, err
 	}
+	obs.ShareRequests.WithLabelValues("ok").Inc()
 	out := publicapi.GetSharedNote200JSONResponse{CreatedAt: n.CreatedAt, ExpiresAt: n.ExpiresAt, Parts: make([]publicapi.SharedPart, len(n.Parts))}
 	for i, sp := range n.Parts {
 		part := publicapi.SharedPart{Kind: publicapi.SharedPartKind(sp.Kind)}
@@ -124,8 +130,10 @@ func (p *publicAPI) GetSharedAttachment(ctx context.Context, req publicapi.GetSh
 	token := tokenOf(ctx)
 	reader, att, err := p.shares.OpenAttachment(ctx, token, req.Id)
 	if err != nil {
+		countShare(err)
 		return nil, err
 	}
+	obs.ShareRequests.WithLabelValues("ok").Inc()
 	// A ceiling on what one link may move, so a viral link cannot exhaust the server (CORE-SH9).
 	mib := float64(att.Size) / (1 << 20)
 	if key := shares.LinkKey(token); !p.bytes.AllowN(key, mib) {
@@ -135,4 +143,9 @@ func (p *publicAPI) GetSharedAttachment(ctx context.Context, req publicapi.GetSh
 	return sharedDownload{attachmentDownload{r: r, reader: reader, att: att}}, nil
 }
 
-var _ = strconv.Itoa
+// countShare counts a refused share request; only "not found" is a probe worth alerting on.
+func countShare(err error) {
+	if errors.Is(err, shares.ErrNotFound) {
+		obs.ShareRequests.WithLabelValues("not_found").Inc()
+	}
+}

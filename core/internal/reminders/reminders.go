@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Niboor/notekeeper/core/internal/notify"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"github.com/Niboor/notekeeper/core/internal/timeparse"
@@ -401,6 +402,8 @@ func (s *Service) fireOne(ctx context.Context, user, id uuid.UUID) (bool, error)
 			return err
 		}
 		late := now.Sub(r.DueAt) > LateAfter
+		obs.RemindersFired.WithLabelValues(map[bool]string{true: "true", false: "false"}[late]).Inc()
+		obs.ReminderLag.Observe(max(0, now.Sub(r.DueAt).Seconds()))
 		link := strings.TrimRight(s.Cfg.AppURL, "/") + "/notes/" + r.NoteID.String()
 		text := Message(excerpt, link, r.DueAt, late, loc, len(atts))
 

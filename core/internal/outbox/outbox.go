@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -91,6 +92,7 @@ func (s *Service) Report(ctx context.Context, instance, id uuid.UUID, r Result) 
 		return ErrNotFound
 	}
 	reason := r.Reason
+	obs.OutboxResults.WithLabelValues(item.Kind, r.State).Inc()
 	switch r.State {
 	case "delivered":
 		if n, err := s.St.Q().MarkOutboxDelivered(ctx, dbq.MarkOutboxDeliveredParams{ID: id, BotInstanceID: instance, FinishedAt: &now}); err != nil || n == 0 {
