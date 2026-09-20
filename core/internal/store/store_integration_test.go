@@ -281,3 +281,37 @@ func TestRuntimeRolesAreConfined(t *testing.T) {
 		t.Errorf("the bot's role must own its own schema: %v", err)
 	}
 }
+
+// Writes to note parts without a user context fail loudly instead of silently skipping the search
+// index (migration 0005). The superuser bypasses row-level security, so only the trigger guards it.
+func TestSearchIndexingRefusesToRunWithoutAUserContext(t *testing.T) {
+	ctx := context.Background()
+	d := testdb.New(t)
+	user := newUser(t, d, "alice")
+	note := adminNote(t, d, user)
+	_, err := d.Admin.Exec(ctx, `insert into note_parts (id, user_id, note_id, ordinal, kind, text, attach_reason, created_at)
+		values ($1, $2, $3, 0, 'text', 'x', 'first', now())`, uuid.New(), user, note)
+	if err == nil || !strings.Contains(err.Error(), "app.user_id") {
+		t.Fatalf("expected the trigger to refuse a part written without a user context, got %v", err)
+	}
+	// With the context set, the same write is indexed.
+	tx, err := d.Admin.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `select set_config('app.user_id', $1, true)`, user.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `insert into note_parts (id, user_id, note_id, ordinal, kind, text, attach_reason, created_at)
+		values ($1, $2, $3, 0, 'text', 'indexed text', 'first', now())`, uuid.New(), user, note); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := d.Admin.QueryRow(ctx, `select count(*) from note_search where body = 'indexed text'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("indexed rows: %d %v", n, err)
+	}
+}

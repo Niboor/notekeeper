@@ -527,3 +527,20 @@ func TestPairingCodeIsSingleUseUnderRace(t *testing.T) {
 		t.Fatalf("%d identities exist", n)
 	}
 }
+
+// A note created through the bot path is indexed for search like any other: the search trigger
+// runs inside the ingest transaction with the user context set (CORE-N13).
+func TestChatNotesAreSearchable(t *testing.T) {
+	s := newStack(t)
+	c, key := s.linked("alice", "@alice:example.org")
+	if res := s.event(key, "@alice:example.org", "$s1", "Concert tickets for friday", time.Now().Add(time.Second)); res.Status != 200 {
+		t.Fatal(res.Status)
+	}
+	var r struct {
+		Items []struct{ Note struct{ ID string } } `json:"items"`
+	}
+	c.do("GET", "/api/v1/search?q=tickets", nil).JSON(t, &r)
+	if len(r.Items) != 1 {
+		t.Fatalf("a note that arrived from chat is not searchable: %+v", r)
+	}
+}

@@ -428,11 +428,21 @@ func TestEditingKeepsHistoryAndFlagsStaleEdits(t *testing.T) {
 	if len(h.Parts[0].Versions) != 3 {
 		t.Fatalf("history after the window: %+v", h)
 	}
-	// Editing to the same text changes nothing (no version, no history).
-	before := res.Note.Version
-	u.c.do("PATCH", "/api/v1/notes/"+n.ID+"/parts/"+part, map[string]any{"text": "milk, eggs, bread, jam"}).JSON(t, &res)
-	if res.Note.Version <= before-1 && false {
-		t.Fatal("unreachable")
+	// Editing to the same text changes nothing: no new version of the note, no history entry.
+	var same struct {
+		Note  noteJSON `json:"note"`
+		Stale bool     `json:"stale"`
+	}
+	u.c.do("PATCH", "/api/v1/notes/"+n.ID+"/parts/"+part, map[string]any{"text": "milk, eggs, bread, jam", "base_version": res.Note.Version + 5}).JSON(t, &same)
+	var latest noteJSON
+	u.get("/api/v1/notes/"+n.ID, &latest)
+	if latest.Version != same.Note.Version || same.Note.Version != latest.Version {
+		t.Fatalf("a no-op edit changed the version: %d", latest.Version)
+	}
+	versionsBefore := len(h.Parts[0].Versions)
+	u.get("/api/v1/notes/"+n.ID+"/history", &h)
+	if len(h.Parts[0].Versions) != versionsBefore {
+		t.Fatalf("a no-op edit added a history entry: %d -> %d", versionsBefore, len(h.Parts[0].Versions))
 	}
 	// Bad input.
 	if r := u.c.do("PATCH", "/api/v1/notes/"+n.ID+"/parts/"+part, map[string]any{"text": ""}); r.Status != 400 {
