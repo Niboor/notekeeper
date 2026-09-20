@@ -256,11 +256,17 @@ func TestBrokenUploadsReleaseTheirReservation(t *testing.T) {
 	}
 	send(2_000_000, 600_000)
 	send(500_000, 10)
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(15 * time.Second)
+	time.Sleep(500 * time.Millisecond) // the server may not have started on the hung-up requests yet
+	clean := 0
 	for {
 		st := s.storageOf("alice")
 		if st.reserved == 0 && s.count(`select count(*) from blobs`) == 0 {
-			break
+			if clean++; clean >= 3 { // clean for a while, not just before the requests were looked at
+				break
+			}
+		} else {
+			clean = 0
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("storage after broken uploads: %+v, blobs=%d", st, s.count(`select count(*) from blobs`))
