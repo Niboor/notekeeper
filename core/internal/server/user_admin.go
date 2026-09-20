@@ -97,7 +97,7 @@ func (u *userAPI) AdminIssueActivationLink(ctx context.Context, req userapi.Admi
 }
 
 func botInstanceOf(i dbq.BotInstance, creds []dbq.ListBotCredentialsRow) userapi.AdminBotInstance {
-	out := userapi.AdminBotInstance{Id: i.ID, Type: i.Type, Name: i.Name, IdentityDomain: i.IdentityDomain,
+	out := userapi.AdminBotInstance{Id: i.ID, Type: i.Type, Name: i.Name, IdentityDomain: i.IdentityDomain, Address: i.Address,
 		Status: userapi.AdminBotInstanceStatus(i.Status), LastSeenAt: i.LastSeenAt, CreatedAt: i.CreatedAt}
 	if creds != nil {
 		list := make([]userapi.BotCredentialInfo, len(creds))

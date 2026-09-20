@@ -23,7 +23,7 @@ State stored by the bot (own schema, own database role, SEC-OPS-5): mautrix's cr
 2. Connect to PostgreSQL and take a **session-level advisory lock** `pg_try_advisory_lock(hash('matrix-bot:' || instance name))` on a **dedicated connection** that stays open. If the lock is not obtained the process stays passive (not ready) and retries every 5 seconds. If the lock connection ever drops the process **exits immediately** and Kubernetes restarts it: a process that might have lost the lock must not keep syncing (MX-N2, SEC-MX-4).
 3. Deployment strategy is `Recreate` with one replica, so a rolling update never runs two instances; the advisory lock is the safety net if someone scales it anyway.
 4. Open the mautrix `CryptoHelper` with the SQL crypto store on PostgreSQL (via `dbutil` and the `pgx` driver) and the pickle key, with `LoginAs` set: the helper looks up the device id it stored, logs in again as **that same device**, and restarts therefore keep the device identity (verified in the M0 spike). Olm is **libolm via cgo**, as in the mautrix bridges (tech-stack §4).
-5. Start the sync loop, the outbox loop and the heartbeat (`POST /heartbeat` every 30 s).
+5. Start the sync loop, the outbox loop and the heartbeat (`POST /heartbeat` every 30 s, carrying the bot's own Matrix user id so that the web app can tell users which account to message).
 
 ## 3. Sync, ordering and never losing a message
 

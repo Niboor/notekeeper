@@ -27,7 +27,7 @@ Authentication: session cookies for the web app; bearer access tokens for native
 | `GET /me/export` | Stream all of the user's data as an archive | AUTH-U5 |
 | `GET /me/identities`, `PATCH /me/identities/{id}`, `DELETE /me/identities/{id}` | Linked chat identities; mark reminder targets; unlink | AUTH-B5, CORE-R3 |
 | `POST /me/pairing-codes` | Create a pairing code `{bot_instance_id}` (at most 5 active) | AUTH-B3 |
-| `GET /bot-instances` | Instances the user can link to, with online status | WEB-12 |
+| `GET /bot-instances` | Instances the user can link to, with online status and the chat address the bot reported (the pairing instructions name it) | WEB-12 |
 | `GET /notifications`, `POST /notifications/{id}/read` | In-app notices | CORE-R9, AUTH-U11 |
 
 ### 1.2 Pages, categories, notes
@@ -103,7 +103,7 @@ Cluster-internal. Authentication: `Authorization: Bearer nkb.<client_id>.<secret
 | `POST /outbox/{id}/result` | `{state: delivered\|failed_transient\|failed_permanent, reason, message_ids[]}` | deliver | BOT-11, BOT-13 |
 | `GET /outbox/{id}/attachments/{attachmentId}` | Download an attachment referenced by an item claimed by this instance | deliver | BOT-15 |
 | `GET /conversations/{id}/cursor` | Last platform timestamp delivered for a conversation | ingest | BOT-10 |
-| `POST /heartbeat` | Liveness for the admin's bot status | ingest | WEB-12 |
+| `POST /heartbeat` | Liveness for the admin's bot status. The optional body `{address}` is the account users write to (for Matrix the bot's user id); Core stores it only when it ends in `:<identity domain>`, so a bot cannot send users to an account elsewhere | ingest | WEB-12 |
 
 `POST /events` and `POST /commands` return a **feedback** object so bots contain no wording of their own (BOT-8):
 

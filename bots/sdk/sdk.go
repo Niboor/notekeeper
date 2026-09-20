@@ -175,9 +175,14 @@ func (c *Client) ConversationCursor(ctx context.Context, conversation string) (*
 	return out, err
 }
 
-// Heartbeat tells Core the bot is alive (WEB-12). It is not retried: the next tick will do.
-func (c *Client) Heartbeat(ctx context.Context) error {
-	res, err := c.API.PostHeartbeatWithResponse(ctx)
+// Heartbeat tells Core the bot is alive (WEB-12), and the address users write to in the chat app when it
+// is not empty (Core shows it in the pairing instructions). It is not retried: the next tick will do.
+func (c *Client) Heartbeat(ctx context.Context, address string) error {
+	body := botclient.PostHeartbeatJSONRequestBody{}
+	if address != "" {
+		body.Address = &address
+	}
+	res, err := c.API.PostHeartbeatWithResponse(ctx, body)
 	if err != nil {
 		return err
 	}

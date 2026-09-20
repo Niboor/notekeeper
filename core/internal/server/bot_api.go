@@ -200,12 +200,16 @@ func (b *botAPI) GetIdentity(ctx context.Context, req botapi.GetIdentityRequestO
 	return botapi.GetIdentity200JSONResponse{Linked: true, LinkedAt: &ident.LinkedAt, Conversation: ident.ConversationID}, nil
 }
 
-func (b *botAPI) PostHeartbeat(ctx context.Context, _ botapi.PostHeartbeatRequestObject) (botapi.PostHeartbeatResponseObject, error) {
+func (b *botAPI) PostHeartbeat(ctx context.Context, req botapi.PostHeartbeatRequestObject) (botapi.PostHeartbeatResponseObject, error) {
 	bot, err := botFrom(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := b.bots.Heartbeat(ctx, bot.InstanceID); err != nil {
+	address := ""
+	if req.Body != nil && req.Body.Address != nil {
+		address = *req.Body.Address
+	}
+	if err := b.bots.Heartbeat(ctx, bot.InstanceID, bot.IdentityDomain, address); err != nil {
 		return nil, err
 	}
 	return botapi.PostHeartbeat204Response{}, nil

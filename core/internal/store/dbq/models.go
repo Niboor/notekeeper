@@ -76,6 +76,7 @@ type BotInstance struct {
 	Status         string
 	LastSeenAt     *time.Time
 	CreatedAt      time.Time
+	Address        *string
 }
 
 type BotOutbox struct {

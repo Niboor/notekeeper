@@ -81,7 +81,7 @@ func (u *userAPI) ListBotInstances(ctx context.Context, _ userapi.ListBotInstanc
 			continue
 		}
 		online := r.LastSeenAt != nil && now.Sub(*r.LastSeenAt) < botOnlineWithin
-		out.Items = append(out.Items, userapi.BotInstanceSummary{Id: r.ID, Name: r.Name, Type: r.Type, Online: online})
+		out.Items = append(out.Items, userapi.BotInstanceSummary{Id: r.ID, Name: r.Name, Type: r.Type, Online: online, Address: r.Address})
 	}
 	return out, nil
 }

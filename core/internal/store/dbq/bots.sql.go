@@ -92,7 +92,7 @@ func (q *Queries) CreateBotCredential(ctx context.Context, arg CreateBotCredenti
 }
 
 const createBotInstance = `-- name: CreateBotInstance :one
-insert into bot_instances (id, type, name, identity_domain) values ($1, $2, $3, $4) returning id, type, name, identity_domain, status, last_seen_at, created_at
+insert into bot_instances (id, type, name, identity_domain) values ($1, $2, $3, $4) returning id, type, name, identity_domain, status, last_seen_at, created_at, address
 `
 
 type CreateBotInstanceParams struct {
@@ -118,6 +118,7 @@ func (q *Queries) CreateBotInstance(ctx context.Context, arg CreateBotInstancePa
 		&i.Status,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.Address,
 	)
 	return i, err
 }
@@ -194,7 +195,7 @@ func (q *Queries) GetBotCredentialByClientID(ctx context.Context, clientID strin
 }
 
 const getBotInstance = `-- name: GetBotInstance :one
-select id, type, name, identity_domain, status, last_seen_at, created_at from bot_instances where id = $1
+select id, type, name, identity_domain, status, last_seen_at, created_at, address from bot_instances where id = $1
 `
 
 func (q *Queries) GetBotInstance(ctx context.Context, id uuid.UUID) (BotInstance, error) {
@@ -208,6 +209,7 @@ func (q *Queries) GetBotInstance(ctx context.Context, id uuid.UUID) (BotInstance
 		&i.Status,
 		&i.LastSeenAt,
 		&i.CreatedAt,
+		&i.Address,
 	)
 	return i, err
 }
@@ -394,7 +396,7 @@ func (q *Queries) ListBotCredentials(ctx context.Context, botInstanceID uuid.UUI
 }
 
 const listBotInstances = `-- name: ListBotInstances :many
-select id, type, name, identity_domain, status, last_seen_at, created_at from bot_instances order by name
+select id, type, name, identity_domain, status, last_seen_at, created_at, address from bot_instances order by name
 `
 
 func (q *Queries) ListBotInstances(ctx context.Context) ([]BotInstance, error) {
@@ -414,6 +416,7 @@ func (q *Queries) ListBotInstances(ctx context.Context) ([]BotInstance, error) {
 			&i.Status,
 			&i.LastSeenAt,
 			&i.CreatedAt,
+			&i.Address,
 		); err != nil {
 			return nil, err
 		}
@@ -564,16 +567,18 @@ func (q *Queries) SetReminderTarget(ctx context.Context, arg SetReminderTargetPa
 }
 
 const touchBotInstance = `-- name: TouchBotInstance :exec
-update bot_instances set last_seen_at = $2 where id = $1
+update bot_instances set last_seen_at = $2, address = coalesce($3, address) where id = $1
 `
 
 type TouchBotInstanceParams struct {
 	ID         uuid.UUID
 	LastSeenAt *time.Time
+	Address    *string
 }
 
+// The address is optional: a heartbeat without one keeps what is stored.
 func (q *Queries) TouchBotInstance(ctx context.Context, arg TouchBotInstanceParams) error {
-	_, err := q.db.Exec(ctx, touchBotInstance, arg.ID, arg.LastSeenAt)
+	_, err := q.db.Exec(ctx, touchBotInstance, arg.ID, arg.LastSeenAt, arg.Address)
 	return err
 }
 

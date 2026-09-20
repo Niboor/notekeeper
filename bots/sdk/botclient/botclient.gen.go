@@ -271,6 +271,11 @@ type Version struct {
 	Version string `json:"version"`
 }
 
+// PostHeartbeatJSONBody defines parameters for PostHeartbeat.
+type PostHeartbeatJSONBody struct {
+	Address *string `json:"address,omitempty"`
+}
+
 // ClaimOutboxParams defines parameters for ClaimOutbox.
 type ClaimOutboxParams struct {
 	Wait  *int `form:"wait,omitempty" json:"wait,omitempty"`
@@ -289,6 +294,9 @@ type PostCommandJSONRequestBody = Command
 
 // PostEventJSONRequestBody defines body for PostEvent for application/json ContentType.
 type PostEventJSONRequestBody = Event
+
+// PostHeartbeatJSONRequestBody defines body for PostHeartbeat for application/json ContentType.
+type PostHeartbeatJSONRequestBody PostHeartbeatJSONBody
 
 // PostOutboxResultJSONRequestBody defines body for PostOutboxResult for application/json ContentType.
 type PostOutboxResultJSONRequestBody = OutboxResult
@@ -402,10 +410,27 @@ type ClientInterface interface {
 	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
 	PostEvent(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostHeartbeat Liveness signal for the admin's bot status
+	// PostHeartbeatWithBody Liveness signal for the admin's bot status
+	//
+	// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+	// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+	// identity domain; anything else is ignored.
+	//
+	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
-	PostHeartbeat(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostHeartbeatWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostHeartbeat Liveness signal for the admin's bot status
+	//
+	// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+	// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+	// identity domain; anything else is ignored.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+	PostHeartbeat(ctx context.Context, body PostHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetIdentity Whether a chat identity is linked (nothing about the user)
 	//
@@ -545,11 +570,38 @@ func (c *Client) PostEvent(ctx context.Context, body PostEventJSONRequestBody, r
 	return c.Client.Do(req)
 }
 
-// PostHeartbeat Liveness signal for the admin's bot status
+// PostHeartbeatWithBody Liveness signal for the admin's bot status
+//
+// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+// identity domain; anything else is ignored.
+//
+// Takes any type of body and a specified content type.
 //
 // Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
-func (c *Client) PostHeartbeat(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostHeartbeatRequest(c.Server)
+func (c *Client) PostHeartbeatWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostHeartbeatRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostHeartbeat Liveness signal for the admin's bot status
+//
+// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+// identity domain; anything else is ignored.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+func (c *Client) PostHeartbeat(ctx context.Context, body PostHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostHeartbeatRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -796,8 +848,19 @@ func NewPostEventRequestWithBody(server string, contentType string, body io.Read
 	return req, nil
 }
 
-// NewPostHeartbeatRequest constructs an http.Request for the PostHeartbeat method
-func NewPostHeartbeatRequest(server string) (*http.Request, error) {
+// NewPostHeartbeatRequest calls the generic PostHeartbeat builder with application/json body
+func NewPostHeartbeatRequest(server string, body PostHeartbeatJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostHeartbeatRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostHeartbeatRequestWithBody constructs an http.Request for the PostHeartbeat method, with any body, and a specified content type
+func NewPostHeartbeatRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -815,10 +878,12 @@ func NewPostHeartbeatRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -1188,12 +1253,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bot/v1/events (the `PostEvent` operationId).
 	PostEventWithResponse(ctx context.Context, body PostEventJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEventResponse, error)
 
-	// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+	// PostHeartbeatWithBodyWithResponse Liveness signal for the admin's bot status
 	//
-	// Returns a wrapper object for the known response body format(s).
+	// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+	// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+	// identity domain; anything else is ignored.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
-	PostHeartbeatWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error)
+	PostHeartbeatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error)
+
+	// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+	//
+	// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+	// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+	// identity domain; anything else is ignored.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+	PostHeartbeatWithResponse(ctx context.Context, body PostHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error)
 
 	// GetIdentityWithResponse Whether a chat identity is linked (nothing about the user)
 	//
@@ -1783,13 +1863,34 @@ func (c *ClientWithResponses) PostEventWithResponse(ctx context.Context, body Po
 	return ParsePostEventResponse(rsp)
 }
 
-// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+// PostHeartbeatWithBodyWithResponse Liveness signal for the admin's bot status
 //
-// Returns a wrapper object for the known response body format(s).
+// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+// identity domain; anything else is ignored.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
-func (c *ClientWithResponses) PostHeartbeatWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error) {
-	rsp, err := c.PostHeartbeat(ctx, reqEditors...)
+func (c *ClientWithResponses) PostHeartbeatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error) {
+	rsp, err := c.PostHeartbeatWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostHeartbeatResponse(rsp)
+}
+
+// PostHeartbeatWithResponse Liveness signal for the admin's bot status
+//
+// Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+// Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+// identity domain; anything else is ignored.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bot/v1/heartbeat (the `PostHeartbeat` operationId).
+func (c *ClientWithResponses) PostHeartbeatWithResponse(ctx context.Context, body PostHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*PostHeartbeatResponse, error) {
+	rsp, err := c.PostHeartbeat(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

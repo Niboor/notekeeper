@@ -212,9 +212,29 @@ func (s *Service) Authenticate(ctx context.Context, bearer string) (*Principal, 
 		CredentialID: row.CredentialID, Scopes: row.Scopes}, nil
 }
 
-// Heartbeat records that the instance is alive (WEB-12 "bot status").
-func (s *Service) Heartbeat(ctx context.Context, instance uuid.UUID) error {
-	return s.St.Q().TouchBotInstance(ctx, dbq.TouchBotInstanceParams{ID: instance, LastSeenAt: ptr(s.Now())})
+// Heartbeat records that the instance is alive (WEB-12 "bot status"), and the chat address it reports, if
+// it belongs to the instance's identity domain: a bot cannot send users to an account elsewhere.
+func (s *Service) Heartbeat(ctx context.Context, instance uuid.UUID, identityDomain, address string) error {
+	return s.St.Q().TouchBotInstance(ctx, dbq.TouchBotInstanceParams{ID: instance, LastSeenAt: ptr(s.Now()), Address: usableAddress(address, identityDomain)})
+}
+
+// usableAddress returns the address when it looks like "<name>:<identity domain>" (as a Matrix user id,
+// "@notekeeper:example.org", does) and is short and printable; otherwise nil.
+func usableAddress(address, domain string) *string {
+	address = strings.TrimSpace(address)
+	if address == "" || len(address) > 255 || domain == "" {
+		return nil
+	}
+	for _, r := range address {
+		if r <= ' ' || r == 0x7f {
+			return nil
+		}
+	}
+	local, host, found := strings.Cut(address, ":")
+	if !found || strings.TrimPrefix(local, "@") == "" || !strings.EqualFold(host, domain) {
+		return nil
+	}
+	return &address
 }
 
 func ptr[T any](v T) *T { return &v }

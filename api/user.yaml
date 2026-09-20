@@ -1450,6 +1450,7 @@ components:
         name: {type: string}
         type: {type: string}
         online: {type: boolean}
+        address: {type: string, description: 'The account to message in the chat app, as reported by the bot (absent until it has reported one)'}
     NotePart:
       type: object
       required: [id, kind, attach_reason, created_at]
@@ -1735,6 +1736,7 @@ components:
         type: {type: string}
         name: {type: string}
         identity_domain: {type: string}
+        address: {type: string, description: 'The chat address the bot reported'}
         status: {type: string, enum: [active, disabled]}
         last_seen_at: {type: string, format: date-time}
         created_at: {type: string, format: date-time}

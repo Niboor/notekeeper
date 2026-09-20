@@ -65,6 +65,7 @@ type fakeCore struct {
 	unavail   atomic.Bool // true: answer 503 (Core is down)
 	reply     map[string]string
 	heartbeat atomic.Int32
+	address   atomic.Value // the chat address the last heartbeat carried
 
 	uploads []fakeUpload      // files the bot sent, by upload id
 	outbox  []map[string]any  // items waiting to be claimed
@@ -89,7 +90,15 @@ func newFakeCore(t *testing.T) *fakeCore {
 		_ = json.NewEncoder(w).Encode(v)
 	}
 	mux.HandleFunc("/bot/v1/version", func(w http.ResponseWriter, _ *http.Request) { respond(w, map[string]string{"version": "test"}) })
-	mux.HandleFunc("/bot/v1/heartbeat", func(w http.ResponseWriter, _ *http.Request) { f.heartbeat.Add(1); w.WriteHeader(204) })
+	mux.HandleFunc("/bot/v1/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Address string `json:"address"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		f.address.Store(body.Address)
+		f.heartbeat.Add(1)
+		w.WriteHeader(204)
+	})
 	mux.HandleFunc("/bot/v1/events", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.attempts++
@@ -469,6 +478,10 @@ func TestBotForwardsEncryptedMessagesAndShowsFeedback(t *testing.T) {
 	}
 	if core.heartbeat.Load() == 0 {
 		t.Fatal("no heartbeat reached Core")
+	}
+	// The heartbeat tells Core which account users write to, for the pairing instructions.
+	if got, _ := core.address.Load().(string); got != rb.b.UserID().String() {
+		t.Fatalf("the heartbeat carried the address %q, want the bot's own user id %q", got, rb.b.UserID())
 	}
 
 	// What the bot keeps and says: no message text in its logs (SEC-MX-3), and no credential in its database,

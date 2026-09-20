@@ -1164,6 +1164,8 @@ export interface components {
             name: string;
             type: string;
             online: boolean;
+            /** @description The account to message in the chat app, as reported by the bot (absent until it has reported one) */
+            address?: string;
         };
         NotePart: {
             /** Format: uuid */
@@ -1456,6 +1458,8 @@ export interface components {
             type: string;
             name: string;
             identity_domain: string;
+            /** @description The chat address the bot reported */
+            address?: string;
             /** @enum {string} */
             status: "active" | "disabled";
             /** Format: date-time */

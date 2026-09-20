@@ -171,7 +171,7 @@ func (b *Bot) Heartbeat(ctx context.Context) {
 	t := time.NewTicker(b.cfg.HeartbeatEvery)
 	defer t.Stop()
 	for {
-		if err := b.core.Heartbeat(ctx); err != nil && ctx.Err() == nil {
+		if err := b.core.Heartbeat(ctx, string(b.client.UserID)); err != nil && ctx.Err() == nil {
 			b.log.Warn("heartbeat failed", "error", err)
 		}
 		select {

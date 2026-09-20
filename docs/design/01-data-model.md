@@ -93,6 +93,7 @@ create table bot_instances (
   name             text not null unique,
   identity_domain  text not null,             -- e.g. the homeserver domain; identities must match (SEC-BOT-5)
   status           text not null default 'active' check (status in ('active','disabled')),
+  address          text,                      -- the account users write to (Matrix: the bot's user id), reported with the heartbeat
   last_seen_at     timestamptz,               -- heartbeat (WEB-12 "bot status")
   created_at       timestamptz not null default now()
 );

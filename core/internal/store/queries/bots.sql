@@ -11,7 +11,8 @@ select * from bot_instances order by name;
 update bot_instances set status = $2 where id = $1;
 
 -- name: TouchBotInstance :exec
-update bot_instances set last_seen_at = $2 where id = $1;
+-- The address is optional: a heartbeat without one keeps what is stored.
+update bot_instances set last_seen_at = $2, address = coalesce(sqlc.narg('address'), address) where id = $1;
 
 -- name: CreateBotCredential :one
 insert into bot_credentials (id, bot_instance_id, client_id, secret_hash, scopes)

@@ -78,8 +78,20 @@ paths:
     post:
       operationId: postHeartbeat
       summary: Liveness signal for the admin's bot status
+      description: |
+        Optionally carries the address users write to in their chat app (for Matrix the bot's own user id).
+        Core shows it in the pairing instructions. It is stored only when it belongs to the instance's
+        identity domain; anything else is ignored.
       security:
         - botAuth: [ingest]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                address: {type: string, maxLength: 255}
       responses:
         '204': {description: Recorded}
         default: {$ref: '#/components/responses/Problem'}
