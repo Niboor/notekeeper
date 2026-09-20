@@ -82,6 +82,7 @@ func (a *botAuth) wrap(h http.Handler) http.Handler {
 }
 
 type botAPI struct {
+	limits *limits
 	bots   *bots.Service
 	ingest *ingest.Service
 	blobs  *blobs.Service
@@ -126,6 +127,10 @@ func (b *botAPI) PostEvent(ctx context.Context, req botapi.PostEventRequestObjec
 			}
 			ev.Parts = append(ev.Parts, part)
 		}
+	}
+	// One linked person cannot flood Core through a bot, whatever the instance's own allowance (SEC-BOT-10).
+	if ok, retry := b.limits.identityAllowed(bot.InstanceID.String() + "/" + ev.Sender); !ok {
+		return nil, &httpx.Error{Status: http.StatusTooManyRequests, Code: "rate_limited", RetryAfter: retry}
 	}
 	out, err := b.ingest.Handle(ctx, bot, ev)
 	if err != nil {

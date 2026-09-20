@@ -278,7 +278,7 @@ func TestBrokenUploadsReleaseTheirReservation(t *testing.T) {
 
 // Parallel uploads cannot exceed the quota, however they interleave (SEC-CNT-6, SEC-API-7).
 func TestQuotaCannotBeExceededByParallelUploads(t *testing.T) {
-	s := newStack(t)
+	s := newStackWith(t, func(c *config.Config) { c.MaxConcurrentUpload = 100 }) // the point is the quota, not the slots
 	u := s.appUser("alice")
 	uid := s.lookupUser("alice")
 	quota := int64(10 << 20)

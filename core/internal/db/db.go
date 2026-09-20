@@ -17,7 +17,23 @@ import (
 
 // Open creates a connection pool and verifies the database is reachable.
 func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	// One slow or stuck statement, or a transaction left open, must not hold connections that everyone
+	// shares (SEC-API-4). Long work is made of many short statements.
+	if cfg.ConnConfig.RuntimeParams == nil {
+		cfg.ConnConfig.RuntimeParams = map[string]string{}
+	}
+	setDefault := func(k, v string) {
+		if _, ok := cfg.ConnConfig.RuntimeParams[k]; !ok {
+			cfg.ConnConfig.RuntimeParams[k] = v
+		}
+	}
+	setDefault("statement_timeout", "30000")
+	setDefault("idle_in_transaction_session_timeout", "60000")
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open pool: %w", err)
 	}

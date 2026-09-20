@@ -57,6 +57,14 @@ type Config struct {
 	ShareMaxLifetime time.Duration
 	ShareMaxActive   int
 
+	// Rate limits per minute (SEC-API-4, SEC-BOT-10, NFR-S4): per address and per signed-in user on the
+	// user API, per bot instance and per linked person on the bot API, and the uploads one user may run at once.
+	RateIPPerMin        int
+	RateUserPerMin      int
+	RateBotPerMin       int
+	RateIdentityPerMin  int
+	MaxConcurrentUpload int
+
 	// Ingress addresses whose X-Forwarded-For is trusted for per-address throttling.
 	TrustedProxies []string
 }
@@ -132,6 +140,21 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.MaxAttachmentBytes, c.DefaultQuotaBytes = int64(maxAtt), int64(quota)
+	for _, f := range []struct {
+		dst *int
+		key string
+		def uint64
+	}{
+		{&c.RateIPPerMin, "NK_RATE_IP_PER_MIN", 1200}, {&c.RateUserPerMin, "NK_RATE_USER_PER_MIN", 900},
+		{&c.RateBotPerMin, "NK_RATE_BOT_PER_MIN", 6000}, {&c.RateIdentityPerMin, "NK_RATE_IDENTITY_PER_MIN", 600},
+		{&c.MaxConcurrentUpload, "NK_MAX_CONCURRENT_UPLOADS", 4},
+	} {
+		v, err := number(getenv, f.key, f.def)
+		if err != nil {
+			return Config{}, err
+		}
+		*f.dst = int(v)
+	}
 	c.ShareEnabled = strings.ToLower(env(getenv, "NK_SHARE_ENABLED", "true")) != "false"
 	if c.ShareMaxLifetime, err = duration(getenv, "NK_SHARE_MAX_LIFETIME", 30*24*time.Hour); err != nil {
 		return Config{}, err

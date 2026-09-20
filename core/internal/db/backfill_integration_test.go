@@ -57,3 +57,21 @@ func TestBackfillMigrationReachesEveryUsersRows(t *testing.T) {
 		t.Fatal(who, err)
 	}
 }
+
+// Every connection carries a statement timeout and an idle-in-transaction timeout, so one stuck query
+// cannot hold the shared pool (SEC-API-4).
+func TestPoolSetsTimeouts(t *testing.T) {
+	d := testdb.New(t)
+	pool, err := db.Open(context.Background(), d.AppURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var stmt, idle string
+	if err := pool.QueryRow(context.Background(), `select current_setting('statement_timeout'), current_setting('idle_in_transaction_session_timeout')`).Scan(&stmt, &idle); err != nil {
+		t.Fatal(err)
+	}
+	if stmt != "30s" || idle != "1min" {
+		t.Fatalf("timeouts: statement %s, idle %s", stmt, idle)
+	}
+}

@@ -104,6 +104,8 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, fmt.Errorf("NK_TRUSTED_PROXIES: %w", err)
 	}
 
+	lim := newLimits(d.Config, trusted, reg)
+
 	// ---- user API ----
 	userSpec, err := userapi.GetSpec()
 	if err != nil {
@@ -116,11 +118,14 @@ func NewRouters(d Deps) (Routers, error) {
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
 	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, reminders: d.Reminders, export: d.Export, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
 	user := base("user", d.Config.AppHosts, false)
+	user.Use(lim.ip)
 	// The authentication middleware sits on a route group, so it runs after routing (it needs the
 	// route) but BEFORE the generated code parses parameters and bodies: an unauthenticated caller
 	// is refused with 401 whatever its request looks like, never with a validation error.
 	user.Group(func(g chi.Router) {
 		g.Use(auth.wrap)
+		g.Use(lim.user)
+		g.Use(uploadSlots(lim))
 		userapi.HandlerWithOptions(
 			userapi.NewStrictHandlerWithOptions(ua, []userapi.StrictMiddlewareFunc{stashHTTPUser}, userapi.StrictHTTPServerOptions{
 				RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
@@ -141,10 +146,12 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	bauth := &botAuth{bots: d.Bots, scopes: botScopes, log: d.Log}
-	ba := &botAPI{bots: d.Bots, ingest: d.Ingest, blobs: d.Blobs, outbox: d.Outbox, hub: d.Hub, st: d.Store}
+	ba := &botAPI{limits: lim, bots: d.Bots, ingest: d.Ingest, blobs: d.Blobs, outbox: d.Outbox, hub: d.Hub, st: d.Store}
 	bot := base("bot", nil, true)
 	bot.Group(func(g chi.Router) {
 		g.Use(bauth.wrap)
+		g.Use(lim.bot)
+		g.Use(uploadSlots(lim))
 		botapi.HandlerWithOptions(
 			botapi.NewStrictHandlerWithOptions(ba, []botapi.StrictMiddlewareFunc{stashHTTPBot}, botapi.StrictHTTPServerOptions{
 				RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
