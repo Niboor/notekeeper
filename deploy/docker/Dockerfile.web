@@ -10,7 +10,7 @@ COPY api /src/api
 COPY web ./
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.30-alpine
 COPY --from=build /src/web/dist /usr/share/nginx/html
 # The official image renders /etc/nginx/templates/*.template with the environment at start (envsubst).
 COPY deploy/nginx/app.conf.template deploy/nginx/share.conf.template /etc/nginx/templates/
