@@ -108,7 +108,7 @@ where id in (
 returning id, user_id;
 ```
 
-Two replicas can never claim the same reminder (CORE-R5). This transaction commits immediately.
+Two replicas can never claim the same reminder (CORE-R5). This transaction commits immediately. It runs through `Store.InSchedulerTx`, which sets `app.scheduler`; migration 0007 adds a narrow row-level-security policy that lets exactly that setting see the `reminders` table across users (every other table stays invisible without a user context, decision 55). The note's state is therefore not part of the claim; it is checked in step 2 under the owner's context.
 
 **Step 2: fire each claimed reminder in its own transaction**, which first locks the owner's user row (`FOR UPDATE`, taking the next `change_seq`), then **re-reads the reminder** (`where id = $1 and state = 'pending' and due_at <= now()`); if the user edited, snoozed, dismissed or deleted it in the meantime, the row no longer qualifies and nothing is sent. Then:
 
@@ -126,7 +126,9 @@ The outbox `payload` lists the note's attachments as `{id, filename, media_type,
 
 ### 5.4 Snooze, done, replies
 
-App: `POST /reminders/{id}/snooze` sets `due_at` and `pending`; `:done` sets `done`. Chat: `!snooze` and `!done` as a reply to a reminder message resolve through `outbox_messages(bot, conversation, message_id) → outbox → reminder` and do the same (CORE-R11c).
+**Notices.** Security notices (AUTH-U11) are written by package `notify` inside the transaction of the event they report (identity linked or unlinked, share link created) or right after it commits (sign-in, password change, activation link): an in-app `security` notification plus one `notice` outbox item per linked chat. A brand-new account's first activation and the chat being unlinked are not announced to themselves. Users mute `session` and `share` through `settings.muted_notices`; other keys are ignored.
+
+App: `POST /reminders/{id}/snooze` sets `due_at` and `pending`; `:done` sets `done`. `snooze` takes an absolute time chosen by the client (the quick options are computed in the browser's zone); `done` on a repeating reminder skips this occurrence and stays armed, and clearing it ends the repetition (CORE-R10). Chat: `!snooze` and `!done` as a reply to a reminder message resolve through `outbox_messages(bot, conversation, message_id) → outbox → reminder` and do the same (CORE-R11c).
 
 ## 6. Failure scenarios
 

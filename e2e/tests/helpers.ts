@@ -21,7 +21,7 @@ export async function api<T = unknown>(page: Page, method: string, path: string,
 }
 
 /** Sends a chat message to the bot API as the linked user, as the Matrix bot would. */
-export async function botSend(text: string): Promise<void> {
+export async function botSend(text: string): Promise<string> {
   const id = `$e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const res = await fetch(`${process.env.E2E_BOT_URL}/bot/v1/events`, {
     method: 'POST',
@@ -32,6 +32,19 @@ export async function botSend(text: string): Promise<void> {
     }),
   })
   expect(res.status).toBe(200)
+  return id
+}
+
+/** Sends a chat command as the linked user, optionally as a reply to an earlier message. */
+export async function botCommand(command: string, args: string, replyTo?: string): Promise<{ ok: boolean; reply?: string }> {
+  const res = await fetch(`${process.env.E2E_BOT_URL}/bot/v1/commands`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.E2E_BOT_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, args, sender: SENDER, conversation: '!e2e:localhost', reply_to: replyTo, timestamp: new Date().toISOString() }),
+  })
+  expect(res.status).toBe(200)
+  const out = (await res.json()) as { ok: boolean; feedback?: { reply_text?: string } }
+  return { ok: out.ok, reply: out.feedback?.reply_text }
 }
 
 export interface Fixture {

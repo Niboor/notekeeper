@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { api, ApiError, unwrap, unwrapEmpty } from '../../api/client'
+import { useAuth } from '../../auth/AuthProvider'
 import { t } from '../../i18n'
 import { formatWhen } from '../share/ShareDialog'
 import { useRevokeAllShares, useRevokeShare, useShareLinks } from '../share/hooks'
@@ -13,6 +14,9 @@ export function SettingsPage() {
         <h1>{t('settings.title')}</h1>
         <ChatsSection />
         <ShareLinksSection />
+        <NoticesSection />
+        <TimezoneSection />
+        <GroupingSection />
         <SessionsSection />
         <PasswordSection />
       </div>
@@ -32,6 +36,11 @@ function ChatsSection() {
     },
     onSuccess: setCode,
   })
+  const target = useMutation({
+    mutationFn: async (v: { id: string; on: boolean }) =>
+      unwrap(await api.PATCH('/api/v1/me/identities/{id}', { params: { path: { id: v.id } }, body: { reminder_target: v.on } })),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['identities'] }),
+  })
   const unlink = useMutation({
     mutationFn: async (id: string) => unwrapEmpty(await api.DELETE('/api/v1/me/identities/{id}', { params: { path: { id } } })),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['identities'] }),
@@ -48,6 +57,15 @@ function ChatsSection() {
             {i.external_user_id}
             <div className="sub">{i.bot_instance_name}</div>
           </div>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={i.reminder_target}
+              onChange={(e) => target.mutate({ id: i.id, on: e.target.checked })}
+              aria-label={`${t('settings.remind.target')}: ${i.external_user_id}`}
+            />
+            {t('settings.remind.target')}
+          </label>
           <button
             className="btn"
             onClick={() => {
@@ -204,6 +222,93 @@ function ShareLinksSection() {
             {t('settings.share.revokeAll')}
           </button>
         ))}
+    </section>
+  )
+}
+
+const MUTABLE = ['session', 'share'] as const
+
+/** Which security notices are muted (AUTH-U11): only new sign-ins and share links can be. */
+function NoticesSection() {
+  const { user, updateUser } = useAuth()
+  const settings = (user?.settings ?? {}) as { muted_notices?: string[] }
+  const muted = settings.muted_notices ?? []
+  const save = useMutation({
+    mutationFn: async (next: string[]) => unwrap(await api.PATCH('/api/v1/me', { body: { settings: { ...settings, muted_notices: next } } })),
+    onSuccess: updateUser,
+  })
+  const toggle = (key: (typeof MUTABLE)[number], tell: boolean) => {
+    const rest = muted.filter((k) => k !== key)
+    save.mutate(tell ? rest : [...rest, key])
+  }
+  return (
+    <section className="section" aria-labelledby="notices-h">
+      <h2 id="notices-h">{t('settings.notices.title')}</h2>
+      <p>{t('settings.notices.lead')}</p>
+      {MUTABLE.map((k) => (
+        <label className="check" key={k}>
+          <input type="checkbox" checked={!muted.includes(k)} onChange={(e) => toggle(k, e.target.checked)} />
+          {t(`settings.notices.${k}`)}
+        </label>
+      ))}
+    </section>
+  )
+}
+
+/** The zone that reminder times are understood in (CORE-R2). */
+function TimezoneSection() {
+  const { user, updateUser } = useAuth()
+  const browser = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const zones = useMemo(() => {
+    const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+    return all.includes('UTC') ? all : ['UTC', ...all]
+  }, [])
+  const save = useMutation({
+    mutationFn: async (timezone: string) => unwrap(await api.PATCH('/api/v1/me', { body: { timezone } })),
+    onSuccess: updateUser,
+  })
+  return (
+    <section className="section" aria-labelledby="tz-h">
+      <h2 id="tz-h">{t('settings.tz.title')}</h2>
+      <p>{t('settings.tz.lead')}</p>
+      <div className="row">
+        <select aria-label={t('settings.tz.title')} value={user?.timezone ?? 'UTC'} onChange={(e) => save.mutate(e.target.value)}>
+          {(zones.includes(user?.timezone ?? '') ? zones : [user?.timezone ?? 'UTC', ...zones]).map((z) => (
+            <option key={z}>{z}</option>
+          ))}
+        </select>
+        {browser && browser !== user?.timezone && (
+          <button className="btn" onClick={() => save.mutate(browser)}>
+            {t('settings.tz.use', { zone: browser })}
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
+const WINDOWS = [0, 30, 60, 120, 300, 600]
+
+/** How long after a photo a caption or another photo still joins the same note (GRP-5, WEB-12). */
+function GroupingSection() {
+  const { user, updateUser } = useAuth()
+  const settings = (user?.settings ?? {}) as { grouping_window_seconds?: number }
+  const current = settings.grouping_window_seconds ?? 60
+  const save = useMutation({
+    mutationFn: async (seconds: number) => unwrap(await api.PATCH('/api/v1/me', { body: { settings: { ...settings, grouping_window_seconds: seconds } } })),
+    onSuccess: updateUser,
+  })
+  return (
+    <section className="section" aria-labelledby="grouping-h">
+      <h2 id="grouping-h">{t('settings.grouping.title')}</h2>
+      <p>{t('settings.grouping.lead')}</p>
+      <select aria-label={t('settings.grouping.title')} value={current} onChange={(e) => save.mutate(Number(e.target.value))}>
+        {(WINDOWS.includes(current) ? WINDOWS : [current, ...WINDOWS]).map((w) => (
+          <option key={w} value={w}>
+            {w === 0 ? t('settings.grouping.off') : t('settings.grouping.seconds', { count: w })}
+          </option>
+        ))}
+      </select>
     </section>
   )
 }

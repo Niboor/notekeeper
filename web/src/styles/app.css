@@ -118,3 +118,20 @@
 .share-note .note-meta { display: flex; gap: 12px; flex-wrap: wrap; }
 .share-gone { color: var(--muted); }
 button.file { font: inherit; cursor: pointer; text-align: left; }
+
+/* ---- reminders and notifications (WEB-18) ---- */
+.bell { position: relative; }
+.bell .badge { position: absolute; top: 0; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--on-accent); font-size: 11px; line-height: 16px; text-align: center; font-weight: 700; }
+.notifications { width: min(360px, calc(100vw - 24px)); max-height: 70vh; overflow: auto; padding: 8px 0; }
+.notifications li { padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.notifications li.unread { background: var(--hover); }
+.notifications .notif-actions { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px 0; }
+.reminder-row { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.small { padding: 3px 8px; font-size: 13px; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.quick { display: flex; gap: 8px; flex-wrap: wrap; }
+.reminder-chip { cursor: pointer; font: inherit; }
+.reminder-chip.fired { opacity: .75; }
+.check { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+.dialog input[type=datetime-local] { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--field); color: var(--ink); }

@@ -116,7 +116,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-BOT-1 | Must | implemented | A bot instance acting for a user who has not linked that bot instance: ingest, edit, delete, delivery claim and attachment download are all scoped to (bot instance, linked identity). | AUTH-B2 |
+| SEC-BOT-1 | Must | fully tested | A bot instance acting for a user who has not linked that bot instance: ingest, edit, delete, delivery claim and attachment download are all scoped to (bot instance, linked identity). | AUTH-B2 |
 | SEC-BOT-2 | Must | fully tested | Using bot credentials on the user API, user tokens on the bot API, or a bot credential from one instance on another instance's items. | AUTH-B2 |
 | SEC-BOT-3 | Must | unimplemented | A bot reading anything beyond what it was handed: notes, attachments not referenced by its own deliveries, users, or the links of other bot instances. The identity lookup reveals only "linked or not", never which user, and is rate-limited and audited. | BOT-15, BOT-2 |
 | SEC-BOT-4 | Must | fully tested | Redeeming a pairing code twice, after expiry, or by guessing (attempts rate-limited; codes are single-use, short-lived, consumed atomically and bound to the user who created them). | AUTH-B3 |
@@ -127,7 +127,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-BOT-8 | Must | fully tested | A leaked or misbehaving bot credential staying valid: the admin can disable a bot instance instantly, and rotation needs no downtime. Secrets are stored hashed and never logged. | AUTH-B1 |
 | SEC-BOT-9 | Must | fully tested | Replayed or forged ingest events changing state twice, or carrying implausible timestamps that reorder a user's Inbox (clamped per CORE-N18). | BOT-7, CORE-N18 |
 | SEC-BOT-10 | Must | unimplemented | A bot flooding Core or a user: per-bot-instance and per-user rate and size limits apply to ingest and deliveries, on top of user quotas. | NFR-S4, CORE-A3 |
-| SEC-BOT-11 | Must | unimplemented | A delivery for user A ending up in user B's conversation. The delivery target is fixed by Core from the identity's own conversation, which only changes on events sent by that identity. | BOT-12 |
+| SEC-BOT-11 | Must | fully tested | A delivery for user A ending up in user B's conversation. The delivery target is fixed by Core from the identity's own conversation, which only changes on events sent by that identity. | BOT-12 |
 | SEC-BOT-12 | Must | fully tested | Chat text being interpreted as a command anywhere other than at the very start of a message with the exact command prefix. Commands do only what their definition says; arguments are parsed as data, never evaluated. | MX-8, BOT-14 |
 
 ### 4.5 Share links and public endpoints (SEC-SHR)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Outlet, useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { t } from '../i18n'
+import { NotificationsBell } from '../features/reminders/NotificationsBell'
 import { Icon } from './Icon'
 import { useTheme } from './theme'
 import { TopbarSlot } from './topbar'
@@ -85,6 +86,7 @@ export function Layout() {
             {t('nav.newNote')}
             <kbd>N</kbd>
           </button>
+          <NotificationsBell />
           <Link className="icon-btn" to="/trash" aria-label={t('nav.trash')} title={t('nav.trash')}>
             <Icon name="trash" />
           </Link>

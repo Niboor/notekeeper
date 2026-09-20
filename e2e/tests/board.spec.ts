@@ -24,6 +24,7 @@ test('drag with the mouse between lanes and within a lane', async ({ page }) => 
   await expect(card(inbox, 'first note')).toHaveCount(0)
 
   await page.reload()
+  await expect(lane(page, 'Todo').locator('article.note')).toHaveCount(2) // wait for the board to load before reading it
   const titles = await lane(page, 'Todo').locator('article.note').allInnerTexts()
   expect(titles).toHaveLength(2)
   expect((await api<{ category_id: string }>(page, 'GET', `/api/v1/notes/${a}`)).body.category_id).toBe(fx.columns.Todo)

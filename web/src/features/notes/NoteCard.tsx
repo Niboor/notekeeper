@@ -5,7 +5,9 @@ import { NoteContent } from '../../components/NoteContent'
 import { taskProgress } from '../../components/markdown'
 import { timeAgo } from '../../components/time'
 import { t } from '../../i18n'
-import { ShareDialog } from '../share/ShareDialog'
+import { ReminderDialog } from '../reminders/ReminderDialog'
+import { repeatWord } from '../reminders/hooks'
+import { ShareDialog, formatWhen } from '../share/ShareDialog'
 import { useSharedNoteIds } from '../share/hooks'
 import { useAddPart, useDismissNote, useEditPart, useMoveNote, usePages, useRemovePart } from '../hooks'
 import { INBOX, type Note, type NotePart } from '../types'
@@ -43,6 +45,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
   const [editing, setEditing] = useState<{ partId: string | null; base: number } | null>(null)
   const [draft, setDraft] = useState('')
   const [sharing, setSharing] = useState(false)
+  const [reminding, setReminding] = useState(false)
   const shared = useSharedNoteIds().has(note.id)
 
   const source = sourceLabel(note)
@@ -87,6 +90,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
 
   const menu: MenuItem[] = [
     ...(textParts[0] ? [{ label: t('note.edit'), onSelect: () => startEdit(textParts[0]!) }] : [{ label: t('note.addText'), onSelect: () => startEdit(null) }]),
+    { label: t('remind.action'), onSelect: () => setReminding(true) },
     { label: t('share.action'), onSelect: () => setSharing(true) },
     ...moveItems,
   ]
@@ -183,6 +187,18 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
           <Icon name={source ? 'chat' : 'pen'} />
           {source ? t('note.origin.chat', { source }) : t('note.origin.app')} · {timeAgo(note.created_at)}
         </span>
+        {note.reminders?.filter((r) => r.state === 'pending' || r.state === 'fired').slice(0, 1).map((r) => (
+          <button
+            key={r.id}
+            className={`chip reminder-chip${r.state === 'fired' ? ' fired' : ''}`}
+            title={t('remind.title')}
+            onClick={() => setReminding(true)}
+          >
+            <Icon name="bell" />
+            {r.state === 'fired' ? t('remind.fired', { when: formatWhen(r.last_fired_at ?? r.due_at) }) : formatWhen(r.due_at)}
+            {repeatWord(r.rrule) ? ' ↻' : ''}
+          </button>
+        ))}
         {shared && (
           <span className="chip" title={t('share.indicator')}>
             <Icon name="link" />
@@ -206,6 +222,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
           </Menu>
         </div>
       )}
+      {reminding && <ReminderDialog note={note} onClose={() => setReminding(false)} />}
       {sharing && <ShareDialog noteId={note.id} onClose={() => setSharing(false)} />}
     </article>
   )

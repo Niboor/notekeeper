@@ -11,6 +11,8 @@ interface AuthState {
   login(username: string, password: string, remember: boolean): Promise<void>
   activate(token: string, password: string): Promise<void>
   logout(): Promise<void>
+  /** Replaces the profile after the person changed it (time zone, notice settings). */
+  updateUser(me: Me): void
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -65,6 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.clear()
         scheduleRefresh(new Date(data.expires_at))
         setUser(data.user)
+      },
+      updateUser(me) {
+        setUser(me)
       },
       async logout() {
         try {

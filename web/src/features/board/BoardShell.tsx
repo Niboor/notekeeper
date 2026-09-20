@@ -5,7 +5,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Navigate, Outlet, useNavigate, useParams } from 'react-router'
+import { Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, unwrap } from '../../api/client'
 import { Icon } from '../../components/Icon'
 import { TopbarSlot } from '../../components/topbar'
@@ -47,6 +47,8 @@ export function BoardShell() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { toast } = useToast()
+  const [search] = useSearchParams()
+  const target = search.get('note')
 
   const lanes: LaneData[] = useMemo(() => {
     const inboxNotes = inbox.data?.pages.flatMap((p) => p.items) ?? []
@@ -64,6 +66,16 @@ export function BoardShell() {
   const served: Arrangement = useMemo(() => Object.fromEntries(lanes.map((l) => [l.id, l.notes.map((n) => n.id)])), [lanes])
 
   // While dragging, the arrangement is local; otherwise it is what the server says.
+  // A link to a note (from a reminder) lands with that card in view and focused.
+  useEffect(() => {
+    if (!target) return
+    const el = document.querySelector<HTMLElement>(`article.note[data-id="${CSS.escape(target)}"]`)
+    if (el) {
+      el.scrollIntoView({ block: 'center' })
+      el.focus()
+    }
+  }, [target, lanes])
+
   const [drag, setDrag] = useState<{ note: Note; arrangement: Arrangement; origin: ReturnType<typeof placementOf> } | null>(null)
   // The lanes on screen can change during a drag (another page opened by holding over its tab): rebase onto them.
   const [lift, setLift] = useState<{ note: Note; origin: ReturnType<typeof placementOf>; arrangement: Arrangement } | null>(null)

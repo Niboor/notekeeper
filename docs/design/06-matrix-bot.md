@@ -75,6 +75,8 @@ A goroutine long-polls `GET /outbox?wait=20` (shorter than the HTTP client timeo
 | Kind | Bot action |
 |---|---|
 | `reminder`, `notice` | **Re-check the room** immediately before sending: exactly two joined members, the bot and the linked user, and not flagged ignored; otherwise report `failed_permanent` (SEC-MX-2). Send the text as `m.notice`/`m.text` with a Matrix transaction id derived from the outbox item id (idempotent, BOT-13). For reminders, then download each attachment through the outbox attachment endpoint and send it as Matrix media (encrypted upload in encrypted rooms); if that fails, the text already names the file and links to the note (MX-12, CORE-R6). Report `delivered` with the event ids |
+For a reminder that lists files the bot then fetches each one through `GET /outbox/{id}/attachments/{attachmentId}` (only while the claim lasts, only files named in the payload, BOT-15) and sends it as Matrix media with the transaction id `<item id>-f<index>`, encrypting the upload when the room is encrypted; a file that cannot be fetched or sent becomes a line naming it with the note link, and never changes the delivered result (MX-12, CORE-R6).
+
 | `lifecycle` | For an unlink, first a short goodbye notice; then leave and forget the room (MX-13), delete the room's rows and the identity's mapping from the bot's tables, drop the room's Megolm sessions where the store API allows, then report `delivered` (BOT-B7) |
 
 Send failures that look transient (network, homeserver 5xx, rate limit `M_LIMIT_EXCEEDED` with its retry hint) report `failed_transient`; a missing room, a departed user or a forbidden send report `failed_permanent`.
