@@ -1,5 +1,14 @@
 # Example alerts (SEC-AUD-3, NFR-O2). Needs the Prometheus Operator; the expressions work in any
 # Prometheus. The thresholds are starting points for a small deployment.
+#
+# The two "is it running" alerts (NotekeeperCoreDown, NotekeeperBotDown) match the scrape job by name, and
+# the job label comes from your scrape setup (with a ServiceMonitor it is the name of the Service, with
+# annotation-based discovery often a generic name). The patterns match a job called core / matrix-bot, or one that
+# has it as a whole word after or before a - or / (core-metrics, notekeeper/core, notekeeper-matrix-bot). They are
+# anchored on purpose: an unanchored .*core.* also matches coredns, and absent() would then never fire. If your jobs
+# are named differently, adjust the two patterns (or add a namespace label matcher).
+#
+# Values that contain commas or colons are quoted: inside an unquoted YAML flow mapping a comma starts a new entry.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -12,55 +21,55 @@ spec:
           expr: sum(increase(nk_auth_events_total{event=~"failed|throttled"}[10m])) > 30
           for: 5m
           labels: {severity: warning}
-          annotations: {summary: Many failed or throttled sign-ins, which may be someone guessing passwords}
+          annotations: {summary: "Many failed or throttled sign-ins, which may be someone guessing passwords"}
         - alert: NotekeeperBotRequestsRejected
           expr: sum(increase(nk_bot_requests_rejected_total[10m])) > 20
           for: 5m
           labels: {severity: warning}
-          annotations: {summary: Requests with a bad or unauthorised bot key, which may be a leaked or guessed credential}
+          annotations: {summary: "Requests with a bad or unauthorised bot key, which may be a leaked or guessed credential"}
         - alert: NotekeeperShareLinkProbing
           expr: sum(increase(nk_share_requests_total{result="not_found"}[10m])) > 100
           for: 5m
           labels: {severity: warning}
-          annotations: {summary: Many share requests for links that do not exist, which may be someone probing for tokens}
+          annotations: {summary: "Many share requests for links that do not exist, which may be someone probing for tokens"}
         - alert: NotekeeperRateLimitHits
           expr: sum(increase(nk_rate_limited_total[10m])) > 200
           for: 10m
           labels: {severity: warning}
-          annotations: {summary: Requests are being refused by rate limits at a high rate}
+          annotations: {summary: "Requests are being refused by rate limits at a high rate"}
     - name: notekeeper-health
       rules:
         - alert: NotekeeperCoreDown
-          expr: absent(up{job=~".*core.*"} == 1)
+          expr: absent(up{job=~"(.*[-/])?core([-/].*)?"} == 1)
           for: 3m
           labels: {severity: critical}
-          annotations: {summary: No Core replica is being scraped as up}
+          annotations: {summary: "No Core replica is being scraped as up"}
         - alert: NotekeeperBotDown
-          expr: absent(up{job=~".*matrix-bot.*"} == 1)
+          expr: absent(up{job=~"(.*[-/])?matrix-bot([-/].*)?"} == 1)
           for: 5m
           labels: {severity: critical}
-          annotations: {summary: The Matrix bot is not running, so chat messages are not reaching Notekeeper}
+          annotations: {summary: "The Matrix bot is not running, so chat messages are not reaching Notekeeper"}
         - alert: NotekeeperBotStalled
           expr: time() - max(nk_bot_last_sync_timestamp_seconds) > 600
           for: 5m
           labels: {severity: critical}
-          annotations: {summary: The Matrix bot is running but has not completed a sync for ten minutes, so chat messages are not reaching Notekeeper}
+          annotations: {summary: "The Matrix bot is running but has not completed a sync for ten minutes, so chat messages are not reaching Notekeeper"}
         - alert: NotekeeperOutboxBacklog
           expr: sum(nk_outbox_items{state=~"queued|claimed"}) > 50
           for: 15m
           labels: {severity: warning}
-          annotations: {summary: Messages for chats (reminders, notices) are waiting for a bot to send them}
+          annotations: {summary: "Messages for chats (reminders, notices) are waiting for a bot to send them"}
         - alert: NotekeeperReminderLag
           expr: histogram_quantile(0.95, sum(rate(nk_reminder_lag_seconds_bucket[15m])) by (le)) > 60
           for: 15m
           labels: {severity: warning}
-          annotations: {summary: Reminders fire more than a minute after they are due (target CORE-R5)}
+          annotations: {summary: "Reminders fire more than a minute after they are due (target CORE-R5)"}
         - alert: NotekeeperJobFailures
           expr: sum(increase(nk_job_failures_total[30m])) > 3
           labels: {severity: warning}
-          annotations: {summary: Background jobs are failing}
+          annotations: {summary: "Background jobs are failing"}
         - alert: NotekeeperDatabasePoolSaturated
           expr: max(nk_db_pool_connections) >= max(nk_db_pool_max_connections)
           for: 10m
           labels: {severity: warning}
-          annotations: {summary: The database connection pool is full}
+          annotations: {summary: "The database connection pool is full"}

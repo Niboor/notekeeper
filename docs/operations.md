@@ -83,7 +83,8 @@ no separate file store to keep in step.
 ## 6. Watching it
 
 Prometheus scrapes port 9090 of Core and port 9091 of the bot. `deploy/k8s/base/prometheusrule.yaml` has
-example alerts. The ones to care about first:
+example alerts (the "is it down" alerts find Core and the bot by the name of their scrape job: adjust the two patterns in the file
+to yours). The ones to care about first:
 
 * the **bot is down** or **Core is down**: chat messages are not arriving (they wait in the chat and are
   replayed afterwards; nothing is lost);

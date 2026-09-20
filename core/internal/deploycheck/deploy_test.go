@@ -309,6 +309,80 @@ func TestAlertsUseRealMetrics(t *testing.T) {
 	}
 }
 
+// Every label and annotation of an alert is a string with a plain name. A comma or colon inside an unquoted YAML flow
+// mapping (`annotations: {summary: Many failures, which may be...}`) silently splits it into bogus keys with null values,
+// which parses fine but is rejected by the Kubernetes API server (the CRD wants strings).
+func TestAlertLabelsAndAnnotationsAreStrings(t *testing.T) {
+	var doc obj
+	if err := yaml.Unmarshal([]byte(repoFile(t, "deploy", "k8s", "base", "prometheusrule.yaml")), &doc); err != nil {
+		t.Fatal(err)
+	}
+	name := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	groups, _ := get(doc, "spec", "groups").([]any)
+	alerts := 0
+	for _, g := range groups {
+		rules, _ := get(g, "rules").([]any)
+		for _, r := range rules {
+			alert, _ := get(r, "alert").(string)
+			if alert == "" {
+				continue
+			}
+			alerts++
+			if _, ok := get(r, "annotations", "summary").(string); !ok {
+				t.Errorf("%s: annotations.summary is missing or not a string", alert)
+			}
+			for _, field := range []string{"labels", "annotations"} {
+				m, ok := get(r, field).(obj)
+				if !ok {
+					t.Errorf("%s: %s is not a mapping", alert, field)
+					continue
+				}
+				for k, v := range m {
+					if !name.MatchString(k) {
+						t.Errorf("%s: %s has the key %q; a comma in an unquoted value probably split the mapping (quote the value)", alert, field, k)
+					}
+					if _, ok := v.(string); !ok {
+						t.Errorf("%s: %s.%s is %T, not a string (quote the value)", alert, field, k, v)
+					}
+				}
+			}
+		}
+	}
+	if alerts < 10 {
+		t.Fatalf("only %d alerts found", alerts)
+	}
+}
+
+// The "is it running" alerts match the scrape job by name. An unanchored `.*core.*` also matches coredns on a
+// kube-prometheus-stack cluster, so absent() could never fire; the pattern must not match other components.
+func TestUpAlertsDoNotMatchOtherJobs(t *testing.T) {
+	rules := repoFile(t, "deploy", "k8s", "base", "prometheusrule.yaml")
+	for alert, want := range map[string][]string{
+		"NotekeeperCoreDown": {"core", "core-metrics", "notekeeper/core", "notekeeper-core"},
+		"NotekeeperBotDown":  {"matrix-bot", "matrix-bot-metrics", "notekeeper/matrix-bot", "notekeeper-matrix-bot"},
+	} {
+		expr := regexp.MustCompile(`(?s)alert: ` + alert + `\n\s+expr: absent\(up\{job=~"([^"]+)"\} == 1\)`).FindStringSubmatch(rules)
+		if expr == nil {
+			t.Fatalf("%s: no absent(up{job=~\"...\"}) expression found", alert)
+		}
+		// Prometheus anchors label regexes on both ends.
+		re, err := regexp.Compile("^(?:" + expr[1] + ")$")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, job := range want {
+			if !re.MatchString(job) {
+				t.Errorf("%s: pattern %q does not match the job %q", alert, expr[1], job)
+			}
+		}
+		for _, job := range []string{"coredns", "kube-dns", "apiserver", "kubelet", "notekeeper-db", "synapse", "matrix-bridge"} {
+			if re.MatchString(job) {
+				t.Errorf("%s: pattern %q also matches the unrelated job %q", alert, expr[1], job)
+			}
+		}
+	}
+}
+
 // The images run as non-root, from minimal bases with pinned major versions, and carry no secrets (SEC-OPS-1, SEC-OPS-2, SEC-OPS-6).
 func TestImagesAreMinimalAndNonRoot(t *testing.T) {
 	for _, f := range []string{"Dockerfile.core", "Dockerfile.bot", "Dockerfile.web"} {
