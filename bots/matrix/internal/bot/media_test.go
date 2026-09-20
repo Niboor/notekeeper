@@ -259,3 +259,37 @@ func TestUploadConflictFromAnEarlierAttemptIsRetried(t *testing.T) {
 		t.Fatalf("part after two conflicts: %+v", (*res.Event.Parts)[0])
 	}
 }
+
+// The bot fetches media only through the configured homeserver, from mxc addresses; an address that
+// points elsewhere is never requested (SEC-CNT-8).
+func TestMediaIsFetchedOnlyThroughTheHomeserver(t *testing.T) {
+	var requests atomic.Int32
+	evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1) }))
+	defer evil.Close()
+	for _, url := range []string{evil.URL + "/secret", "file:///etc/passwd", "http://169.254.169.254/latest/meta-data", "gopher://x/", "//evil.example/x", ""} {
+		r := newMediaRig(t)
+		r.served = []byte("data")
+		evt, res := imageEvent(url, 4, nil)
+		if len(res.Media) != 0 {
+			// Normalising may keep it as a media reference; fetching must still refuse it.
+			r.bot.fetchMedia(t.Context(), evt, &res)
+		}
+		if got := r.downloads.Load(); got != 0 {
+			t.Errorf("%q caused %d requests to the homeserver", url, got)
+		}
+		if p := (*res.Event.Parts)[0]; res.Media != nil && string(p.Type) != "attachment_failed" && string(p.Type) != "unsupported" {
+			t.Errorf("%q: part %+v", url, p)
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("something else was contacted: %d requests", requests.Load())
+	}
+	// A foreign server name inside an mxc address is asked of the homeserver, which proxies it; the bot itself never connects there.
+	r := newMediaRig(t)
+	r.served = []byte("data")
+	evt, res := imageEvent("mxc://other.example/abc", 4, nil)
+	r.bot.fetchMedia(t.Context(), evt, &res)
+	if r.downloads.Load() != 1 {
+		t.Fatalf("expected one request to the configured homeserver, got %d", r.downloads.Load())
+	}
+}

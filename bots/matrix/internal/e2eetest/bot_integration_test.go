@@ -526,7 +526,7 @@ func TestCoreOutageStallsInsteadOfLosingMessages(t *testing.T) {
 // TestBotMovesFilesAndSpeaksForCore is the M3 chain against a real homeserver, in an encrypted
 // room: an encrypted image with a caption reaches Core decrypted, a deleted message becomes a
 // deletion, Core's notices and reminders appear in the chat, and an unlink instruction makes the
-// bot leave (MX-3, MX-5, MX-6, MX-13, BOT-6, BOT-12, BOT-16).
+// bot leave and forget the chat's state (MX-3, MX-5, MX-6, MX-13, BOT-6, BOT-12, BOT-16, BOT-B7).
 func TestBotMovesFilesAndSpeaksForCore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

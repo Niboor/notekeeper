@@ -184,10 +184,16 @@ func (b *botAPI) GetIdentity(ctx context.Context, req botapi.GetIdentityRequestO
 	if err != nil {
 		return nil, err
 	}
+	// Looking up who is linked is limited on its own, so it cannot be used to sweep a homeserver's users, and every
+	// lookup is audited without saying whom it asked about (SEC-BOT-3).
+	if ok, retry := b.limits.identityAllowed("lookup/" + bot.InstanceID.String()); !ok {
+		return nil, &httpx.Error{Status: http.StatusTooManyRequests, Code: "rate_limited", RetryAfter: retry}
+	}
 	ident, ok, err := b.bots.ResolveIdentity(ctx, bot, req.ExternalUserId)
 	if err != nil {
 		return nil, err
 	}
+	_ = store.Audit(ctx, b.st.Q(), store.AuditEntry{ActorKind: "bot", ActorID: &bot.InstanceID, Action: "bot.identity_lookup", Detail: map[string]any{"linked": ok}})
 	if !ok {
 		return botapi.GetIdentity200JSONResponse{Linked: false}, nil
 	}

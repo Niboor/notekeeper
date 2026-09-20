@@ -145,7 +145,7 @@ flowchart LR
 | CORE-N10 | Must | fully tested | Permanently deleting a note (and its attachments) from the Trash on explicit user action. Required because Trash content counts toward the user's storage quota (CORE-A3). |
 | CORE-N11 | Must | implemented | Trash retention is unlimited: dismissed notes are kept until the user permanently deletes them. There is no automatic purge. |
 | CORE-N13 | Must | fully tested | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English** (inflections and plurals, e.g. "ticket"/"tickets"). Further languages, Dutch first, can be added later without changing the API; language is not a per-note setting the user has to maintain. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
-| CORE-N14 | Should | unimplemented | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
+| CORE-N14 | Should | fully tested | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | unimplemented | Bulk operations (dismiss/move multiple notes). |
 | CORE-N17 | Should | fully tested | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
 | CORE-N18 | Must | fully tested | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. The Inbox is sorted by created time, so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
@@ -235,12 +235,12 @@ A user can share a single note with someone who has no account, through an ungue
 | AUTH-U1 | Must | implemented | The system supports multiple users with strict data isolation. Every data access is scoped to the authenticated user; this is enforced centrally, not per endpoint by convention. |
 | AUTH-U2 | Must | implemented | A user account has: unique ID, unique **username** (login identifier), display name, optional e-mail (informational only; no feature depends on e-mail delivery), created timestamp, status (active/disabled). |
 | AUTH-U3 | Must | fully tested | Sign-up is **closed**, always: there is no self-registration. Accounts are created only by the admin (AUTH-U6). |
-| AUTH-U4 | Must | unimplemented | Users can change their password, view and revoke active sessions/devices, and delete their account (deleting all data, including attachments). |
-| AUTH-U5 | Should | unimplemented | Users can export all their data (notes, pages, attachments) in an open format. |
-| AUTH-U6 | Must | unimplemented | The **admin** can, in the web app (WEB-19) and via the API: create users; issue an activation link for a user (new account or lost password); disable/enable a user; delete a user together with all their data; set a user's storage quota; see per-user storage usage; register and disable bot instances and rotate their credentials. No app feature lets the admin read other users' notes. |
+| AUTH-U4 | Must | fully tested | Users can change their password, view and revoke active sessions/devices, and delete their account (deleting all data, including attachments). |
+| AUTH-U5 | Should | fully tested | Users can export all their data (notes, pages, attachments) in an open format. |
+| AUTH-U6 | Must | fully tested | The **admin** can, in the web app (WEB-19) and via the API: create users; issue an activation link for a user (new account or lost password); disable/enable a user; delete a user together with all their data; set a user's storage quota; see per-user storage usage; register and disable bot instances and rotate their credentials. No app feature lets the admin read other users' notes. |
 | AUTH-U7 | Must | fully tested | There is **exactly one admin**. The admin is bootstrapped by an operator CLI command (there is no bootstrap secret in configuration) and is otherwise a normal user with their own notes, pages and links. The single-admin rule is enforced by the data model, not only the UI, and the admin role cannot be granted through the API. Changing who the admin is, or recovering a lost admin password, is an operator action (CLI) — Should. |
 | AUTH-U8 | Must | fully tested | **Account activation without e-mail.** A newly created account has no password until the person opens the single-use, expiring (e.g. 7 days) activation link, which the admin hands over out-of-band, and sets their own password. The admin never sees or sets user passwords. A forgotten password is handled the same way: the admin issues a new link, which clears the current password (the account is pending activation until the link is used) and revokes the user's existing sessions. |
-| AUTH-U9 | Must | unimplemented | **Complete deletion.** Deleting a user (by the admin or themselves) removes their notes, pages, attachments, text history, reminders, queued and pending deliveries, share links (which stop working immediately), sessions and tokens, pairing codes and chat-identity links, and queues a lifecycle notice for every bot instance that served them (BOT-16). Afterwards Core holds nothing about the user except a content-free audit entry. Database backups are outside this guarantee; their retention is documented. |
+| AUTH-U9 | Must | fully tested | **Complete deletion.** Deleting a user (by the admin or themselves) removes their notes, pages, attachments, text history, reminders, queued and pending deliveries, share links (which stop working immediately), sessions and tokens, pairing codes and chat-identity links, and queues a lifecycle notice for every bot instance that served them (BOT-16). Afterwards Core holds nothing about the user except a content-free audit entry. Database backups are outside this guarantee; their retention is documented. |
 | AUTH-U10 | Should | fully tested | **Sign out everywhere**: one action revokes all of the user's sessions and tokens (optionally keeping the current one). Together with revoking all share links (CORE-SH14), it lets a user who suspects a compromise cut off access in one step. |
 | AUTH-U11 | Should | fully tested | **Security notices.** Core sends a notice to the user's linked chat identities (over the BOT-11 channel) and shows it in the app at next login when: a new session signs in (browser/OS and time), the password changes or an activation link is issued for the account, a chat identity is linked or unlinked, or a share link is created. The user can mute the new-session and share-link notices; the others cannot be muted. |
 
@@ -301,7 +301,7 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-13 | Should | fully tested | Each delivery has a unique ID, which the bot uses to make sending idempotent where the platform allows (e.g. a Matrix transaction ID), so a restart between sending and acknowledging does not visibly duplicate the message. After sending, the bot reports the platform message ID(s) it created, so that a user's reply to a reminder (`!snooze`, `!done`) can be mapped back to that delivery. |
 | BOT-14 | Should | fully tested | **Command events.** Beyond `link`/`unlink`/`help`, the bot forwards recognised chat commands (`remind`, `snooze`, `done`) to Core as platform-neutral command events: command name, raw argument text, sender identity, conversation, and the replied-to message ID. Core interprets them and returns the outcome plus a localised reply text for the bot to show. |
 | BOT-15 | Should | fully tested | **Attachment download for deliveries.** A delivery lists its attachments (filename, media type, size) and the bot can download them through the bot API, but only attachments referenced by deliveries addressed to that bot instance; bot credentials never grant general read access to a user's attachments (AUTH-B2). |
-| BOT-16 | Must | implemented | **Lifecycle notices.** When an identity is unlinked (AUTH-B5) or its user is deleted (AUTH-U9), Core queues a notice for the bot instance on the BOT-11 channel, so the bot can discard everything it holds for that identity. |
+| BOT-16 | Must | fully tested | **Lifecycle notices.** When an identity is unlinked (AUTH-B5) or its user is deleted (AUTH-U9), Core queues a notice for the bot instance on the BOT-11 channel, so the bot can discard everything it holds for that identity. |
 
 ### 6.2 Bot behaviour requirements (all bots)
 
@@ -313,7 +313,7 @@ This is the part that makes adding a second chat app cheap. A bot only needs to 
 | BOT-B4 | Must | fully tested | Bots are horizontally safe: running two replicas by mistake must not double-create notes (dedupe by BOT-7) — although a single active replica / leader election per bot instance is acceptable. |
 | BOT-B5 | Must | fully tested | Bots persist any durable state they need (sync cursors, platform crypto keys) in PostgreSQL or another declared durable store, never on ephemeral container storage. |
 | BOT-B6 | Should | implemented | Bots expose health, readiness and metrics endpoints and structured logs. |
-| BOT-B7 | Must | unimplemented | On a lifecycle notice (BOT-16) a bot deletes all per-identity and per-conversation state it stores (cursors, room mappings, cached content) and stops processing that conversation. |
+| BOT-B7 | Must | fully tested | On a lifecycle notice (BOT-16) a bot deletes all per-identity and per-conversation state it stores (cursors, room mappings, cached content) and stops processing that conversation. |
 
 ### 6.3 Message → note grouping (owned by Core)
 
@@ -332,7 +332,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | GRP-7 | Must | fully tested | Auto-grouping (GRP-2..4) only ever targets `active` notes. A deleted note never receives auto-grouped parts; a new note is created instead. An explicit relation (GRP-1) to a message of a deleted note also creates a new note, which records the relation. |
 | GRP-8 | Must | fully tested | Grouping decisions are deterministic and explainable: each part records why it was attached (`first`, `reply`, `thread`, `media-adjacency`). |
 | GRP-9 | Should | fully tested | The grouping policy is an isolated, replaceable module (strategy) so it can be tuned without touching bots or API contracts. |
-| GRP-10 | Should | unimplemented | Users can fix wrong outcomes afterwards by merging/splitting in the app (CORE-N14). |
+| GRP-10 | Should | fully tested | Users can fix wrong outcomes afterwards by merging/splitting in the app (CORE-N14). |
 | GRP-11 | Could | unimplemented | Optional chat-side override, e.g. a command or marker that forces "new note" or "start a batch of several messages". |
 
 ### 6.4 Edits and deletions from the chat side (owned by Core)
@@ -394,13 +394,13 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-10 | Must | implemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | implemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
 | WEB-12 | Must | fully tested | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
-| WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
+| WEB-13 | Should | fully tested | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
 | WEB-14 | Must | fully tested | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
-| WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
+| WEB-15 | Should | fully tested | Merge/split notes (CORE-N14). |
 | WEB-16 | Should | implemented | Keyboard shortcuts for common actions (new note, search, dismiss, move, focus Inbox). |
 | WEB-17 | Could | unimplemented | Alternative layouts for a page (list, compact) — exact look is deferred (see below). |
 | WEB-18 | Should | fully tested | Reminders on notes: set, change, snooze and clear a reminder with a date/time picker and quick options; a visible indicator on cards with a pending reminder; list of upcoming reminders; in-app notification when one is due (CORE-R1..R9). |
-| WEB-19 | Must | unimplemented | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
+| WEB-19 | Must | fully tested | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
 | WEB-20 | Should | fully tested | Checklist checkboxes on cards can be toggled directly, without entering edit mode (CORE-N17). |
 | WEB-21 | Must | fully tested | **Sharing UI.** A "Share" action on every note: choose an expiry, create the link, copy it (and use the device share sheet where the browser offers one), see existing links for the note and revoke them. A settings view lists all active links (CORE-SH3). Notes with an active link show an indicator. |
 
@@ -414,7 +414,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-N4 | Should | implemented | Accessible (WCAG 2.1 AA): keyboard operable, screen-reader labelled, sufficient contrast, respects reduced-motion and dark mode. |
 | WEB-N5 | Must | fully tested | All user-supplied content (note text, filenames, formatted chat content) is sanitised before rendering; attachments are served with safe content types and headers to prevent XSS. |
 | WEB-N6 | Must | unimplemented | Supports current versions of major evergreen browsers (Firefox, Chromium-based, Safari). |
-| WEB-N8 | Should | unimplemented | Installable as a PWA (manifest, service worker for the app shell), so the web app can serve as the "app" on phones until a native client exists. |
+| WEB-N8 | Should | fully tested | Installable as a PWA (manifest, service worker for the app shell), so the web app can serve as the "app" on phones until a native client exists. |
 | WEB-N7 | — | — | *Exact visual design (columns vs other arrangements, theming) is intentionally undefined and will be specified separately.* |
 
 ## 9. Android client (future — constraints on the design now)
@@ -488,11 +488,11 @@ These are the general security requirements. The detailed "must not be possible"
 |---|---|---|---|
 | NFR-S1 | Must | unimplemented | TLS for all external traffic; secrets never logged or committed; credentials stored hashed (users, bots) or encrypted (Matrix keys). |
 | NFR-S2 | Must | unimplemented | Least privilege between components: bots only reach the bot-facing API (and their own durable state); Web/Android only reach the user API (and the web app's share page the public share API). Network policies restrict database access to Core (and the bots for their own tables/schema). |
-| NFR-S3 | Must | unimplemented | Multi-tenant isolation is tested (automated tests asserting that user A can never read/modify/enumerate user B's notes, pages, attachments or links). Consider database row-level security as defence in depth. Public share endpoints are covered too: tests assert that a link exposes only its own note and attachments. |
-| NFR-S4 | Must | unimplemented | Inputs are validated and size-limited (message length, attachments, number of parts). Rate limits on all public endpoints, with stricter limits on auth, pairing-code redemption and ingestion. |
+| NFR-S3 | Must | fully tested | Multi-tenant isolation is tested (automated tests asserting that user A can never read/modify/enumerate user B's notes, pages, attachments or links). Consider database row-level security as defence in depth. Public share endpoints are covered too: tests assert that a link exposes only its own note and attachments. |
+| NFR-S4 | Must | fully tested | Inputs are validated and size-limited (message length, attachments, number of parts). Rate limits on all public endpoints, with stricter limits on auth, pairing-code redemption and ingestion. |
 | NFR-S5 | Must | unimplemented | **Privacy note (accepted trade-off):** notes originate from E2EE chat but are stored readable by the Notekeeper server. Documentation must state this clearly. Optional encryption at rest of attachments/DB is a Should. |
 | NFR-S6 | Should | unimplemented | Audit log for security-relevant events; dependency and image vulnerability scanning in CI. |
-| NFR-S7 | Must | unimplemented | Personal data handling: data export and full deletion on request (AUTH-U4/U5); logs contain no note content. |
+| NFR-S7 | Must | fully tested | Personal data handling: data export and full deletion on request (AUTH-U4/U5); logs contain no note content. |
 
 ### 11.4 Reliability and data integrity
 
@@ -510,9 +510,9 @@ Targets assume friends-and-family use (see §12).
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| NFR-P1 | Must | unimplemented | Ingest latency from bot receiving a message to the note visible in the web app: p95 ≤ 3 s (excluding attachment transfer time). |
-| NFR-P2 | Must | unimplemented | API read latency p95 ≤ 300 ms for standard queries (page with 500 notes, trash listing, search) at the sizing below. |
-| NFR-P3 | Must | unimplemented | Sizing: up to 50 users, 50 000 notes per user (typical usage far lower), 50 GB attachments in total, with a single Postgres instance and 2 replicas of Core. |
+| NFR-P1 | Must | fully tested | Ingest latency from bot receiving a message to the note visible in the web app: p95 ≤ 3 s (excluding attachment transfer time). |
+| NFR-P2 | Must | fully tested | API read latency p95 ≤ 300 ms for standard queries (page with 500 notes, trash listing, search) at the sizing below. |
+| NFR-P3 | Must | fully tested | Sizing: up to 50 users, 50 000 notes per user (typical usage far lower), 50 GB attachments in total, with a single Postgres instance and 2 replicas of Core. |
 | NFR-P4 | Should | unimplemented | Lists are paginated / lazily loaded (Trash, large categories); the change feed is paginated. |
 
 ### 11.6 Observability and operations
@@ -520,7 +520,7 @@ Targets assume friends-and-family use (see §12).
 | ID | Pri | State | Requirement |
 |---|---|---|---|
 | NFR-O1 | Must | implemented | Structured (JSON) logs to stdout with request/correlation IDs propagated from bot → Core, so one chat message can be traced end to end. |
-| NFR-O2 | Must | unimplemented | Prometheus-compatible metrics for every component (request rates and latencies, ingest outcomes, grouping decisions, reminder scheduling lag and delivery outcomes, bot lag, realtime connections, DB pool). |
+| NFR-O2 | Must | fully tested | Prometheus-compatible metrics for every component (request rates and latencies, ingest outcomes, grouping decisions, reminder scheduling lag and delivery outcomes, bot lag, realtime connections, DB pool). |
 | NFR-O4 | Must | implemented | Health endpoints distinguish *alive* from *ready* (DB reachable, migrations current). |
 | NFR-O5 | Must | unimplemented | All configuration is externalised and documented; no config requires a rebuild. |
 
@@ -615,6 +615,9 @@ Answers given after the first draft, and where they are reflected.
 | 54 | Share lookups | Share links are resolved by token hash without a user context (the table has no row-level security), then everything is read as the owner, scoped to the one note. A note in the Trash, a revoked or expired link, a disabled owner and an unknown token all give the same 404. Public rate limits are per replica and in memory; creation limits are in PostgreSQL | CORE-SH5, CORE-SH6, CORE-SH9, SEC-SHR-3 |
 | 55 | Scheduler policy | The reminder scheduler is the only code that reads a table across users. It does so through a policy on `reminders` that a transaction opts into with `app.scheduler`, then works one user at a time under that user's own row-level security. The bot outbox, notifications and share links are the other cross-user lookups, and they have no row-level security because they are addressed by their own keys | CORE-R5, SEC-ISO-10 |
 | 56 | Reminder time expressions | Chat times are parsed by Core in the user's zone relative to the command's platform timestamp: relative (`in 2 hours`), day and time (`tomorrow 9am`, `friday 18:30`, `12 dec`), bare times (next occurrence), a weekday alone (09:00, next such day). A time that has already passed is refused, except a weekday, which moves to next week. Recurrence exists through the app only (daily, weekly, monthly, weekday sets) and is stored as an RFC 5545 subset | CORE-R10, CORE-R11, CORE-R13 |
+| 57 | Deletion in two phases | Deleting an account first marks it `deleting` (it stops working everywhere, because every entry point checks the status live, and the bots are told to forget the chat), then a background job removes attachment data in small batches and finally the account row, whose foreign keys remove everything else. Completeness is checked by a test that scans every table with a `user_id` column, so a new table that forgets to cascade fails it | AUTH-U9, SEC-DATA-5 |
+| 58 | Blob backend migration deferred | CORE-A7 (moving attachments between storage backends online) stays unimplemented: v1 has one backend, PostgreSQL, by the requirement that it be the only stateful dependency (NFR-D2). The blob code is already behind `blobs.Service`, so a second backend and the tool can be added later without API changes | CORE-A2, CORE-A7 |
+| 59 | Rate limits and their scope | Request limits per address, per signed-in user, per bot instance and per linked person are in-memory token buckets per replica, configurable (`NK_RATE_*`), and counted in `nk_rate_limited_total`. Limits that must hold across replicas live in PostgreSQL: login and pairing attempts, link creation, exports. Uploads are capped at a few at once per caller, and every database connection carries a statement and an idle-transaction timeout | SEC-API-4, SEC-BOT-10, NFR-S4 |
 
 ## 14. Open questions
 

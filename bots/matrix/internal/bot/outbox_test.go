@@ -83,7 +83,7 @@ func TestOutboxSendsNoticesAndReminders(t *testing.T) {
 }
 
 // Nothing is sent to a room that is no longer a two-person chat, or with no text; failures are
-// classified so Core retries only what can succeed (SEC-MX-1, BOT-13).
+// classified so Core retries only what can succeed (SEC-MX-1, SEC-MX-2, BOT-13).
 func TestOutboxFailuresAreClassified(t *testing.T) {
 	b, sent := sendRig(t, 200)
 	if res := b.send(t.Context(), item(botclient.Reminder, "!group:x", "hi")); res.State != botclient.FailedPermanent || len(sent()) != 0 {
@@ -99,5 +99,28 @@ func TestOutboxFailuresAreClassified(t *testing.T) {
 	down, _ := sendRig(t, 500)
 	if res := down.send(t.Context(), item(botclient.Notice, "!dm:x", "hi")); res.State != botclient.FailedTransient {
 		t.Fatalf("homeserver error: %+v", res)
+	}
+}
+
+// Reminder text is sent as inert content: no formatting, no mentions, nothing that a client or another
+// bot would act on (SEC-CNT-7).
+func TestOutboxTextIsInert(t *testing.T) {
+	b, sent := sendRig(t, 200)
+	hostile := "⏰ Reminder\n@room look at this @alice:example.org <b>bold</b> <script>x</script> [click](https://evil.example)\n!link ABCD-1234\n!remind tomorrow"
+	if res := b.send(t.Context(), item(botclient.Reminder, "!dm:x", hostile)); res.State != botclient.Delivered {
+		t.Fatalf("%+v", res)
+	}
+	got := sent()
+	if len(got) != 1 {
+		t.Fatalf("sent %d", len(got))
+	}
+	body := got[0].Body
+	if body["body"] != hostile || body["msgtype"] != "m.text" {
+		t.Fatalf("the text must arrive exactly as given: %+v", body)
+	}
+	for _, key := range []string{"formatted_body", "format", "m.mentions", "m.relates_to", "m.new_content"} {
+		if _, ok := body[key]; ok {
+			t.Errorf("the message carries %s", key)
+		}
 	}
 }

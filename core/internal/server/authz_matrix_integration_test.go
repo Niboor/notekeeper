@@ -162,6 +162,8 @@ func fillPath(path string, op *openapi3.Operation) string {
 
 var _ = fmt.Sprintf
 
+// User A can never read, change or enumerate user B's data, by any operation and with real identifiers (NFR-S3).
+// Ids that clients choose are unique per user, so a repeated or foreign id can neither replay nor reveal another person's answer (SEC-ISO-8).
 // The "other user" actor of the matrix (SEC-ISO-2, SEC-ISO-3): every operation that names an
 // object is called by a signed-in user with the REAL identifiers of another user's objects, and
 // the answer must be identical to the answer for identifiers that do not exist at all, so

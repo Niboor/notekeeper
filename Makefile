@@ -44,6 +44,11 @@ tools: ## Install pinned developer tools into .bin/
 web-install: ## Install web dependencies
 	cd web && npm ci
 
+##@ Performance
+.PHONY: test-perf
+test-perf: ## Latency at the documented size: 50 000 notes for one user (NFR-P1..P3); needs Docker
+	cd core && NK_PERF_NOTES=$${NK_PERF_NOTES:-50000} go test -tags "integration perf" ./internal/server -run PerformanceAtTheDocumentedSize -v -timeout 15m
+
 ##@ Build and generate
 .PHONY: generate
 generate: ## Regenerate code from the OpenAPI specs and SQL queries (Go server, bot client, sqlc, TypeScript types)

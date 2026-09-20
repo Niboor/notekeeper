@@ -30,7 +30,7 @@ func hasNotice(texts []string, part string) bool {
 
 // Security-relevant events reach the user in the app and in their chats: a new sign-in, a password
 // change, a chat linked or unlinked, a share link created. The first two of those that are about
-// habit can be muted; the others cannot (AUTH-U11).
+// habit can be muted; the others cannot (AUTH-U11, SEC-AUD-4).
 func TestSecurityNoticesReachTheAppAndTheChat(t *testing.T) {
 	s := newStack(t)
 	key := s.makeBot("m", "example.org")
