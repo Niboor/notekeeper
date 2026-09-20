@@ -181,3 +181,36 @@ test('attach a file to a new note and download it again', async ({ page }) => {
   expect(download.disposition).toContain('ticket.txt')
   void fx
 })
+
+// CORE-N14, GRP-10, WEB-15, WEB-13: correct a grouping in the app (merge two notes, split one out) and
+// go back to an earlier text from the history.
+test('merge two notes, split one out, and restore an earlier text', async ({ page }) => {
+  const fx = await openFreshBoard(page)
+  const a = await createNote(page, 'merge one', fx.columns.Todo)
+  await createNote(page, 'merge two', fx.columns.Todo)
+  await page.reload()
+  const todo = lane(page, 'Todo')
+  await expect(todo.locator('article.note')).toHaveCount(2)
+
+  await card(todo, 'merge one').getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: 'Merge another note into this one…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Merge notes' })
+  await dialog.getByRole('button', { name: 'Merge', exact: true }).click()
+  await expect(todo.locator('article.note')).toHaveCount(1)
+  await expect(card(todo, 'merge one')).toContainText('merge two')
+
+  await card(todo, 'merge one').getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: /Split out as a note of its own: merge two/ }).click()
+  await expect(todo.locator('article.note')).toHaveCount(2)
+  await expect(card(todo, 'merge two')).not.toContainText('merge one')
+
+  // History: an edit in the app, then back to the first text.
+  await api(page, 'PATCH', `/api/v1/notes/${a}/parts/${(await api<{ parts: { id: string }[] }>(page, 'GET', `/api/v1/notes/${a}`)).body.parts[0]!.id}`, { text: 'merge one, edited' })
+  await expect(card(todo, 'merge one, edited')).toBeVisible()
+  await card(todo, 'merge one, edited').getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: 'History…' }).click()
+  const history = page.getByRole('dialog', { name: 'Earlier versions' })
+  await history.getByRole('button', { name: /Restore this version/ }).first().click()
+  await expect(card(todo, 'merge one')).toBeVisible()
+  await expect(card(todo, 'merge one, edited')).toHaveCount(0)
+})

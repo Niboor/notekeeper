@@ -145,7 +145,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		key string
 		def uint64
 	}{
-		{&c.RateIPPerMin, "NK_RATE_IP_PER_MIN", 1200}, {&c.RateUserPerMin, "NK_RATE_USER_PER_MIN", 900},
+		{&c.RateIPPerMin, "NK_RATE_IP_PER_MIN", 3000}, {&c.RateUserPerMin, "NK_RATE_USER_PER_MIN", 1800},
 		{&c.RateBotPerMin, "NK_RATE_BOT_PER_MIN", 6000}, {&c.RateIdentityPerMin, "NK_RATE_IDENTITY_PER_MIN", 600},
 		{&c.MaxConcurrentUpload, "NK_MAX_CONCURRENT_UPLOADS", 4},
 	} {

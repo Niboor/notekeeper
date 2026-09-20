@@ -192,7 +192,7 @@ func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 	bodies := map[string]any{
 		"updatePage": map[string]any{"name": "x"}, "updateCategory": map[string]any{"name": "x"},
 		"moveNote": map[string]any{"category_id": nil}, "addNotePart": map[string]any{"type": "text", "text": "x"},
-		"editNotePart": map[string]any{"text": "x"}, "createShareLink": map[string]any{"expires_in": "1d"}, "createReminder": map[string]any{"due_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
+		"editNotePart": map[string]any{"text": "x"}, "createShareLink": map[string]any{"expires_in": "1d"}, "mergeNotes": map[string]any{"source_id": "00000000-0000-4000-8000-00000000abcd"}, "createReminder": map[string]any{"due_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
 		"updateReminder": map[string]any{"rrule": ""}, "snoozeReminder": map[string]any{"until": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}, "updateIdentity": map[string]any{"reminder_target": true},
 	}
 

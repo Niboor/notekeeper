@@ -143,3 +143,6 @@ button.file { font: inherit; cursor: pointer; text-align: left; }
 .admin-table th { font-size: 13px; color: var(--muted); }
 .bot-card { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.history-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.history-text { white-space: pre-wrap; word-break: break-word; margin: 4px 0; font-family: var(--font-note); background: var(--field); padding: 6px 8px; border-radius: var(--radius-sm); }

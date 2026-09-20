@@ -11,12 +11,13 @@ import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
 import { laneDropId } from './dnd'
 
-function SortableNote({ note, laneId, lifted, onKeyDown }: { note: Note; laneId: string; lifted: boolean; onKeyDown?: (e: React.KeyboardEvent, n: Note) => void }) {
+function SortableNote({ note, laneId, lifted, onKeyDown, siblings }: { note: Note; laneId: string; lifted: boolean; onKeyDown?: (e: React.KeyboardEvent, n: Note) => void; siblings: Note[] }) {
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
   return (
     <NoteCard
       note={note}
       laneId={laneId}
+      siblings={siblings}
       dragging={isDragging}
       lifted={lifted}
       innerRef={(el) => {
@@ -95,7 +96,7 @@ export function Lane({ id, name, notes, total, current, liftedId, onNoteKeyDown,
         <div className="lane-notes">
           {composerOpen && <Composer categoryId={isInbox ? null : id} onClose={onCloseComposer} />}
           {notes.map((n) => (
-            <SortableNote key={n.id} note={n} laneId={id} lifted={liftedId === n.id} onKeyDown={onNoteKeyDown} />
+            <SortableNote key={n.id} note={n} laneId={id} siblings={notes} lifted={liftedId === n.id} onKeyDown={onNoteKeyDown} />
           ))}
           {notes.length === 0 && !composerOpen && <p className="empty">{isInbox ? t('inbox.empty') : t('lane.empty')}</p>}
           {hasMore && (

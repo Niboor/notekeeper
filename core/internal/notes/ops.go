@@ -726,3 +726,124 @@ func decodeKeyCursor(c string) (string, uuid.UUID, error) {
 	}
 	return key, id, nil
 }
+
+// Merge moves every part of source into target and removes source, to correct a grouping the app got
+// wrong (CORE-N14, GRP-10). The parts keep their origin, so a later edit or deletion in the chat still
+// finds them; the reminders of source move to target; links to source stop existing with it. Both notes
+// must be active and belong to the caller.
+func (s *Service) Merge(ctx context.Context, user, targetID, sourceID uuid.UUID) (Note, error) {
+	if targetID == sourceID {
+		return Note{}, invalid("a note cannot be merged into itself")
+	}
+	var out Note
+	err := s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
+		target, err := tx.Q.GetNote(ctx, dbq.GetNoteParams{ID: targetID, UserID: user})
+		if err != nil {
+			return notFound(err)
+		}
+		source, err := tx.Q.GetNote(ctx, dbq.GetNoteParams{ID: sourceID, UserID: user})
+		if err != nil {
+			return notFound(err)
+		}
+		if target.State != "active" || source.State != "active" {
+			return ErrConflict
+		}
+		offset, err := tx.Q.NextPartOrdinal(ctx, targetID)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Q.MovePartsToNote(ctx, dbq.MovePartsToNoteParams{UserID: user, NoteID: sourceID, NoteID_2: targetID, Ordinal: offset}); err != nil {
+			return err
+		}
+		if _, err := tx.Q.MoveRemindersToNote(ctx, dbq.MoveRemindersToNoteParams{UserID: user, NoteID: sourceID, NoteID_2: targetID}); err != nil {
+			return err
+		}
+		if _, err := tx.Q.DeleteNoteAnyState(ctx, dbq.DeleteNoteAnyStateParams{ID: sourceID, UserID: user}); err != nil {
+			return err
+		}
+		n, err := tx.Q.TouchNote(ctx, dbq.TouchNoteParams{ID: targetID, UserID: user, UpdatedAt: s.now()})
+		if err != nil {
+			return err
+		}
+		if err := tx.Change(ctx, "note", sourceID, "delete", nil); err != nil {
+			return err
+		}
+		if err := tx.Change(ctx, "share_link", sourceID, "delete", nil); err != nil { // links of the removed note went with it
+			return err
+		}
+		if err := tx.Change(ctx, "note", targetID, "upsert", &n.Version); err != nil {
+			return err
+		}
+		res, err := withParts(ctx, tx.Q, []dbq.Note{n})
+		if err != nil {
+			return err
+		}
+		out = res[0]
+		return nil
+	})
+	return out, err
+}
+
+// SplitResult is the note the part left and the note it now forms.
+type SplitResult struct{ Source, Created Note }
+
+// Split takes one part out of a note into a note of its own, placed right below it, with the part's
+// own time as its creation time (CORE-N14, GRP-10). A note always keeps at least one part (CORE-N1).
+func (s *Service) Split(ctx context.Context, user, noteID, partID uuid.UUID) (SplitResult, error) {
+	var out SplitResult
+	err := s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
+		src, err := tx.Q.GetNote(ctx, dbq.GetNoteParams{ID: noteID, UserID: user})
+		if err != nil {
+			return notFound(err)
+		}
+		if src.State != "active" {
+			return ErrConflict
+		}
+		part, err := tx.Q.GetNotePart(ctx, dbq.GetNotePartParams{ID: partID, NoteID: noteID, UserID: user})
+		if err != nil {
+			return notFound(err)
+		}
+		if n, err := tx.Q.CountNoteParts(ctx, noteID); err != nil {
+			return err
+		} else if n < 2 {
+			return invalid("a note with one part cannot be split")
+		}
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		var category uuid.NullUUID
+		var key *string
+		if src.CategoryID.Valid {
+			k, err := s.NoteGroup(tx, src.CategoryID.UUID, id, s.now()).Place(ctx, position.Hints{AfterID: &noteID})
+			if err != nil {
+				return mapPosition(err)
+			}
+			category, key = src.CategoryID, &k
+		}
+		created, err := tx.Q.InsertNoteAtCreated(ctx, dbq.InsertNoteAtCreatedParams{ID: id, UserID: user, CategoryID: category, Position: key, CreatedAt: part.CreatedAt, ReceivedAt: s.now()})
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Q.MovePartToNewNote(ctx, dbq.MovePartToNewNoteParams{UserID: user, ID: partID, NoteID: id}); err != nil {
+			return err
+		}
+		touched, err := tx.Q.TouchNote(ctx, dbq.TouchNoteParams{ID: noteID, UserID: user, UpdatedAt: s.now()})
+		if err != nil {
+			return err
+		}
+		if err := tx.Change(ctx, "note", noteID, "upsert", &touched.Version); err != nil {
+			return err
+		}
+		if err := tx.Change(ctx, "note", id, "upsert", &created.Version); err != nil {
+			return err
+		}
+		res, err := withParts(ctx, tx.Q, []dbq.Note{touched, created})
+		if err != nil {
+			return err
+		}
+		out = SplitResult{Source: res[0], Created: res[1]}
+		return nil
+	})
+	return out, err
+}

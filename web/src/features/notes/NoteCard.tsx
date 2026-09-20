@@ -5,11 +5,13 @@ import { NoteContent } from '../../components/NoteContent'
 import { taskProgress } from '../../components/markdown'
 import { timeAgo } from '../../components/time'
 import { t } from '../../i18n'
+import { HistoryDialog } from './HistoryDialog'
+import { MergeDialog } from './MergeDialog'
 import { ReminderDialog } from '../reminders/ReminderDialog'
 import { repeatWord } from '../reminders/hooks'
 import { ShareDialog, formatWhen } from '../share/ShareDialog'
 import { useSharedNoteIds } from '../share/hooks'
-import { useAddPart, useDismissNote, useEditPart, useMoveNote, usePages, useRemovePart } from '../hooks'
+import { useAddPart, useSplitPart, useDismissNote, useEditPart, useMoveNote, usePages, useRemovePart } from '../hooks'
 import { INBOX, type Note, type NotePart } from '../types'
 import { AttachmentView } from './AttachmentView'
 
@@ -31,10 +33,12 @@ interface Props {
   lifted?: boolean
   /** Where the note currently is (for "move to" menus); hides the current lane from the list. */
   laneId?: string
+  /** The other notes of the same column, to merge from. */
+  siblings?: Note[]
 }
 
 /** One note as a card: content, attachments, meta line, and its actions. */
-export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted, laneId }: Props) {
+export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted, laneId, siblings }: Props) {
   const dismiss = useDismissNote()
   const edit = useEditPart()
   const addPart = useAddPart()
@@ -46,6 +50,9 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
   const [draft, setDraft] = useState('')
   const [sharing, setSharing] = useState(false)
   const [reminding, setReminding] = useState(false)
+  const [merging, setMerging] = useState(false)
+  const [viewingHistory, setViewingHistory] = useState(false)
+  const split = useSplitPart()
   const shared = useSharedNoteIds().has(note.id)
 
   const source = sourceLabel(note)
@@ -90,7 +97,15 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
 
   const menu: MenuItem[] = [
     ...(textParts[0] ? [{ label: t('note.edit'), onSelect: () => startEdit(textParts[0]!) }] : [{ label: t('note.addText'), onSelect: () => startEdit(null) }]),
+    ...(textParts.length > 0 ? [{ label: t('history.action'), onSelect: () => setViewingHistory(true) }] : []),
     { label: t('remind.action'), onSelect: () => setReminding(true) },
+    ...(siblings && note.state === 'active' ? [{ label: t('merge.action'), onSelect: () => setMerging(true) }] : []),
+    ...(note.state === 'active' && note.parts.length > 1
+      ? note.parts.map((p) => ({
+          label: `${t('merge.split')}: ${(p.text ?? p.attachment?.filename ?? p.failed?.filename ?? '…').replace(/\s+/g, ' ').slice(0, 30)}`,
+          onSelect: () => split.mutate({ noteId: note.id, partId: p.id }),
+        }))
+      : []),
     { label: t('share.action'), onSelect: () => setSharing(true) },
     ...moveItems,
   ]
@@ -186,6 +201,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
         <span className="origin">
           <Icon name={source ? 'chat' : 'pen'} />
           {source ? t('note.origin.chat', { source }) : t('note.origin.app')} · {timeAgo(note.created_at)}
+          {note.parts.some((p) => p.text_edited_at) && ` · ${t('note.edited')}`}
         </span>
         {note.reminders?.filter((r) => r.state === 'pending' || r.state === 'fired').slice(0, 1).map((r) => (
           <button
@@ -222,6 +238,8 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
           </Menu>
         </div>
       )}
+      {viewingHistory && <HistoryDialog note={note} onClose={() => setViewingHistory(false)} />}
+      {merging && <MergeDialog note={note} candidates={(siblings ?? []).filter((n) => n.id !== note.id)} onClose={() => setMerging(false)} />}
       {reminding && <ReminderDialog note={note} onClose={() => setReminding(false)} />}
       {sharing && <ShareDialog noteId={note.id} onClose={() => setSharing(false)} />}
     </article>

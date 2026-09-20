@@ -35,7 +35,7 @@ func newLimits(cfg config.Config, trusted []netip.Prefix, reg prometheus.Registe
 		}
 		return v
 	}
-	cfg.RateIPPerMin, cfg.RateUserPerMin = def(cfg.RateIPPerMin, 1200), def(cfg.RateUserPerMin, 900)
+	cfg.RateIPPerMin, cfg.RateUserPerMin = def(cfg.RateIPPerMin, 3000), def(cfg.RateUserPerMin, 1800)
 	cfg.RateBotPerMin, cfg.RateIdentityPerMin, cfg.MaxConcurrentUpload = def(cfg.RateBotPerMin, 6000), def(cfg.RateIdentityPerMin, 600), def(cfg.MaxConcurrentUpload, 4)
 	burst := func(perMin int) float64 { return float64(max(20, perMin/3)) }
 	l := &limits{

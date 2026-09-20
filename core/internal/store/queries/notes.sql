@@ -139,3 +139,18 @@ order by created_at desc limit 1;
 
 -- name: IdentityByConversation :one
 select * from external_identities where bot_instance_id = $1 and conversation_id = $2 limit 1;
+
+-- name: MovePartsToNote :execrows
+update note_parts set note_id = $3, ordinal = ordinal + $4 where user_id = $1 and note_id = $2;
+
+-- name: MovePartToNewNote :execrows
+update note_parts set note_id = $3, ordinal = 0 where user_id = $1 and id = $2;
+
+-- name: MoveRemindersToNote :execrows
+update reminders set note_id = $3, version = version + 1 where user_id = $1 and note_id = $2;
+
+-- name: DeleteNoteAnyState :execrows
+delete from notes where id = $1 and user_id = $2;
+
+-- name: InsertNoteAtCreated :one
+insert into notes (id, user_id, category_id, position, created_at, received_at) values ($1, $2, $3, $4, $5, $6) returning *;

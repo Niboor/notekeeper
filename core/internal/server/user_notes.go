@@ -380,3 +380,30 @@ func (u *userAPI) GetNoteHistory(ctx context.Context, req userapi.GetNoteHistory
 	}
 	return out, nil
 }
+
+func (u *userAPI) MergeNotes(ctx context.Context, req userapi.MergeNotesRequestObject) (userapi.MergeNotesResponseObject, error) {
+	p, err := mustPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errBadRequest
+	}
+	n, err := u.notes.Merge(ctx, p.UserID, req.Id, req.Body.SourceId)
+	if err != nil {
+		return nil, err
+	}
+	return userapi.MergeNotes200JSONResponse(noteOf(n)), nil
+}
+
+func (u *userAPI) SplitNotePart(ctx context.Context, req userapi.SplitNotePartRequestObject) (userapi.SplitNotePartResponseObject, error) {
+	p, err := mustPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	res, err := u.notes.Split(ctx, p.UserID, req.Id, req.PartId)
+	if err != nil {
+		return nil, err
+	}
+	return userapi.SplitNotePart200JSONResponse{Source: noteOf(res.Source), Created: noteOf(res.Created)}, nil
+}

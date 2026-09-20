@@ -138,6 +138,7 @@ func (ch *chatter) photo(name string) map[string]any {
 }
 
 type partView struct {
+	ID           string  `json:"id"`
 	Kind         string  `json:"kind"`
 	Text         *string `json:"text"`
 	AttachReason string  `json:"attach_reason"`

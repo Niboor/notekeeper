@@ -553,6 +553,49 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Note'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/merge:
+    post:
+      operationId: mergeNotes
+      summary: Move all parts of another note into this one and remove the other note
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_id]
+              properties:
+                source_id: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The note with the merged parts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/parts/{partId}/split:
+    post:
+      operationId: splitNotePart
+      summary: Take one part out of a note into a note of its own
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/PartId'}
+      responses:
+        '200':
+          description: Both notes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [source, created]
+                properties:
+                  source: {$ref: '#/components/schemas/Note'}
+                  created: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/notes/{id}/dismiss:
     post:
       operationId: dismissNote

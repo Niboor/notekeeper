@@ -82,6 +82,23 @@ func (q *Queries) DeleteNote(ctx context.Context, arg DeleteNoteParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteNoteAnyState = `-- name: DeleteNoteAnyState :execrows
+delete from notes where id = $1 and user_id = $2
+`
+
+type DeleteNoteAnyStateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteNoteAnyState(ctx context.Context, arg DeleteNoteAnyStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNoteAnyState, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteNotePart = `-- name: DeleteNotePart :exec
 delete from note_parts where id = $1
 `
@@ -304,6 +321,44 @@ func (q *Queries) InsertNoteAt(ctx context.Context, arg InsertNoteAtParams) (Not
 		arg.CategoryID,
 		arg.Position,
 		arg.CreatedAt,
+	)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const insertNoteAtCreated = `-- name: InsertNoteAtCreated :one
+insert into notes (id, user_id, category_id, position, created_at, received_at) values ($1, $2, $3, $4, $5, $6) returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type InsertNoteAtCreatedParams struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	CategoryID uuid.NullUUID
+	Position   *string
+	CreatedAt  time.Time
+	ReceivedAt time.Time
+}
+
+func (q *Queries) InsertNoteAtCreated(ctx context.Context, arg InsertNoteAtCreatedParams) (Note, error) {
+	row := q.db.QueryRow(ctx, insertNoteAtCreated,
+		arg.ID,
+		arg.UserID,
+		arg.CategoryID,
+		arg.Position,
+		arg.CreatedAt,
+		arg.ReceivedAt,
 	)
 	var i Note
 	err := row.Scan(
@@ -633,6 +688,66 @@ func (q *Queries) ListTrash(ctx context.Context, arg ListTrashParams) ([]Note, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const movePartToNewNote = `-- name: MovePartToNewNote :execrows
+update note_parts set note_id = $3, ordinal = 0 where user_id = $1 and id = $2
+`
+
+type MovePartToNewNoteParams struct {
+	UserID uuid.UUID
+	ID     uuid.UUID
+	NoteID uuid.UUID
+}
+
+func (q *Queries) MovePartToNewNote(ctx context.Context, arg MovePartToNewNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, movePartToNewNote, arg.UserID, arg.ID, arg.NoteID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const movePartsToNote = `-- name: MovePartsToNote :execrows
+update note_parts set note_id = $3, ordinal = ordinal + $4 where user_id = $1 and note_id = $2
+`
+
+type MovePartsToNoteParams struct {
+	UserID   uuid.UUID
+	NoteID   uuid.UUID
+	NoteID_2 uuid.UUID
+	Ordinal  int32
+}
+
+func (q *Queries) MovePartsToNote(ctx context.Context, arg MovePartsToNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, movePartsToNote,
+		arg.UserID,
+		arg.NoteID,
+		arg.NoteID_2,
+		arg.Ordinal,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveRemindersToNote = `-- name: MoveRemindersToNote :execrows
+update reminders set note_id = $3, version = version + 1 where user_id = $1 and note_id = $2
+`
+
+type MoveRemindersToNoteParams struct {
+	UserID   uuid.UUID
+	NoteID   uuid.UUID
+	NoteID_2 uuid.UUID
+}
+
+func (q *Queries) MoveRemindersToNote(ctx context.Context, arg MoveRemindersToNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveRemindersToNote, arg.UserID, arg.NoteID, arg.NoteID_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const nextPartOrdinal = `-- name: NextPartOrdinal :one

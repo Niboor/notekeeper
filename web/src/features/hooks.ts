@@ -317,3 +317,38 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
   }
   return (await res.json()) as UploadedFile
 }
+
+// ---- merge and split (CORE-N14) ---------------------------------------------------------------
+
+function refreshNotes(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ['inbox'] })
+  void qc.invalidateQueries({ queryKey: ['board'] })
+  void qc.invalidateQueries({ queryKey: ['reminders'] })
+  void qc.invalidateQueries({ queryKey: ['share-links'] })
+}
+
+export function useMergeNotes() {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  return useMutation({
+    mutationFn: async (v: { target: string; source: string }) =>
+      unwrap(await api.POST('/api/v1/notes/{id}/merge', { params: { path: { id: v.target } }, body: { source_id: v.source } })),
+    onSuccess: () => {
+      refreshNotes(qc)
+      toast({ message: t('merge.done') })
+    },
+  })
+}
+
+export function useSplitPart() {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  return useMutation({
+    mutationFn: async (v: { noteId: string; partId: string }) =>
+      unwrap(await api.POST('/api/v1/notes/{id}/parts/{partId}/split', { params: { path: { id: v.noteId, partId: v.partId } } })),
+    onSuccess: () => {
+      refreshNotes(qc)
+      toast({ message: t('merge.splitDone') })
+    },
+  })
+}

@@ -33,6 +33,8 @@ export NK_APP_URL="http://localhost:$WEB"
 export NK_SHARE_URL="http://share.localhost:$WEB"
 export NK_USER_ADDR=":$CORE_USER" NK_BOT_ADDR=":$CORE_BOT" NK_PUBLIC_ADDR=":$CORE_PUBLIC" NK_OPS_ADDR=":$CORE_OPS"
 export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL=warn
+# One browser hammers the API from one address, much faster than a person does: raise the limits, do not disable them.
+export NK_RATE_IP_PER_MIN=60000 NK_RATE_USER_PER_MIN=30000
 
 .bin/core migrate
 .bin/core serve >"$ROOT/e2e/core.log" 2>&1 &
