@@ -236,7 +236,7 @@ func TestIngressEnforcesModernTLS(t *testing.T) {
 func TestAlertsUseRealMetrics(t *testing.T) {
 	rules := repoFile(t, "deploy", "k8s", "base", "prometheusrule.yaml")
 	code := ""
-	for _, f := range []string{"core/internal/obs/obs.go", "core/internal/obs/collectors.go", "core/internal/server/limits.go"} {
+	for _, f := range []string{"core/internal/obs/obs.go", "core/internal/obs/collectors.go", "core/internal/server/limits.go", "bots/matrix/internal/bot/metrics.go", "bots/matrix/internal/bot/bot.go"} {
 		code += repoFile(t, filepath.FromSlash(f))
 	}
 	exprs := regexp.MustCompile(`\bnk_[a-z_]+`).FindAllString(rules, -1)

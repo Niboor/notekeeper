@@ -35,7 +35,22 @@ The sync handler is **synchronous with Core**: `DefaultSyncer` dispatches every 
 - Handler gives up (or panics) or the process dies mid-batch: `ProcessResponse` reports an error, the sync loop ends, the pod restarts, and the batch is replayed from the last committed token; Core deduplicates by event id (BOT-7).
 - **Not retryable** results (Core answered `rejected`, or `4xx` for a malformed event): the bot reports to the user if `reply_text` is set, records a counter and moves on. It never blocks forever on one bad event.
 
+- **Poison events.** The SDK retries an outage (no answer, 502, 503, 504, 429) without limit, but a plain `500` ten times in a row for the same request (about three minutes of backoff) is treated as refused for good: the bot replies "it was not saved", counts it as `refused` and moves on. Without this cap one event that Core cannot process (a deterministic failure) would stall the bot for every user. Core also repairs what it can before it fails: NUL bytes and invalid UTF-8 in chat text are removed or replaced, never answered with a 500 (`ingest.sanitize`). The alert `NotekeeperBotStalled` fires when `nk_bot_last_sync_timestamp_seconds` stops moving even though the pod is up.
+- **Unknown is not "no".** Whether a room is a two-person chat is asked of the homeserver and remembered until someone joins or leaves. If the homeserver cannot answer, an inbound event waits (five tries with backoff) and then fails the handler, so the batch is replayed after the restart; it is never dropped as "not a DM" with the token moving on. Outbound, an unknown answer is a transient failure that Core retries, and a reminder is only sent after a live check that the room still holds exactly the bot and the person the item is for (SEC-MX-2).
+
 Events are handled in arrival order, which for one room is the platform order Core expects (BOT-9); with one sync goroutine there is no reordering.
+
+### 3.1 Gaps in the timeline (MX-9, BOT-B2, BOT-10)
+
+The sync token guarantees that no event is skipped *between* responses, but a homeserver may answer with a **limited** timeline: only the newest events of a room (the sync filter's timeline limit, 50 with mautrix's default) and `limited: true` with a `prev_batch` token. Whatever came before, for example the messages that arrived while the bot was down, is not in the response. A sync listener (`backfillGaps`) handles this before the events are dispatched:
+
+1. For every joined two-person room with `limited: true` (never on the first sync of a fresh deployment, whose history is not ours to import), ask Core how far it got: `GET /bot/v1/conversations/{id}/cursor` (the platform time of its newest message, none when it holds nothing).
+2. Page backwards from `prev_batch` with `/messages` (only message, encrypted and redaction events, 100 per page), until an event is older than the cursor minus ten minutes, the start of the room, or 20 pages.
+3. Put the fetched events, oldest first, in front of the response's own events. They go through the same dispatch (decryption, handlers), and the sync token is committed only after all of them were handled, exactly like the rest of the batch.
+
+Overlap is harmless because Core deduplicates by event id. When the page limit is hit, the bot logs an error and counts `nk_bot_sync_gaps_total{outcome="truncated"}`; a gap that was filled counts `outcome="filled"`. A transient failure retries and then fails the handler (replay after restart); a refusal from the homeserver (4xx) is logged and the room carries on with what the sync gave.
+
+Messages the bot could not decrypt (the keys never arrived, even after the crypto helper waited and asked the sender's devices) get one short reply per room per ten minutes asking the user to send the message again, so the failure is visible (CR-004).
 
 *Guarded by tests:* `TestSyncTokenCommit` in `bots/matrix/internal/e2eetest` runs the same "handler fails mid-batch, pod restarts" scenario twice against Synapse: with mautrix's default behaviour the message is **lost** (this documents the library behaviour and will fail loudly if a future mautrix version changes it), and with `syncack` it is **redelivered**. Unit tests in `internal/syncack` cover the wrapper.
 

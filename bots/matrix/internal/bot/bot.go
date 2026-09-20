@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
 
@@ -44,18 +45,37 @@ type Bot struct {
 	client *mautrix.Client
 	helper *cryptohelper.CryptoHelper
 	db     *dbutil.Database
-	rooms  *roomStore
+	rooms  roomMemory
 
 	lastSync atomic.Int64 // unix nanoseconds of the last fully processed sync response
 
-	mu      sync.Mutex
-	dmCache map[id.RoomID]bool
-	invites []time.Time
+	// history and cursor, if set, replace the homeserver and Core in gap filling (tests).
+	history historyClient
+	cursor  cursorSource
+
+	// LookupBackoff, if set, replaces the wait between attempts to list a room's members (tests).
+	LookupBackoff func(attempt int) time.Duration
+
+	mu            sync.Mutex
+	dmCache       map[id.RoomID]bool
+	invites       []time.Time
+	undecryptable map[id.RoomID]time.Time
 }
 
 // New creates a bot. Call Start, then Sync.
 func New(cfg config.Config, log *slog.Logger, core *sdk.Client) *Bot {
-	return &Bot{cfg: cfg, log: log, core: core, met: newMetrics(), dmCache: map[id.RoomID]bool{}}
+	b := &Bot{cfg: cfg, log: log, core: core, met: newMetrics(), dmCache: map[id.RoomID]bool{}, undecryptable: map[id.RoomID]time.Time{}}
+	// Lets an alert tell "the bot is up but stuck" (a message it cannot get through, a homeserver that
+	// stopped answering) from "the bot is running": a standby replica reports 0.
+	b.met.Registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "nk_bot_last_sync_timestamp_seconds", Help: "Unix time of the last fully processed sync response, 0 before the first.",
+	}, func() float64 {
+		if t := b.LastSync(); !t.IsZero() {
+			return float64(t.Unix())
+		}
+		return 0
+	}))
+	return b
 }
 
 // LastSync returns when the last sync response was processed, or the zero time.
@@ -87,8 +107,9 @@ func (b *Bot) Start(ctx context.Context) error {
 		return fmt.Errorf("open database: %w", err)
 	}
 	b.db = db
-	b.rooms = &roomStore{db: db}
-	if err := b.rooms.init(ctx); err != nil {
+	rooms := &roomStore{db: db}
+	b.rooms = rooms
+	if err := rooms.init(ctx); err != nil {
 		return fmt.Errorf("prepare room table: %w", err)
 	}
 
@@ -106,6 +127,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		// Never log the event body; identifiers are enough to investigate (SEC-DATA-1).
 		b.met.decryptFailures.Inc()
 		b.log.Warn("could not decrypt an event", "room", evt.RoomID, "event", evt.ID, "error", err)
+		b.tellUndecryptable(evt)
 	}
 	if err := helper.Init(ctx); err != nil {
 		return fmt.Errorf("initialise encryption: %w", err)
@@ -116,6 +138,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	client.Store = ackStore
 	b.client, b.helper, b.db = client, helper, db
 
+	syncer.OnSync(b.backfillGaps)
 	syncer.OnEventType(event.EventMessage, b.onMessage)
 	syncer.OnEventType(event.EventRedaction, b.onRedaction)
 	syncer.OnEventType(event.StateMember, b.onMember)
@@ -170,14 +193,14 @@ func (b *Bot) onMessage(ctx context.Context, evt *event.Event) {
 	if evt.Sender == b.client.UserID {
 		return
 	}
-	if !b.roomAllowed(ctx, evt.RoomID) {
+	if !b.allowedOrStall(ctx, evt.RoomID) {
 		return
 	}
 	b.handle(ctx, evt, normalise.Message(evt))
 }
 
 func (b *Bot) onRedaction(ctx context.Context, evt *event.Event) {
-	if evt.Sender == b.client.UserID || !b.roomAllowed(ctx, evt.RoomID) {
+	if evt.Sender == b.client.UserID || !b.allowedOrStall(ctx, evt.RoomID) {
 		return
 	}
 	b.handle(ctx, evt, normalise.Redaction(evt))
@@ -249,6 +272,35 @@ func (b *Bot) feedback(ctx context.Context, evt *event.Event, fb botclient.Feedb
 func (b *Bot) sendNotice(ctx context.Context, room id.RoomID, text string) {
 	if _, err := b.client.SendNotice(ctx, room, text); err != nil {
 		b.log.Warn("could not send a reply", "room", room, "error", err)
+	}
+}
+
+const (
+	undecryptableNotice = "I could not read your last message: the encryption keys did not arrive, so it was not saved. Please send it again."
+	undecryptableEvery  = 10 * time.Minute
+)
+
+// tellUndecryptable answers a message that could not be decrypted, once every few minutes per room,
+// so the user knows to send it again instead of wondering why the note never appeared (CR-004). The
+// crypto helper has already waited for the keys and asked the sender's devices for them.
+func (b *Bot) tellUndecryptable(evt *event.Event) {
+	if evt.Sender == b.client.UserID {
+		return
+	}
+	b.mu.Lock()
+	last := b.undecryptable[evt.RoomID]
+	due := time.Since(last) >= undecryptableEvery
+	if due {
+		b.undecryptable[evt.RoomID] = time.Now()
+	}
+	b.mu.Unlock()
+	if !due {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if b.roomAllowed(ctx, evt.RoomID) {
+		b.sendNotice(ctx, evt.RoomID, undecryptableNotice)
 	}
 }
 

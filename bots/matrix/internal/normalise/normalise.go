@@ -4,6 +4,7 @@
 package normalise
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -238,16 +239,19 @@ func ParseCommand(body string) (name, args string, ok bool) {
 	return first, after, true
 }
 
+var replyFallbackStart = regexp.MustCompile(`^> ?(<@[^>\s]+>|\* <@[^>\s]+>)`)
+
 // StripReplyFallback removes the quoted block older clients put before the actual text of a reply:
-// leading lines that start with "> ", followed by one blank line.
+// a first line of the form "> <@user:server> text" and the "> " lines after it, followed by one
+// blank line. Quoted text the sender wrote themselves ("> like this") is kept (CR-007).
 func StripReplyFallback(body string) string {
 	lines := strings.Split(body, "\n")
+	if !replyFallbackStart.MatchString(lines[0]) {
+		return body
+	}
 	i := 0
 	for i < len(lines) && strings.HasPrefix(lines[i], ">") {
 		i++
-	}
-	if i == 0 {
-		return body
 	}
 	if i < len(lines) && strings.TrimSpace(lines[i]) == "" {
 		i++

@@ -139,8 +139,46 @@ func (s *Service) window(settings []byte) time.Duration {
 	return s.DefaultWindow
 }
 
+// cleanText makes chat text storable: PostgreSQL text cannot hold U+0000, and invalid UTF-8 would
+// be rejected too, and either would make Core answer 500 to the same event on every retry (CR-003).
+// The text is repaired rather than refused so the message is not lost.
+func cleanText(s string) string {
+	if strings.IndexByte(s, 0) >= 0 {
+		s = strings.ReplaceAll(s, "\x00", "")
+	}
+	if !utf8.ValidString(s) {
+		s = strings.ToValidUTF8(s, "\uFFFD")
+	}
+	return s
+}
+
+// storable reports whether an identifier can be stored as is.
+func storable(fields ...string) bool {
+	for _, f := range fields {
+		if strings.IndexByte(f, 0) >= 0 || !utf8.ValidString(f) {
+			return false
+		}
+	}
+	return true
+}
+
+// sanitize repairs the free text of an event (text, descriptions, file names). Identifiers are not
+// repaired: validate refuses them.
+func (e *Event) sanitize() {
+	parts := make([]Part, len(e.Parts))
+	for i, p := range e.Parts {
+		p.Text, p.Description, p.Filename = cleanText(p.Text), cleanText(p.Description), cleanText(p.Filename)
+		p.MediaType, p.Reason = cleanText(p.MediaType), cleanText(p.Reason)
+		parts[i] = p
+	}
+	e.Parts = parts
+}
+
 func (e Event) validate() error {
 	bad := func(msg string) error { return fmt.Errorf("%w: %s", ErrInvalid, msg) }
+	if !storable(e.EventID, e.Sender, e.Conversation, e.MessageID, e.ReplyTo, e.Thread) {
+		return bad("identifier is not valid text")
+	}
 	if e.EventID == "" || e.Sender == "" || e.Conversation == "" || e.MessageID == "" {
 		return bad("event_id, sender, conversation and message_id are required")
 	}
@@ -189,6 +227,7 @@ const unlinkedReply = "I don't know you yet. To link this chat to your Notekeepe
 
 // Handle processes one event from an authenticated bot.
 func (s *Service) Handle(ctx context.Context, bot *bots.Principal, ev Event) (Outcome, error) {
+	ev.sanitize()
 	if err := ev.validate(); err != nil {
 		return Outcome{}, err
 	}

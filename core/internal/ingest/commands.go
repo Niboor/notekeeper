@@ -45,6 +45,10 @@ func reply(ok bool, text string) CommandOutcome {
 // HandleCommand runs a command for a sender. `link` and `help` work for unlinked senders; every
 // other command from an unlinked sender is answered like any message from one (AUTH-B6).
 func (s *Service) HandleCommand(ctx context.Context, bot *bots.Principal, cmd Command) (CommandOutcome, error) {
+	if !storable(cmd.Name, cmd.Sender, cmd.Conversation, cmd.ReplyTo, cmd.MessageID) {
+		return CommandOutcome{}, fmt.Errorf("%w: identifier is not valid text", ErrInvalid)
+	}
+	cmd.Args = cleanText(cmd.Args)
 	name := strings.ToLower(strings.TrimSpace(cmd.Name))
 	if cmd.Sender == "" || cmd.Conversation == "" || name == "" {
 		return CommandOutcome{}, fmt.Errorf("%w: sender, conversation and command are required", ErrInvalid)

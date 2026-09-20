@@ -40,6 +40,11 @@ spec:
           for: 5m
           labels: {severity: critical}
           annotations: {summary: The Matrix bot is not running, so chat messages are not reaching Notekeeper}
+        - alert: NotekeeperBotStalled
+          expr: time() - max(nk_bot_last_sync_timestamp_seconds) > 600
+          for: 5m
+          labels: {severity: critical}
+          annotations: {summary: The Matrix bot is running but has not completed a sync for ten minutes, so chat messages are not reaching Notekeeper}
         - alert: NotekeeperOutboxBacklog
           expr: sum(nk_outbox_items{state=~"queued|claimed"}) > 50
           for: 15m

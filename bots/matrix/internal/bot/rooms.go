@@ -2,8 +2,6 @@ package bot
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/id"
@@ -14,6 +12,14 @@ import (
 // No message content and no user data is stored here (BOT-B5, SEC-MX-3).
 type roomStore struct{ db *dbutil.Database }
 
+// roomMemory is what the bot needs from the room table (a fake in tests).
+type roomMemory interface {
+	ignore(ctx context.Context, room id.RoomID) (alreadyNotified bool, err error)
+	markNotified(ctx context.Context, room id.RoomID) error
+	recover(ctx context.Context, room id.RoomID) error
+	forget(ctx context.Context, room id.RoomID) error
+}
+
 func (s *roomStore) init(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, `create table if not exists nk_rooms (
 		room_id  text primary key,
@@ -23,13 +29,11 @@ func (s *roomStore) init(ctx context.Context) error {
 	return err
 }
 
-func (s *roomStore) isIgnored(ctx context.Context, room id.RoomID) (bool, error) {
-	var ignored bool
-	err := s.db.QueryRow(ctx, `select ignored from nk_rooms where room_id = $1`, room).Scan(&ignored)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return ignored, err
+// recover records that a room that was ignored is a two-person chat again, so the user is told
+// once more if it happens again (CR-005). A room the store never heard of is left alone.
+func (s *roomStore) recover(ctx context.Context, room id.RoomID) error {
+	_, err := s.db.Exec(ctx, `update nk_rooms set ignored = false, notified = false where room_id = $1 and ignored`, room)
+	return err
 }
 
 // ignore marks a room ignored and reports whether the explanation has been sent before.

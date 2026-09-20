@@ -74,6 +74,46 @@ func TestPostEventRetriesTransientFailuresUntilCoreAnswers(t *testing.T) {
 	}
 }
 
+// A request Core fails on every time (a poison event) must not stall the bot for ever, but a passing
+// 500 is still retried (CR-003, NFR-R1).
+func TestRepeatedServerErrorsBecomePermanent(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	c := fastClient(t, srv)
+	c.MaxServerErrors = 4
+	_, err := c.PostEvent(context.Background(), botclient.Event{EventId: "$1"})
+	var perm *PermanentError
+	if !errors.As(err, &perm) || perm.Status != 500 || calls.Load() != 4 {
+		t.Fatalf("err = %v after %d calls", err, calls.Load())
+	}
+}
+
+func TestPassingServerErrorIsRetriedAndOutagesNeverGiveUp(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n := calls.Add(1); {
+		case n <= 2:
+			w.WriteHeader(http.StatusInternalServerError)
+		case n <= 30:
+			w.WriteHeader(http.StatusServiceUnavailable) // an outage: no limit applies
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"result":"created"}`))
+		}
+	}))
+	defer srv.Close()
+	c := fastClient(t, srv)
+	c.MaxServerErrors = 3
+	res, err := c.PostEvent(context.Background(), botclient.Event{EventId: "$1"})
+	if err != nil || res == nil || calls.Load() != 31 {
+		t.Fatalf("res %+v err %v calls %d", res, err, calls.Load())
+	}
+}
+
 func TestPostEventRetriesConnectionErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	url := srv.URL

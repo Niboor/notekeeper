@@ -22,11 +22,40 @@ type sentMessage struct {
 	Body map[string]any
 }
 
+// rigOptions scripts the homeserver of sendRig.
+type rigOptions struct {
+	status        int      // answer to sending, 200 by default
+	membersStatus int      // answer to "who is in the room", 200 by default
+	members       []string // joined members, the bot and @a:x by default
+}
+
 // A homeserver that records sends and answers with a scripted status.
 func sendRig(t *testing.T, status int) (*Bot, func() []sentMessage) {
+	return sendRigWith(t, rigOptions{status: status})
+}
+
+func sendRigWith(t *testing.T, o rigOptions) (*Bot, func() []sentMessage) {
+	if o.members == nil {
+		o.members = []string{"@a:x", "@bot:x"}
+	}
+	status := o.status
 	var mu sync.Mutex
 	var sent []sentMessage
 	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/joined_members") {
+			w.Header().Set("Content-Type", "application/json")
+			if o.membersStatus != 0 && o.membersStatus != 200 {
+				w.WriteHeader(o.membersStatus)
+				_, _ = w.Write([]byte(`{"errcode":"M_UNKNOWN","error":"try later"}`))
+				return
+			}
+			joined := map[string]any{}
+			for _, m := range o.members {
+				joined[m] = map[string]any{}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"joined": joined})
+			return
+		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		mu.Lock()
@@ -85,9 +114,20 @@ func TestOutboxSendsNoticesAndReminders(t *testing.T) {
 // Nothing is sent to a room that is no longer a two-person chat, or with no text; failures are
 // classified so Core retries only what can succeed (SEC-MX-1, SEC-MX-2, BOT-13).
 func TestOutboxFailuresAreClassified(t *testing.T) {
-	b, sent := sendRig(t, 200)
-	if res := b.send(t.Context(), item(botclient.Reminder, "!group:x", "hi")); res.State != botclient.FailedPermanent || len(sent()) != 0 {
-		t.Fatalf("group room: %+v, sent %d", res, len(sent()))
+	b, _ := sendRig(t, 200)
+	group, groupSent := sendRigWith(t, rigOptions{members: []string{"@a:x", "@b:x", "@bot:x"}})
+	if res := group.send(t.Context(), item(botclient.Reminder, "!group:x", "hi")); res.State != botclient.FailedPermanent || len(groupSent()) != 0 {
+		t.Fatalf("group room: %+v, sent %d", res, len(groupSent()))
+	}
+	// The other person is not the one the item is for (the original member left and someone else joined).
+	other, otherSent := sendRigWith(t, rigOptions{members: []string{"@mallory:x", "@bot:x"}})
+	if res := other.send(t.Context(), item(botclient.Reminder, "!dm:x", "hi")); res.State != botclient.FailedPermanent || len(otherSent()) != 0 {
+		t.Fatalf("wrong person: %+v, sent %d", res, len(otherSent()))
+	}
+	// The homeserver cannot say who is in the room: not a reason to fail the reminder for good (CR-002).
+	unsure, unsureSent := sendRigWith(t, rigOptions{membersStatus: 502})
+	if res := unsure.send(t.Context(), item(botclient.Reminder, "!dm:x", "hi")); res.State != botclient.FailedTransient || len(unsureSent()) != 0 {
+		t.Fatalf("membership lookup failed: %+v, sent %d", res, len(unsureSent()))
 	}
 	if res := b.send(t.Context(), item(botclient.Notice, "!dm:x", "")); res.State != botclient.FailedPermanent {
 		t.Fatalf("empty: %+v", res)

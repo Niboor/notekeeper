@@ -66,9 +66,11 @@ func (b *Bot) send(ctx context.Context, it botclient.OutboxItem) botclient.Outbo
 	if it.Kind == botclient.Lifecycle {
 		return b.forgetRoom(ctx, room, it)
 	}
-	// The room must still be a two-person chat: a reminder must never reach a group someone was added to (SEC-MX-1).
-	if !b.roomAllowed(ctx, room) {
-		return failure(botclient.FailedPermanent, "room_not_allowed")
+	// The room must still be a two-person chat with the person the item is for, checked now and not from
+	// what was remembered: a reminder must never reach a group someone was added to, or a room the
+	// person left (SEC-MX-1, SEC-MX-2). If the homeserver cannot say, try again later (CR-002).
+	if res, ok := b.checkRecipient(ctx, room, it.ExternalUserId); !ok {
+		return res
 	}
 	text, _ := it.Payload["text"].(string)
 	if text == "" {
@@ -87,6 +89,21 @@ func (b *Bot) send(ctx context.Context, it botclient.OutboxItem) botclient.Outbo
 		b.sendFiles(ctx, room, it) // best effort: the reminder text is already delivered
 	}
 	return botclient.OutboxResult{State: botclient.Delivered, MessageIds: &ids}
+}
+
+// checkRecipient asks the homeserver who is in the room. ok is false when nothing may be sent, and
+// res then says why.
+func (b *Bot) checkRecipient(ctx context.Context, room id.RoomID, recipient string) (res botclient.OutboxResult, ok bool) {
+	members, err := b.client.JoinedMembers(ctx, room)
+	if err != nil {
+		return sendFailure(err), false
+	}
+	if _, there := members.Joined[id.UserID(recipient)]; !there || len(members.Joined) != 2 {
+		b.remember(room, false)
+		return failure(botclient.FailedPermanent, "room_not_allowed"), false
+	}
+	b.remember(room, true)
+	return res, true
 }
 
 // forgetRoom leaves and forgets a chat that was unlinked or whose user was deleted, and drops what

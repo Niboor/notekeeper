@@ -57,7 +57,17 @@ type Client struct {
 	Backoff func(attempt int) time.Duration
 	// OnRetry, if set, is called for every retried failure (logging, metrics).
 	OnRetry func(op string, attempt int, err error)
+	// MaxServerErrors is how many times in a row Core may answer 500 to the same request before the
+	// request is treated as refused for good (default DefaultMaxServerErrors). An outage (no answer,
+	// 502, 503, 504, 429) is retried without limit, but a plain 500 means Core failed on this very
+	// request, and a request that fails the same way every time would otherwise stall a bot for every
+	// user for ever (a poison event).
+	MaxServerErrors int
 }
+
+// DefaultMaxServerErrors is the default for Client.MaxServerErrors. With the default backoff it
+// gives Core about three minutes to recover from a passing fault before the request is dropped.
+const DefaultMaxServerErrors = 10
 
 // NewClient creates a Client for a Core at baseURL.
 func NewClient(baseURL, botKey string, httpClient *http.Client) (*Client, error) {
@@ -79,6 +89,11 @@ func (c *Client) backoff(attempt int) time.Duration {
 // do runs call until it succeeds, fails permanently or ctx ends. call returns the HTTP status
 // (0 when the request itself failed), the problem code, and an error for transport failures.
 func (c *Client) do(ctx context.Context, op string, call func() (status int, code string, err error)) error {
+	maxServerErrors := c.MaxServerErrors
+	if maxServerErrors <= 0 {
+		maxServerErrors = DefaultMaxServerErrors
+	}
+	serverErrors := 0
 	for attempt := 1; ; attempt++ {
 		status, code, err := call()
 		switch {
@@ -86,6 +101,13 @@ func (c *Client) do(ctx context.Context, op string, call func() (status int, cod
 			return nil
 		case err == nil && status >= 400 && status < 500 && status != http.StatusTooManyRequests && status != http.StatusRequestTimeout:
 			return &PermanentError{Status: status, Code: code}
+		}
+		if err == nil && status == http.StatusInternalServerError {
+			if serverErrors++; serverErrors >= maxServerErrors {
+				return &PermanentError{Status: status, Code: code}
+			}
+		} else {
+			serverErrors = 0
 		}
 		if err == nil {
 			err = fmt.Errorf("core answered %d", status)
@@ -131,6 +153,23 @@ func (c *Client) PostCommand(ctx context.Context, cmd botclient.Command) (*botcl
 			return 0, "", err
 		}
 		out = res.JSON200
+		return res.StatusCode(), problemCode(res.ApplicationproblemJSONDefault), nil
+	})
+	return out, err
+}
+
+// ConversationCursor returns the platform time of the newest message Core holds for a conversation,
+// or nil when it holds none (BOT-10). A bot uses it to fill a gap in what the platform delivered.
+func (c *Client) ConversationCursor(ctx context.Context, conversation string) (*time.Time, error) {
+	var out *time.Time
+	err := c.do(ctx, "conversation cursor", func() (int, string, error) {
+		res, err := c.API.GetConversationCursorWithResponse(ctx, conversation)
+		if err != nil {
+			return 0, "", err
+		}
+		if res.JSON200 != nil {
+			out = res.JSON200.LastMessageAt
+		}
 		return res.StatusCode(), problemCode(res.ApplicationproblemJSONDefault), nil
 	})
 	return out, err

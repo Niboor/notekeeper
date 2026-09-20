@@ -102,8 +102,12 @@ func TestRepliesAndThreads(t *testing.T) {
 	if r.Event.RelatesTo == nil || *r.Event.RelatesTo.ReplyTo != "$earlier" {
 		t.Fatalf("relates_to: %+v", r.Event.RelatesTo)
 	}
-	// A body that merely starts with ">" but is not a reply is left alone.
-	if got := StripReplyFallback("> quote\n\ntext"); got != "text" {
+	// Only the client-generated "> <@user>" form is a fallback; a quote the sender typed themselves is
+	// their own text, even in a reply (CR-007).
+	if got := StripReplyFallback("> quote\n\ntext"); got != "> quote\n\ntext" {
+		t.Fatalf("user quote was stripped: %q", got)
+	}
+	if got := StripReplyFallback("> <@a:x> two\n> lines\n\nreply"); got != "reply" {
 		t.Fatalf("fallback: %q", got)
 	}
 	if r := Message(msg(&event.MessageEventContent{MsgType: event.MsgText, Body: "> just a quote"})); textOf(t, r) != "> just a quote" {

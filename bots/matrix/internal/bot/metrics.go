@@ -7,6 +7,7 @@ type metrics struct {
 	decryptFailures prometheus.Counter
 	attachments     *prometheus.CounterVec
 	outbox          *prometheus.CounterVec
+	gaps            *prometheus.CounterVec
 	Registry        *prometheus.Registry
 }
 
@@ -24,9 +25,12 @@ func newMetrics() *metrics {
 		outbox: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "nk_bot_outbox_total", Help: "Messages from Core sent to chats by kind and result.",
 		}, []string{"kind", "result"}),
+		gaps: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "nk_bot_sync_gaps_total", Help: "Gaps in a room's timeline that the homeserver left out, by outcome (filled, truncated).",
+		}, []string{"outcome"}),
 		Registry: prometheus.NewRegistry(),
 	}
-	m.Registry.MustRegister(m.events, m.decryptFailures, m.attachments, m.outbox)
+	m.Registry.MustRegister(m.events, m.decryptFailures, m.attachments, m.outbox, m.gaps)
 	return m
 }
 

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -103,6 +104,21 @@ func newFakeCore(t *testing.T) *fakeCore {
 			f.events = append(f.events, body)
 		}
 		respond(w, map[string]any{"result": "created", "feedback": map[string]any{"react": "ok"}})
+	})
+	mux.HandleFunc("GET /bot/v1/conversations/{id}/cursor", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		var last string
+		for _, e := range f.events {
+			if e["conversation"] == r.PathValue("id") {
+				last, _ = e["timestamp"].(string)
+			}
+		}
+		if last == "" {
+			respond(w, map[string]any{})
+			return
+		}
+		respond(w, map[string]any{"last_message_at": last})
 	})
 	mux.HandleFunc("/bot/v1/commands", func(w http.ResponseWriter, r *http.Request) {
 		if f.unavail.Load() {
@@ -581,6 +597,47 @@ func TestCoreOutageStallsInsteadOfLosingMessages(t *testing.T) {
 	got := core.eventTexts()
 	if len(got) != 2 || got[0] != "during outage" || got[1] != "killed mid-flight" {
 		t.Fatalf("messages after the outage: %v", got)
+	}
+}
+
+// TestBotFillsGapsAfterDowntime: more messages arrive while the bot is down than one sync window holds
+// (the homeserver marks the timeline "limited"). The bot must fetch the ones the window left out and
+// hand Core every message exactly once, in order (CR-001, BOT-B2, MX-9, NFR-R1).
+func TestBotFillsGapsAfterDowntime(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+	hs, pg := startSynapse(t), startPostgres(t)
+	core := newFakeCore(t)
+
+	registerUser(t, hs, "notekeeper5")
+	botDB := pg.newDatabase(t, "bot_gap")
+	rb := startBot(t, botConfig(hs, botDB, core.srv.URL, "notekeeper5"))
+	alice := person(t, hs, pg, "alice_gap")
+	room := createDM(t, alice, rb.b.UserID(), true)
+	waitMembership(t, alice.client, room, rb.b.UserID(), event.MembershipJoin, 30*time.Second)
+	if _, err := alice.client.SendText(ctx, room, "before the outage"); err != nil {
+		t.Fatal(err)
+	}
+	core.waitEvents(t, 1, 30*time.Second)
+	rb.stop()
+
+	const missed = 130 // well beyond the 50 events of a sync window
+	want := []string{"before the outage"}
+	for i := 1; i <= missed; i++ {
+		text := fmt.Sprintf("while away %03d", i)
+		if _, err := alice.client.SendText(ctx, room, text); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, text)
+	}
+	startBot(t, botConfig(hs, botDB, core.srv.URL, "notekeeper5"))
+	core.waitEvents(t, len(want), 3*time.Minute)
+	got := core.eventTexts()
+	if len(got) != len(want) {
+		t.Fatalf("Core holds %d messages, want %d", len(got), len(want))
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("messages are missing or out of order: got %v", got)
 	}
 }
 

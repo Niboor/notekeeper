@@ -606,3 +606,29 @@ func TestConversationCursor(t *testing.T) {
 		t.Fatalf("cursor: %d %s (want %v)", res.Status, res.Body, at)
 	}
 }
+
+// A NUL byte or broken UTF-8 in chat text is repaired, not answered with a 500 that a bot would
+// retry for ever; a poison message must never stall the bot (CR-003, BOT-7).
+func TestChatTextThatPostgresCannotStoreIsRepaired(t *testing.T) {
+	s := newStack(t)
+	key := s.makeBot("m", "example.org")
+	ch := s.chatter("alice", key)
+	out := ch.send("$nul", time.Second, text("grocery\x00 list \xff\xfe done"))
+	if out.NoteID == nil {
+		t.Fatalf("the message was not saved: %+v", out)
+	}
+	// (the JSON encoding already turned each bad byte into U+FFFD)
+	if got := ch.texts(ch.get(*out.NoteID)); len(got) != 1 || got[0] != "grocery list \uFFFD\uFFFD done" {
+		t.Fatalf("stored text = %q", got)
+	}
+	// The same goes for a command's text and for a file name.
+	res := s.botDo(key, "POST", "/bot/v1/commands", map[string]any{"command": "remind", "args": "in 2 hours call\x00 mum",
+		"sender": ch.ext, "conversation": ch.conv, "message_id": "$cmd", "timestamp": ch.base.Add(2 * time.Second).UTC().Format(time.RFC3339Nano)})
+	if res.Status != 200 {
+		t.Fatalf("command with NUL: %d %s", res.Status, res.Body)
+	}
+	fail := map[string]any{"type": "attachment_failed", "filename": "a\x00b.png", "reason": "too_large"}
+	if r := ch.send("$file", 4*time.Second, fail); r.NoteID == nil {
+		t.Fatalf("failed attachment with NUL in its name: %+v", r)
+	}
+}

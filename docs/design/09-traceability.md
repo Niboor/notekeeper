@@ -119,7 +119,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-4 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-5 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-6 | Must | fully tested | 02 §2; 01 §6.2 | Integration | 3 |
-| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 4 |
+| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 5 |
 | BOT-8 | Must | fully tested | 02 §2 (feedback object) | Integration | 1 |
 | BOT-9 | Must | fully tested | 04 §2; README §3 (user lock) | Integration | 1 |
 | BOT-10 | Should | fully tested | 02 §2 (`/conversations/{id}/cursor`); 01 §4.2 (index) | Integration | 1 |
@@ -130,7 +130,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-15 | Should | fully tested | 05 §5.3; 02 §2 | Authz matrix, Integration | 2 |
 | BOT-16 | Must | fully tested | 05 §4.1; 03 §4.3 | Integration, E2E | 3 |
 | BOT-B1 | Must | implemented | 04; 06 (bots contain platform logic only) | Review | 0 |
-| BOT-B2 | Must | fully tested | 06 §3; 04 §2 | E2E | 1 |
+| BOT-B2 | Must | fully tested | 06 §3; 04 §2 | E2E | 2 |
 | BOT-B3 | Must | fully tested | 06 §6 | E2E | 2 |
 | BOT-B4 | Must | fully tested | 06 §3; 04 §2 | E2E | 2 |
 | BOT-B5 | Must | fully tested | 06 §1; 01 §12 | E2E | 3 |
@@ -252,7 +252,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | NFR-Q3 | Should | unimplemented | 07 §9 | Review | 0 |
 | NFR-Q4 | Should | fully tested | documentation deliverable (bot-writing guide, deployment, backup) | Review | 1 |
 | NFR-Q5 | Must | implemented | 08 §5; tech-stack §9 | CI check | 0 |
-| NFR-R1 | Must | fully tested | 04 §2; 06 §3 | Integration, E2E | 1 |
+| NFR-R1 | Must | fully tested | 04 §2; 06 §3 | Integration, E2E | 3 |
 | NFR-R2 | Must | fully tested | 04 §2 | Integration | 1 |
 | NFR-R3 | Must | fully tested | 01 §4.1 | Integration | 1 |
 | NFR-R4 | Must | fully tested | 08 §4 | Review | 2 |
