@@ -43,7 +43,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-P6 | Could | implemented | 01 §4.1 (`pages.archived_at`) | Integration | 0 |
 | CORE-P7 | Could | unimplemented | deferred (Could) | - | 0 |
 | CORE-R1 | Should | fully tested | 02 §1.4; 01 §9 | Integration | 2 |
-| CORE-R2 | Should | fully tested | 01 §2; 04 §3.1 | Unit | 2 |
+| CORE-R2 | Should | fully tested | 01 §2; 04 §3.1 | Unit | 3 |
 | CORE-R3 | Should | fully tested | 05 §5.1 | Integration | 2 |
 | CORE-R4 | Should | fully tested | 05 §4.2 | Integration, E2E | 1 |
 | CORE-R5 | Should | fully tested | 05 §5.1 | Integration | 1 |
