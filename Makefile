@@ -132,9 +132,8 @@ secrets: ## Scan the repository for committed secrets
 	gitleaks dir --no-banner --redact .
 
 .PHONY: docs-check
-docs-check: ## Regenerate the traceability table and fail on drift; check configuration.md against the code
+docs-check: ## Regenerate the traceability table and fail on drift
 	python3 docs/design/tools/traceability.py
-	python3 docs/design/tools/config_check.py
 	git diff --exit-code -- docs/design/09-traceability.md
 
 .PHONY: check

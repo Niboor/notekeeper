@@ -236,3 +236,36 @@ test('the app shell works offline and the API is never cached', async ({ page, c
   await expect(page.getByText(/offline/i).first()).toBeVisible({ timeout: 15_000 }) // the shell renders and says so
   await context.setOffline(false)
 })
+
+// WEB-N3: the first screen is usable within two seconds, and an action shows its effect within 100 ms,
+// before the server has answered (optimistic updates).
+test('the app opens quickly and reacts instantly', async ({ page }) => {
+  const fx = await openFreshBoard(page)
+  await createNote(page, 'speed test one', fx.columns.Todo)
+  await createNote(page, 'speed test two', fx.columns.Todo)
+  const started = Date.now()
+  await page.reload()
+  await expect(card(lane(page, 'Todo'), 'speed test one')).toBeVisible()
+  expect(Date.now() - started).toBeLessThan(2000)
+
+  // Slow the server down so that only an optimistic update can explain a fast reaction.
+  await page.route('**/api/v1/notes/*/dismiss', async (route) => {
+    await new Promise((r) => setTimeout(r, 1500))
+    await route.continue()
+  })
+  const took = await page.evaluate(async () => {
+    const el = document.querySelector('article.note[data-id]')!
+    const gone = new Promise<number>((resolve) => {
+      const t0 = performance.now()
+      new MutationObserver((_, obs) => {
+        if (!document.body.contains(el)) {
+          obs.disconnect()
+          resolve(performance.now() - t0)
+        }
+      }).observe(document.body, { childList: true, subtree: true })
+      ;(el.querySelector('button.dismiss') as HTMLButtonElement).click()
+    })
+    return gone
+  })
+  expect(took).toBeLessThan(100)
+})

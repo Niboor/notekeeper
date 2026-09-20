@@ -38,7 +38,7 @@ If that is not acceptable for something, do not send it to the bot.
   or caption under *Settings*.
 * **Edit** a message in your chat and the note changes with it; **delete** it and the part disappears (if it was
   the whole note, the note goes to the Trash so nothing is lost by accident). Earlier texts stay in the note's *History*.
-* Voice, location and other things Notekeeper cannot show become a short placeholder. Files that could not be
+* Voice messages, images, files and videos are kept as files. A shared location becomes text with a map link. Things Notekeeper cannot show (stickers, polls) become a short placeholder. Files that could not be
   saved (too big, storage full) are marked on the note and the bot tells you why. The text is always kept.
 * Only messages sent after you linked the chat are used.
 

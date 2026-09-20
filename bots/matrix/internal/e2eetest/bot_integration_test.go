@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
@@ -29,6 +30,26 @@ import (
 	"github.com/Niboor/notekeeper/bots/matrix/internal/config"
 	"github.com/Niboor/notekeeper/bots/sdk"
 )
+
+// syncBuf collects the bot's logs from every goroutine.
+type syncBuf struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+var botLogs syncBuf
 
 // fakeCore stands in for Core's bot API: it records what the bot sends and answers as scripted.
 // (The whole chain with the real Core runs in the end-to-end tests.)
@@ -242,9 +263,9 @@ func startBot(t *testing.T, cfg config.Config) *runningBot {
 		t.Fatal(err)
 	}
 	core.Backoff = func(int) time.Duration { return 100 * time.Millisecond }
-	var out io.Writer = io.Discard
+	var out io.Writer = &botLogs // always collected, so tests can prove what the logs do not contain
 	if os.Getenv("NK_TEST_VERBOSE") != "" {
-		out = os.Stderr // bot logs never contain message text, so this is safe to enable
+		out = io.MultiWriter(&botLogs, os.Stderr) // bot logs never contain message text, so this is safe to enable
 	}
 	b := bot.New(cfg, slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: slog.LevelDebug})), core)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -374,7 +395,8 @@ func TestBotForwardsEncryptedMessagesAndShowsFeedback(t *testing.T) {
 	core.reply["link"] = "Linked to your account."
 
 	registerUser(t, hs, "notekeeper")
-	rb := startBot(t, botConfig(hs, pg.newDatabase(t, "bot_flow"), core.srv.URL, "notekeeper"))
+	flowDB := pg.newDatabase(t, "bot_flow")
+	rb := startBot(t, botConfig(hs, flowDB, core.srv.URL, "notekeeper"))
 	alice := person(t, hs, pg, "alice_flow")
 	room := createDM(t, alice, rb.b.UserID(), true)
 	waitMembership(t, alice.client, room, rb.b.UserID(), event.MembershipJoin, 30*time.Second)
@@ -427,6 +449,45 @@ func TestBotForwardsEncryptedMessagesAndShowsFeedback(t *testing.T) {
 	}
 	if core.heartbeat.Load() == 0 {
 		t.Fatal("no heartbeat reached Core")
+	}
+
+	// What the bot keeps and says: no message text in its logs (SEC-MX-3), and no credential in its database,
+	// where only the encrypted device state lives (SEC-MX-5, MX-N1).
+	logs := botLogs.String()
+	for _, secret := range []string{"buy milk, eggs", "milk", "ABCD-1234", "pw-notekeeper", "bot-pickle-key-0123456789abcdef", "nkb.test.secret"} {
+		if strings.Contains(logs, secret) {
+			t.Errorf("the bot's logs contain %q", secret)
+		}
+	}
+	conn, err := pgx.Connect(ctx, flowDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	rows, err := conn.Query(ctx, `select table_schema || '.' || table_name from information_schema.tables where table_schema not in ('pg_catalog', 'information_schema') and table_type = 'BASE TABLE'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for rows.Next() {
+		var n string
+		_ = rows.Scan(&n)
+		tables = append(tables, n)
+	}
+	rows.Close()
+	if len(tables) == 0 {
+		t.Fatal("the bot's database has no tables; the scan proves nothing")
+	}
+	for _, secret := range []string{"pw-notekeeper", "bot-pickle-key-0123456789abcdef", "nkb.test.secret", "buy milk"} {
+		for _, table := range tables {
+			var n int
+			if err := conn.QueryRow(ctx, `select count(*) from `+table+` t where row_to_json(t)::text like '%' || $1 || '%'`, secret).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 0 {
+				t.Errorf("%q is stored in %s", secret, table)
+			}
+		}
 	}
 }
 

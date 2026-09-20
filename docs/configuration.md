@@ -3,8 +3,8 @@
 Everything is configured through environment variables; nothing needs a rebuild (NFR-O5). Secrets come
 from Kubernetes Secrets or your secret manager and never from files in an image (SEC-OPS-1). Time
 values are Go durations (`15m`, `2160h`); sizes are bytes. Defaults are safe for a small deployment.
-`docs/design/tools/config_check.py` fails the build when a variable read by the code is missing here
-(`make docs-check`).
+A test (`core/internal/config/docs_test.go`, part of `make test`) fails when a variable read by the code is
+missing here, or documented here but read by nothing.
 
 ## Core (`core serve`, `core migrate`, `core admin ...`)
 
