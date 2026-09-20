@@ -153,6 +153,59 @@ func TestSecretsAreReferencesAndPlaceholders(t *testing.T) {
 	}
 }
 
+// The schema owner's credential (SEC-OPS-5): it sits in a Secret of its own that only the migration Job
+// reads. No serving pod, and no Secret a serving pod reads, holds it, and the Job reads nothing else.
+func TestSchemaOwnerCredentialIsOnlyForTheMigrationJob(t *testing.T) {
+	docs := render(t)
+	holders := map[string]bool{} // Secrets that contain NK_MIGRATE_DATABASE_URL
+	for _, d := range docs {
+		if d["kind"] == "Secret" {
+			if data, _ := d["data"].(obj); data != nil {
+				if _, has := data["NK_MIGRATE_DATABASE_URL"]; has {
+					holders[get(d, "metadata", "name").(string)] = true
+				}
+			}
+		}
+	}
+	if len(holders) != 1 {
+		t.Fatalf("the schema owner's URL must live in exactly one Secret, found in %v", holders)
+	}
+	secretsOf := func(spec obj) []string {
+		var out []string
+		for _, c := range spec["containers"].([]any) {
+			ef, _ := get(c, "envFrom").([]any)
+			for _, e := range ef {
+				if n, ok := get(e, "secretRef", "name").(string); ok {
+					out = append(out, n)
+				}
+			}
+			env, _ := get(c, "env").([]any)
+			for _, e := range env {
+				if n, ok := get(e, "valueFrom", "secretKeyRef", "name").(string); ok {
+					out = append(out, n)
+				}
+			}
+		}
+		return out
+	}
+	sawJob := false
+	for name, spec := range podSpecs(docs) {
+		isMigrate := strings.Contains(name, "migrate")
+		for _, secret := range secretsOf(spec) {
+			switch {
+			case isMigrate && !holders[secret]:
+				t.Errorf("%s reads Secret %s, which is not the schema owner's: the Job needs that one alone", name, secret)
+			case !isMigrate && holders[secret]:
+				t.Errorf("%s reads Secret %s, which holds the schema owner's credential", name, secret)
+			}
+		}
+		sawJob = sawJob || isMigrate
+	}
+	if !sawJob {
+		t.Fatal("no migration Job found")
+	}
+}
+
 // Default deny, only the necessary paths, the bot API reachable by bots alone, and nothing routes to the
 // bot API or the ops port from an ingress (SEC-OPS-3, SEC-OPS-4).
 func TestNetworkPoliciesAndIngressRoutes(t *testing.T) {

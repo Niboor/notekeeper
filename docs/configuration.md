@@ -21,7 +21,7 @@ missing here, or documented here but read by nothing.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `NK_MIGRATE_DATABASE_URL` | | Connection for the schema-owning role `nk_migrate`, used only by `core migrate` (the migration Job). The serving processes never hold it. Refused if it contains `change-me` |
+| `NK_MIGRATE_DATABASE_URL` | | Connection for the schema-owning role `nk_migrate`, used only by `core migrate` (the migration Job), which needs no other credential. The serving processes never hold it (they log a warning if it is set); keep it in a Secret that only the Job reads. Refused if it contains `change-me` |
 
 ### Network
 

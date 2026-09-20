@@ -25,7 +25,7 @@ $COMPOSE exec -T db psql -U nk -d "$DB" -v ON_ERROR_STOP=1 -q < deploy/sql/roles
 (cd web && npm run build --silent)
 
 export NK_DATABASE_URL="postgres://nk_app:nk_app_dev@localhost:5432/$DB?sslmode=disable"
-export NK_MIGRATE_DATABASE_URL="postgres://nk_migrate:nk_migrate_dev@localhost:5432/$DB?sslmode=disable"
+MIGRATE_URL="postgres://nk_migrate:nk_migrate_dev@localhost:5432/$DB?sslmode=disable"   # the schema owner: for the migration only
 export NK_TOKEN_KEYS="e2e:$(head -c 32 /dev/urandom | base64)"
 export NK_APP_URL="http://localhost:$WEB"
 # The share page is served from another origin (share.localhost is a different host from localhost),
@@ -36,7 +36,7 @@ export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL=warn
 # One browser hammers the API from one address, much faster than a person does: raise the limits, do not disable them.
 export NK_RATE_IP_PER_MIN=60000 NK_RATE_USER_PER_MIN=30000
 
-.bin/core migrate
+NK_MIGRATE_DATABASE_URL="$MIGRATE_URL" .bin/core migrate
 .bin/core serve >"$ROOT/e2e/core.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 1 60); do curl -fs "http://localhost:$CORE_OPS/readyz" >/dev/null && break; sleep 0.5; done

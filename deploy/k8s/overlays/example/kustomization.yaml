@@ -20,8 +20,12 @@ secretGenerator:
   - name: notekeeper-secrets
     literals:
       - NK_DATABASE_URL=postgres://nk_app:change-me@postgres:5432/notekeeper?sslmode=require
-      - NK_MIGRATE_DATABASE_URL=postgres://nk_migrate:change-me@postgres:5432/notekeeper?sslmode=require
       - NK_TOKEN_KEYS=k1:change-me-generate-32-random-bytes-and-base64-encode-them
+  # The schema owner's credential lives in its own Secret, read by the migration Job alone: a Core pod
+  # that is compromised must not be able to switch row-level security off (SEC-OPS-5).
+  - name: notekeeper-migrate
+    literals:
+      - NK_MIGRATE_DATABASE_URL=postgres://nk_migrate:change-me@postgres:5432/notekeeper?sslmode=require
   - name: notekeeper-bot-secrets
     literals:
       - NK_BOT_DATABASE_URL=postgres://nk_bot_matrix:change-me@postgres:5432/notekeeper?sslmode=require&search_path=matrix_bot

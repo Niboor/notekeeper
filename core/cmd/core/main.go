@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
+	"time"
 	_ "time/tzdata" // reminders and profiles use IANA zones; do not depend on the image having them
 
 	"github.com/Niboor/notekeeper/core/internal/app"
@@ -74,6 +76,11 @@ func serve(ctx context.Context) error {
 		return err
 	}
 	log := newLogger(cfg.LogLevel)
+	if cfg.MigrateDatabaseURL != "" {
+		// Whoever can read this process's environment can read the schema owner's password, and the owner
+		// can switch row-level security off. The Secret that holds it belongs to the migration Job alone.
+		log.Warn("NK_MIGRATE_DATABASE_URL is set on a serving process; the schema owner's credential belongs to the migration Job only (SEC-OPS-5)")
+	}
 	pool, err := db.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -93,11 +100,21 @@ func serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := workers.Start(ctx); err != nil {
+	// The jobs run on a context of their own and are stopped explicitly, after the listeners have drained: a
+	// signal must not cut running jobs off before the requests they may be waiting for are done. Both share
+	// one shutdown budget, counted from the signal, so a stopping pod never needs more than
+	// NK_SHUTDOWN_TIMEOUT (and terminationGracePeriodSeconds can be set just above it).
+	var signalled atomic.Int64
+	context.AfterFunc(ctx, func() { signalled.Store(time.Now().UnixNano()) })
+	if err := workers.Start(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
 	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		start := time.Now()
+		if at := signalled.Load(); at != 0 {
+			start = time.Unix(0, at)
+		}
+		stopCtx, cancel := context.WithDeadline(context.Background(), start.Add(cfg.ShutdownTimeout))
 		defer cancel()
 		if err := workers.Stop(stopCtx); err != nil {
 			log.Warn("stopping background jobs", "error", err)
@@ -136,14 +153,10 @@ func migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := cfg.RequireDatabase(); err != nil {
+	// The migration Job runs under the schema-owning role and needs no other credential; the serving
+	// processes never have DDL rights (docs/design/01-data-model.md section 12).
+	if err := cfg.RequireMigrateDatabase(); err != nil {
 		return err
 	}
-	// The migration Job runs under the schema-owning role (NK_MIGRATE_DATABASE_URL); the serving
-	// processes never have DDL rights (docs/design/01-data-model.md section 12).
-	url := cfg.DatabaseURL
-	if v := os.Getenv("NK_MIGRATE_DATABASE_URL"); v != "" {
-		url = v
-	}
-	return db.Migrate(ctx, url)
+	return db.Migrate(ctx, cfg.MigrateDatabaseURL)
 }

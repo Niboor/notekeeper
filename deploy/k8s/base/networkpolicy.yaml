@@ -2,6 +2,12 @@
 # web image and Core's user and public listeners; bots reach Core's bot listener only; Core and the bot
 # reach PostgreSQL; the bot reaches the Matrix homeserver; Prometheus scrapes the ops ports. Adjust the
 # selectors for your cluster (the namespaces of the ingress controller, PostgreSQL and Prometheus).
+#
+# PostgreSQL: the `postgres` policy below admits Core, the migration Job and the bot to a database pod that
+# carries the label app.kubernetes.io/name=postgres in this namespace. If your database lives elsewhere
+# (another namespace, a managed service), delete that policy and change the three egress rules to it (Core,
+# core-migrate, matrix-bot) to a namespaceSelector or an ipBlock for where it is. These policies have been
+# checked as manifests only; run them once on your CNI with a connection test before relying on them.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -62,6 +68,20 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: postgres
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app.kubernetes.io/name: core}}
+        - podSelector: {matchLabels: {app.kubernetes.io/name: core-migrate}}
+        - podSelector: {matchLabels: {app.kubernetes.io/name: matrix-bot}}
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: core-migrate
 spec:
   podSelector: {matchLabels: {app.kubernetes.io/name: core-migrate}}
@@ -86,7 +106,9 @@ spec:
       ports: [{protocol: TCP, port: 8081}]
     - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
       ports: [{protocol: TCP, port: 5432}]
-    - to:   # the Matrix homeserver, on the internet or elsewhere; keep it to the addresses you need
+    - to:   # the Matrix homeserver. As shipped this is any public address on 443; replace the ipBlock with the
+            # homeserver's address(es). A homeserver inside the cluster needs a podSelector or namespaceSelector
+            # instead, because the private ranges below are excluded.
         - ipBlock:
             cidr: 0.0.0.0/0
             except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]

@@ -23,7 +23,7 @@ spec:
           image: notekeeper/core:latest
           args: ["migrate"]
           envFrom:
-            - secretRef: {name: notekeeper-secrets}
+            - secretRef: {name: notekeeper-migrate}   # the schema owner's credential, and nothing else
           resources:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {memory: 256Mi}

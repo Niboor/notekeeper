@@ -23,7 +23,11 @@ For the person who installs and looks after a deployment. What every setting mea
 2. **Secrets.** Generate the token keys (`head -c 32 /dev/urandom | base64`, as `k1:<key>`), and choose the
    database URLs, the bot's Matrix password and a pickle key of 16 or more random characters. Put them in
    Kubernetes Secrets. The example manifests carry `change-me` placeholders that make Core and the bot
-   refuse to start, so a forgotten secret cannot go live.
+   refuse to start, so a forgotten secret cannot go live. **The schema owner's URL
+   (`NK_MIGRATE_DATABASE_URL`) goes in a Secret of its own, `notekeeper-migrate`, that only the migration
+   Job reads**; Core's Secret holds the runtime URL and the token keys. A compromised Core pod must not be
+   able to read the credential that can switch row-level security off. Core logs a warning when it starts
+   with the migration URL set.
 3. **Migrate.** Run the migration Job (`core migrate` under `nk_migrate`). It is safe to run again.
 4. **Start** Core and the web image. Check `/readyz` on port 9090 (database reachable, migrations current).
 5. **Create the admin.** `core admin bootstrap <username>` prints an activation link, once. Open it on the

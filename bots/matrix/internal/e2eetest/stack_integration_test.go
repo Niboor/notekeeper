@@ -111,14 +111,16 @@ func startCore(t *testing.T, pgAdminURL string) *coreProcess {
 	p.ops = fmt.Sprintf("http://127.0.0.1:%d", opsPort)
 	p.env = append(os.Environ(),
 		"NK_DATABASE_URL="+dsn("nk_app", "nk_app_dev"),
-		"NK_MIGRATE_DATABASE_URL="+dsn("nk_migrate", "nk_migrate_dev"),
 		"NK_TOKEN_KEYS=e2e:"+"ZTJlLW9ubHkta2V5LWUyZS1vbmx5LWtleS1lMmUtb25seS1rZXk=",
 		"NK_APP_URL="+p.userURL,
 		fmt.Sprintf("NK_USER_ADDR=127.0.0.1:%d", userPort), fmt.Sprintf("NK_BOT_ADDR=127.0.0.1:%d", botPort),
 		fmt.Sprintf("NK_PUBLIC_ADDR=127.0.0.1:%d", publicPort), fmt.Sprintf("NK_OPS_ADDR=127.0.0.1:%d", opsPort),
 		"NK_ARGON2_MEMORY_KIB=8192", "NK_LOG_LEVEL=info",
 	)
-	if out, err := p.run("migrate"); err != nil {
+	// The schema owner's credential is given to the migration alone, as in a deployment (SEC-OPS-5).
+	migrate := exec.Command(p.bin, "migrate")
+	migrate.Env = append(append([]string{}, p.env...), "NK_MIGRATE_DATABASE_URL="+dsn("nk_migrate", "nk_migrate_dev"))
+	if out, err := migrate.CombinedOutput(); err != nil {
 		t.Fatalf("migrate: %v\n%s", err, out)
 	}
 	p.cmd = exec.Command(p.bin, "serve")

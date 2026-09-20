@@ -214,6 +214,18 @@ func number(getenv func(string) string, key string, def uint64) (uint64, error) 
 	return n, nil
 }
 
+// RequireMigrateDatabase fails when the schema owner's URL is missing or a placeholder. `core migrate`
+// needs this credential and nothing else; the serving processes never need it (SEC-OPS-5).
+func (c Config) RequireMigrateDatabase() error {
+	if c.MigrateDatabaseURL == "" {
+		return fmt.Errorf("NK_MIGRATE_DATABASE_URL is required")
+	}
+	if strings.Contains(strings.ToLower(c.MigrateDatabaseURL), "change-me") {
+		return fmt.Errorf("NK_MIGRATE_DATABASE_URL still contains a placeholder value")
+	}
+	return nil
+}
+
 // RequireDatabase fails when no database URL is configured.
 func (c Config) RequireDatabase() error {
 	if c.DatabaseURL == "" {
@@ -221,10 +233,8 @@ func (c Config) RequireDatabase() error {
 	}
 	// The example manifests ship placeholders instead of credentials (SEC-OPS-1, SEC-OPS-7); a deployment
 	// that forgot to replace one must not start.
-	for name, v := range map[string]string{"NK_DATABASE_URL": c.DatabaseURL, "NK_MIGRATE_DATABASE_URL": c.MigrateDatabaseURL} {
-		if strings.Contains(strings.ToLower(v), "change-me") {
-			return fmt.Errorf("%s still contains a placeholder value", name)
-		}
+	if strings.Contains(strings.ToLower(c.DatabaseURL), "change-me") {
+		return fmt.Errorf("NK_DATABASE_URL still contains a placeholder value")
 	}
 	return nil
 }

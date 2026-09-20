@@ -59,19 +59,25 @@ func TestBadDuration(t *testing.T) {
 // A deployment that still has a placeholder from the example manifests does not start (SEC-OPS-1, SEC-OPS-7).
 func TestPlaceholderCredentialsAreRefused(t *testing.T) {
 	get := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
-	for name, env := range map[string]map[string]string{
-		"database":  {"NK_DATABASE_URL": "postgres://nk_app:change-me@db/notekeeper"},
-		"migration": {"NK_DATABASE_URL": "postgres://nk_app:real@db/notekeeper", "NK_MIGRATE_DATABASE_URL": "postgres://nk_migrate:CHANGE-ME@db/notekeeper"},
-	} {
-		c, err := LoadFrom(get(env))
-		if err != nil {
-			t.Fatal(name, err)
-		}
-		if err := c.RequireDatabase(); err == nil {
-			t.Errorf("%s: a placeholder was accepted", name)
-		}
+	c, err := LoadFrom(get(map[string]string{"NK_DATABASE_URL": "postgres://nk_app:change-me@db/notekeeper"}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	c, _ := LoadFrom(get(map[string]string{"NK_DATABASE_URL": "postgres://nk_app:real@db/notekeeper"}))
+	if err := c.RequireDatabase(); err == nil {
+		t.Error("database: a placeholder was accepted")
+	}
+	// The migration needs the schema owner's URL, and only that one; the serving process needs the other.
+	c, _ = LoadFrom(get(map[string]string{"NK_MIGRATE_DATABASE_URL": "postgres://nk_migrate:CHANGE-ME@db/notekeeper"}))
+	if err := c.RequireMigrateDatabase(); err == nil {
+		t.Error("migration: a placeholder was accepted")
+	}
+	if c, _ = LoadFrom(get(map[string]string{})); c.RequireMigrateDatabase() == nil {
+		t.Error("migration: a missing URL was accepted")
+	}
+	if c, _ = LoadFrom(get(map[string]string{"NK_MIGRATE_DATABASE_URL": "postgres://nk_migrate:real@db/notekeeper"})); c.RequireMigrateDatabase() != nil {
+		t.Error("migration: a real URL was refused, or it needed NK_DATABASE_URL")
+	}
+	c, _ = LoadFrom(get(map[string]string{"NK_DATABASE_URL": "postgres://nk_app:real@db/notekeeper"}))
 	if err := c.RequireDatabase(); err != nil {
 		t.Fatal(err)
 	}
