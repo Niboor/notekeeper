@@ -70,6 +70,10 @@ type fakeCore struct {
 	outbox  []map[string]any  // items waiting to be claimed
 	results []map[string]any  // what the bot reported about them
 	files   map[string][]byte // reminder files by attachment id
+
+	// recipient is the chat user the queued items are for; the bot only sends into a room that holds
+	// exactly itself and that person (SEC-MX-2).
+	recipient string
 }
 
 type fakeUpload struct {
@@ -192,7 +196,7 @@ func (f *fakeCore) queue(kind, room, text string) string {
 		payload = map[string]any{"reason": text}
 	}
 	f.mu.Lock()
-	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": kind, "external_user_id": "@x:x", "conversation_id": room, "payload": payload, "attempts": 0})
+	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": kind, "external_user_id": f.recipient, "conversation_id": room, "payload": payload, "attempts": 0})
 	f.mu.Unlock()
 	return id
 }
@@ -201,7 +205,7 @@ func (f *fakeCore) queue(kind, room, text string) string {
 func (f *fakeCore) queueReminder(room, text string, files []map[string]any) string {
 	id := uuid.NewString()
 	f.mu.Lock()
-	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": "reminder", "external_user_id": "@x:x", "conversation_id": room,
+	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": "reminder", "external_user_id": f.recipient, "conversation_id": room,
 		"payload": map[string]any{"text": text, "note_url": "https://app.example.net/notes/n1", "attachments": files}, "attempts": 0})
 	f.mu.Unlock()
 	return id
@@ -654,6 +658,7 @@ func TestBotMovesFilesAndSpeaksForCore(t *testing.T) {
 	registerUser(t, hs, "notekeeper4")
 	rb := startBot(t, botConfig(hs, pg.newDatabase(t, "bot_media"), core.srv.URL, "notekeeper4"))
 	alice := person(t, hs, pg, "alice_media")
+	core.recipient = alice.client.UserID.String()
 	room := createDM(t, alice, rb.b.UserID(), true)
 	waitMembership(t, alice.client, room, rb.b.UserID(), event.MembershipJoin, 30*time.Second)
 	time.Sleep(2 * time.Second)
