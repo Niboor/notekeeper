@@ -71,3 +71,12 @@ describe('optimistic cache helpers', () => {
     expect(neighbours(['a'], 0)).toEqual({ afterId: null, beforeId: null })
   })
 })
+
+describe('inbox order with timestamps of different precision (CR-056)', () => {
+  it('places a note by time, not by string', () => {
+    // The server writes 10:00:00.5Z as such and 10:00:00Z without a fraction; as strings the second sorts after the first.
+    const data = inbox(note('half', '2026-05-01T10:00:00.5Z'), note('whole', '2026-05-01T10:00:00Z'))
+    const out = insertIntoInbox(data, note('new', '2026-05-01T10:00:00.250Z'))!
+    expect(out.pages[0]!.items.map((n) => n.id)).toEqual(['half', 'new', 'whole'])
+  })
+})

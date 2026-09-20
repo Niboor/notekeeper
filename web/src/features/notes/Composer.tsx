@@ -26,6 +26,9 @@ export function Composer({ categoryId, onClose }: Props) {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<Pending[]>([])
   const create = useCreateNote()
+  // One id for this note, however often adding is tried: a retry after a lost answer cannot make two notes.
+  const noteId = useRef(crypto.randomUUID())
+  const [failure, setFailure] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => area.current?.focus(), [])
@@ -34,10 +37,19 @@ export function Composer({ categoryId, onClose }: Props) {
   const uploading = files.some((f) => f.state === 'uploading')
   const canAdd = (text.trim() !== '' || ready.length > 0) && !uploading
 
+  // The composer stays open until the server has the note: when adding fails (offline, signed out, the
+  // account is full) the text and the uploaded files are still here to try again (CR-050).
+  const saving = create.isPending
   const add = () => {
-    if (!canAdd) return
-    create.mutate({ id: crypto.randomUUID(), categoryId, text, attachmentIds: ready })
-    onClose()
+    if (!canAdd || saving) return
+    setFailure(null)
+    create.mutate(
+      { id: noteId.current, categoryId, text, attachmentIds: ready },
+      {
+        onSuccess: onClose,
+        onError: () => setFailure(t('composer.failed')),
+      },
+    )
   }
 
   const choose = (list: FileList | null) => {
@@ -65,7 +77,7 @@ export function Composer({ categoryId, onClose }: Props) {
         aria-label={t('composer.placeholder')}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
+          if (e.key === 'Escape' && !saving) onClose()
           if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault()
             add()
@@ -85,6 +97,11 @@ export function Composer({ categoryId, onClose }: Props) {
           ))}
         </ul>
       )}
+      {failure && (
+        <p className="composer-error" role="alert">
+          {failure}
+        </p>
+      )}
       <div className="composer-bar">
         <input ref={input} type="file" multiple hidden onChange={(e) => choose(e.target.files)} />
         <button className="icon-btn" aria-label={t('composer.attach')} title={t('composer.attach')} onClick={() => input.current?.click()}>
@@ -92,10 +109,10 @@ export function Composer({ categoryId, onClose }: Props) {
         </button>
         <span className="grow" />
         <span className="hint">{t('composer.hint')}</span>
-        <button className="btn" onClick={onClose}>
+        <button className="btn" onClick={onClose} disabled={saving}>
           {t('common.cancel')}
         </button>
-        <button className="btn primary" onClick={add} disabled={!canAdd}>
+        <button className="btn primary" onClick={add} disabled={!canAdd || saving}>
           {t('composer.submit')}
         </button>
       </div>

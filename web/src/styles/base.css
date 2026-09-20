@@ -166,3 +166,4 @@ body.is-dragging { cursor: grabbing; user-select: none; }
     .note { cursor: default; }
 }
 @media (hover: none) { .composer-bar .hint { display: none; } }
+.composer-error { margin: 6px 0 0; color: var(--danger, #b3261e); font-size: 13px; }

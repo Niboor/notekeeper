@@ -32,7 +32,7 @@ test('the admin manages accounts and never sees their notes', async ({ page, bro
   await gp.getByRole('button', { name: 'New note' }).click()
   await gp.getByRole('textbox').fill('private guest note')
   await gp.getByRole('button', { name: 'Add note' }).click()
-  await expect(gp.getByText('private guest note')).toBeVisible()
+  await expect(gp.locator('article.note', { hasText: 'private guest note' })).toBeVisible()
   // The guest is not an admin: no admin menu, and the page sends them away.
   await gp.goto('/admin')
   await expect(gp).toHaveURL(/\/$/)

@@ -13,7 +13,7 @@ import { InlineName } from '../../components/InlineName'
 import { useToast } from '../../components/Toast'
 import { t } from '../../i18n'
 import { neighbours } from '../cache'
-import { useBoard, useInbox, useMoveNote, usePages } from '../hooks'
+import { useBoard, useInbox, useMoreNotes, useMoveNote, usePages } from '../hooks'
 import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
 import {
@@ -32,6 +32,8 @@ interface LaneData {
   hasMore: boolean
 }
 
+const NO_CURSORS: Record<string, string[]> = {}
+
 /**
  * The board: page tabs, the Inbox tray and the columns of the current page, with drag and drop
  * (docs/design/07 sections 2 and 11). The drag context lives here, above the page route, so a
@@ -42,6 +44,10 @@ export function BoardShell() {
   const pages = usePages()
   const activePageId = pageId ?? pages.data?.find((p) => !p.archived)?.id
   const board = useBoard(activePageId)
+  // The pages loaded with "show more" belong to the page they were asked on; another page starts again.
+  const [more, setMore] = useState<{ page?: string; cursors: Record<string, string[]> }>({ cursors: {} })
+  const moreCursors = more.page === activePageId ? more.cursors : NO_CURSORS
+  const moreNotes = useMoreNotes(activePageId, moreCursors)
   const inbox = useInbox()
   const move = useMoveNote()
   const navigate = useNavigate()
@@ -56,10 +62,15 @@ export function BoardShell() {
       { id: INBOX, name: t('inbox.title'), notes: inboxNotes, total: board.data?.inbox_total ?? inbox.data?.pages[0]?.total ?? inboxNotes.length, hasMore: !!inbox.hasNextPage },
     ]
     for (const c of board.data?.categories ?? []) {
-      out.push({ id: c.category.id, name: c.category.name, notes: c.notes, total: c.total, hasMore: !!c.next_cursor })
+      // Pages loaded with "show more" are appended, and survive every refetch of the board (CR-052).
+      const extra = moreNotes[c.category.id]
+      const have = new Set(c.notes.map((n) => n.id))
+      const notes = extra ? [...c.notes, ...extra.notes.filter((n) => !have.has(n.id))] : c.notes
+      const hasMore = extra ? extra.next !== null : !!c.next_cursor
+      out.push({ id: c.category.id, name: c.category.name, notes, total: c.total, hasMore })
     }
     return out
-  }, [inbox.data, inbox.hasNextPage, board.data])
+  }, [inbox.data, inbox.hasNextPage, board.data, moreNotes])
 
   const noteById = useMemo(() => new Map(lanes.flatMap((l) => l.notes.map((n) => [n.id, n] as const))), [lanes])
   const names = useMemo(() => Object.fromEntries(lanes.map((l) => [l.id, l.name])), [lanes])
@@ -279,20 +290,15 @@ export function BoardShell() {
     }
   }
   const showMoreInbox = () => void inbox.fetchNextPage()
-  const showMoreLane = async (lane: LaneData) => {
-    const cursor = board.data?.categories.find((c) => c.category.id === lane.id)?.next_cursor
+  const showMoreLane = (lane: LaneData) => {
+    const extra = moreNotes[lane.id]
+    if (extra && extra.next === undefined) return // the last page asked for is still loading
+    const cursor = extra ? extra.next : board.data?.categories.find((c) => c.category.id === lane.id)?.next_cursor
     if (!cursor) return
-    try {
-      const page = unwrap(await api.GET('/api/v1/categories/{id}/notes', { params: { path: { id: lane.id }, query: { cursor, limit: 100 } } }))
-      qc.setQueryData(['board', activePageId], (b: typeof board.data) =>
-        b && {
-          ...b,
-          categories: b.categories.map((c) => (c.category.id === lane.id ? { ...c, notes: [...c.notes, ...page.items], next_cursor: page.next_cursor } : c)),
-        },
-      )
-    } catch {
-      toast({ message: t('toast.failed') })
-    }
+    setMore((m) => {
+      const cur = m.page === activePageId ? m.cursors : NO_CURSORS
+      return { page: activePageId, cursors: { ...cur, [lane.id]: [...(cur[lane.id] ?? []), cursor] } }
+    })
   }
 
   // Keyboard shortcuts (WEB-16): N opens the composer in the Inbox, / or Ctrl+K focuses search.
@@ -334,7 +340,7 @@ export function BoardShell() {
         onOpenComposer={() => setComposerLane(l.id)}
         onCloseComposer={() => setComposerLane(null)}
         hasMore={l.hasMore}
-        onShowMore={l.id === INBOX ? showMoreInbox : () => void showMoreLane(l)}
+        onShowMore={l.id === INBOX ? showMoreInbox : () => showMoreLane(l)}
         onRename={l.id === INBOX ? undefined : (n) => void renameColumn(l.id, n)}
         onDelete={l.id === INBOX ? undefined : () => void deleteColumn(l)}
       />

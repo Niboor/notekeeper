@@ -110,6 +110,7 @@ export const en = {
   'composer.tooLarge': '{name} is larger than the limit',
   'composer.quota': 'Not enough storage left for {name}',
   'composer.remove': 'Remove {name}',
+  'composer.failed': 'The note was not saved. It is still here: check your connection and try again. If your Notekeeper is full, delete some notes for good first.',
 
   'note.edit': 'Edit',
   'note.save': 'Save',

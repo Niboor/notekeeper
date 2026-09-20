@@ -27,7 +27,10 @@ export function insertIntoInbox(data: InboxData | undefined, note: Note): InboxD
   if (!data || data.pages.length === 0) return data
   const pages = data.pages.map((p) => ({ ...p, items: [...p.items] }))
   const first = pages[0]!
-  const at = first.items.findIndex((n) => n.created_at < note.created_at)
+  // Compared as times: the server writes microseconds (or none, when they are zero), the client milliseconds,
+  // and as strings 10:00:00.5Z sorts before 10:00:00Z.
+  const created = Date.parse(note.created_at)
+  const at = first.items.findIndex((n) => Date.parse(n.created_at) < created)
   if (at === -1 && pages.length > 1) return data // older than everything loaded: it belongs on a later page
   first.items.splice(at === -1 ? first.items.length : at, 0, { ...note, category_id: null })
   if (first.total !== undefined && first.total !== null) first.total += 1

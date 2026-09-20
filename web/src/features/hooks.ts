@@ -1,7 +1,7 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useRef } from 'react'
 import { api, ApiError, unwrap, unwrapEmpty } from '../api/client'
-import { CLIENT_HEADER } from '../api/session'
+import { CLIENT_HEADER, refreshSession } from '../api/session'
 import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import {
@@ -22,6 +22,48 @@ export function useBoard(pageId: string | undefined) {
     enabled: !!pageId,
     queryFn: async () =>
       unwrap(await api.GET('/api/v1/pages/{id}/board', { params: { path: { id: pageId! }, query: { notes_per_category: 100 } } })),
+  })
+}
+
+/** The board queries themselves: ['board', pageId]. Longer keys under 'board' are the extra pages of a column. */
+const boardsOnly = { queryKey: ['board'], predicate: (q: { queryKey: readonly unknown[] }) => q.queryKey.length === 2 }
+
+export interface MoreNotes {
+  notes: Note[]
+  /** Cursor for the page after the last one loaded; null when the column is complete; undefined while loading. */
+  next: string | null | undefined
+}
+
+/**
+ * The pages a person asked for with "show more", per column. They are queries under the board's key, so
+ * every change event refetches them together with the board instead of throwing them away (CR-052).
+ */
+export function useMoreNotes(pageId: string | undefined, cursors: Record<string, string[]>): Record<string, MoreNotes> {
+  const entries = Object.entries(cursors).flatMap(([category, list]) => list.map((cursor) => ({ category, cursor })))
+  const signature = JSON.stringify(entries) // a stable identity, so the combined result only changes when it must
+  const combine = useCallback(
+    (results: { data?: { items: Note[]; next_cursor?: string | null } }[]) => {
+      const out: Record<string, MoreNotes> = {}
+      ;(JSON.parse(signature) as typeof entries).forEach((e, i) => {
+        const o = (out[e.category] ??= { notes: [], next: undefined })
+        const data = results[i]?.data
+        if (data) {
+          o.notes.push(...data.items)
+          o.next = data.next_cursor ?? null
+        } else o.next = undefined
+      })
+      return out
+    },
+    [signature],
+  )
+  return useQueries({
+    queries: entries.map((e) => ({
+      queryKey: ['board', pageId, 'more', e.category, e.cursor],
+      enabled: !!pageId,
+      queryFn: async () =>
+        unwrap(await api.GET('/api/v1/categories/{id}/notes', { params: { path: { id: e.category }, query: { cursor: e.cursor, limit: 100 } } })),
+    })),
+    combine,
   })
 }
 
@@ -53,7 +95,7 @@ interface Snapshot {
 
 /** Captures the cached views without waiting for anything. */
 function capture(qc: QueryClient): Snapshot {
-  return { boards: qc.getQueriesData<Board>({ queryKey: ['board'] }), inbox: qc.getQueryData<InboxData>(['inbox']) }
+  return { boards: qc.getQueriesData<Board>(boardsOnly), inbox: qc.getQueryData<InboxData>(['inbox']) }
 }
 
 /**
@@ -92,10 +134,10 @@ function useOptimistic<V, R>(o: {
       o.onSettled?.()
     },
   })
-  const mutate = (v: V) => {
+  const mutate = (v: V, opts?: { onSuccess?: (data: R) => void; onError?: () => void }) => {
     pending.current = capture(qc)
     o.apply(qc, v)
-    m.mutate(v)
+    m.mutate(v, opts)
   }
   return { ...m, mutate }
 }
@@ -113,7 +155,7 @@ function refresh(qc: QueryClient) {
 }
 
 function mapBoards(qc: QueryClient, fn: (b: Board) => Board) {
-  for (const [key, data] of qc.getQueriesData<Board>({ queryKey: ['board'] })) {
+  for (const [key, data] of qc.getQueriesData<Board>(boardsOnly)) {
     if (data) qc.setQueryData(key, fn(data))
   }
 }
@@ -298,24 +340,59 @@ export interface UploadedFile {
   size: number
 }
 
-/** Uploads one file as a raw streamed body (docs/design/02 section 1.3). */
+// Uploads go through a small queue: the server lets one person run only a few at once (429 too_many_uploads),
+// so choosing ten photos must not turn six of them into failures (CR-051).
+const MAX_PARALLEL_UPLOADS = 3
+let activeUploads = 0
+const waitingUploads: (() => void)[] = []
+
+async function withUploadSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (activeUploads >= MAX_PARALLEL_UPLOADS) await new Promise<void>((resolve) => waitingUploads.push(resolve))
+  activeUploads++
+  try {
+    return await run()
+  } finally {
+    activeUploads--
+    waitingUploads.shift()?.()
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Uploads one file as a raw streamed body (docs/design/02 section 1.3). It waits for a free upload slot,
+ * renews the session once if the access cookie has lapsed (the file can simply be sent again), and tries
+ * again when the server asks it to wait (429), honouring Retry-After (CR-051, CR-053).
+ */
 export async function uploadFile(file: File): Promise<UploadedFile> {
   const id = crypto.randomUUID()
-  const res = await fetch(`/api/v1/attachments/${id}`, {
-    method: 'PUT',
-    headers: {
-      ...CLIENT_HEADER,
-      'Content-Type': 'application/octet-stream',
-      'X-Filename': encodeURIComponent(file.name),
-      'X-Media-Type': file.type || 'application/octet-stream',
-    },
-    body: file,
+  return withUploadSlot(async () => {
+    let renewed = false
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`/api/v1/attachments/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...CLIENT_HEADER,
+          'Content-Type': 'application/octet-stream',
+          'X-Filename': encodeURIComponent(file.name),
+          'X-Media-Type': file.type || 'application/octet-stream',
+        },
+        body: file,
+      })
+      if (res.ok) return (await res.json()) as UploadedFile
+      if (res.status === 401 && !renewed) {
+        renewed = true
+        if (await refreshSession()) continue
+      }
+      if (res.status === 429 && attempt < 5) {
+        const wait = Number(res.headers.get('Retry-After'))
+        await sleep(Math.min(Number.isFinite(wait) && wait > 0 ? wait * 1000 : 1000 * 2 ** attempt, 15000))
+        continue
+      }
+      const problem = (await res.json().catch(() => ({}))) as { code?: string }
+      throw new ApiError(res.status, problem.code ?? 'error')
+    }
   })
-  if (!res.ok) {
-    const problem = (await res.json().catch(() => ({}))) as { code?: string }
-    throw new ApiError(res.status, problem.code ?? 'error')
-  }
-  return (await res.json()) as UploadedFile
 }
 
 // ---- merge and split (CORE-N14) ---------------------------------------------------------------
