@@ -202,10 +202,10 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | WEB-19 | Must | fully tested | 02 §1.6; 07 §1 | E2E | 1 |
 | WEB-20 | Should | fully tested | 07 §5 | E2E | 1 |
 | WEB-21 | Must | fully tested | 02 §1.4; 03 §6 | E2E | 2 |
-| WEB-N1 | Must | fully tested | 07 §2 | E2E | 1 |
+| WEB-N1 | Must | fully tested | 07 §2 | E2E | 2 |
 | WEB-N2 | Must | fully tested | 02 §1; 07 §1 | Review | 1 |
 | WEB-N3 | Must | fully tested | 07 §9; 02 §1.2 (board endpoint) | E2E | 1 |
-| WEB-N4 | Should | fully tested | 07 §6 | E2E (axe) | 1 |
+| WEB-N4 | Should | fully tested | 07 §6 | E2E (axe) | 2 |
 | WEB-N5 | Must | fully tested | 07 §5; 02 §1.3 | Unit, Integration | 1 |
 | WEB-N6 | Must | unimplemented | 07 §10 | E2E | 0 |
 | WEB-N7 | — | - | not a requirement | - | 0 |

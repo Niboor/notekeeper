@@ -25,7 +25,7 @@ If that is not acceptable for something, do not send it to the bot.
 1. The administrator creates your account and gives you an **activation link**. Open it and choose a password
    of at least the length shown.
 2. Under *Settings → Chats* choose **Create a code**. In your chat app, start a direct message with the
-   Notekeeper bot (only direct messages between you and the bot are used) and send `!link ABCD-1234` with your code.
+   Notekeeper bot (Settings shows its address, for example `@notekeeper:example.org`; only direct messages between you and the bot are used) and send `!link ABCD-1234` with your code.
 3. Send something. It appears in your **Inbox** within seconds, with a check mark on your message in the chat.
 
 ## Notes from chat

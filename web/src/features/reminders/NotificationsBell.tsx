@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
+import { Popover, useDismiss } from '../../components/Popover'
 import { t } from '../../i18n'
 import { formatWhen } from '../share/ShareDialog'
 import { useMarkNotificationsRead, useNotifications, type AppNotification } from './hooks'
@@ -17,25 +18,16 @@ export function NotificationsBell() {
   const { data } = useNotifications()
   const markRead = useMarkNotificationsRead()
   const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
   const unread = data?.unread ?? 0
 
-  useEffect(() => {
-    if (!open) return
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !root.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [open])
+  useDismiss(open, () => setOpen(false), [button, panel])
 
   return (
-    <div className="menu-anchor" ref={root}>
+    <div className="menu-anchor">
       <button
+        ref={button}
         className="icon-btn bell"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
@@ -47,7 +39,7 @@ export function NotificationsBell() {
         {unread > 0 && <span className="badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open && (
-        <div className="user-menu notifications" role="region" aria-label={t('bell.label')}>
+        <Popover anchor={button} popRef={panel} className="user-menu notifications" role="region" aria-label={t('bell.label')}>
           {data && data.items.length === 0 && <div className="who">{t('bell.none')}</div>}
           <ul className="plain-list">
             {data?.items.slice(0, 15).map((n) => {
@@ -76,7 +68,7 @@ export function NotificationsBell() {
               </button>
             )}
           </div>
-        </div>
+        </Popover>
       )}
     </div>
   )

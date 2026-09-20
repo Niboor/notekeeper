@@ -88,7 +88,7 @@ function UsersSection() {
   return (
     <section className="section" aria-labelledby="admin-users-h">
       <h2 id="admin-users-h">{t('admin.users')}</h2>
-      <form className="row" onSubmit={submit}>
+      <form className="row form-row" onSubmit={submit}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('admin.newUser')} aria-label={t('admin.newUser')} maxLength={32} />
         <button className="btn primary" disabled={!name.trim() || create.isPending}>
           {t('admin.create')}
@@ -207,7 +207,7 @@ function BotsSection() {
     <section className="section" aria-labelledby="admin-bots-h">
       <h2 id="admin-bots-h">{t('admin.bots')}</h2>
       <form
-        className="row"
+        className="row form-row"
         onSubmit={(e) => {
           e.preventDefault()
           create.mutate()
@@ -229,7 +229,7 @@ function BotsSection() {
         <div className="bot-card" key={b.id}>
           <div className="row">
             <div className="grow">
-              <strong>{b.name}</strong> <span className="sub">{b.type} · {b.identity_domain}</span>
+              <strong>{b.name}</strong> <span className="sub">{b.type} · {b.identity_domain}{b.address ? ` · ${b.address}` : ''}</span>
               <div className="sub">
                 {t(`admin.botStatus.${b.status}` as 'admin.botStatus.active')} · {b.last_seen_at ? t('admin.lastSeen', { when: formatWhen(b.last_seen_at) }) : t('admin.neverSeen')}
               </div>

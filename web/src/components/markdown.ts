@@ -85,3 +85,22 @@ export function taskProgress(text: string): TaskProgress {
   walk(parseNote(text))
   return { done, total }
 }
+
+/**
+ * A note's text as one readable line for lists and menus: the Markdown marks (list bullets, task
+ * boxes, headings, quotes, emphasis) are dropped, line breaks become " · ", and it is cut at `max`.
+ */
+export function plainExcerpt(text: string, max = 80): string {
+  const lines = text
+    .split('\n')
+    .map((l) =>
+      l
+        .replace(/^\s*(?:>\s*|#{1,6}\s+|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/, '')
+        .replace(/(\*\*|__|~~|`|\*)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    )
+    .filter((l) => l !== '')
+  const line = lines.join(' · ')
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line
+}

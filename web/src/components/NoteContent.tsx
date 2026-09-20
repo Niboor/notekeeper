@@ -90,18 +90,21 @@ export function NoteContent({ text, onChange }: Props) {
           const checked = offset !== undefined && offset in overrides ? overrides[offset]! : node.checked
           return (
             <li key={key} className={checked ? 'done' : undefined}>
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={!onChange || offset === undefined}
-                aria-label={plainText(node.children) || 'task'}
-                onChange={() => {
-                  if (!onChange || offset === undefined) return
-                  setLocal({ base: text, checked: { ...overrides, [offset]: !checked } })
-                  onChange(toggleTask(text, offset))
-                }}
-              />
-              <span>{kids(node.children)}</span>
+              {/* The words are part of the label: clicking them ticks the box, clicking a link in them opens the link. */}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!onChange || offset === undefined}
+                  aria-label={plainText(node.children) || 'task'}
+                  onChange={() => {
+                    if (!onChange || offset === undefined) return
+                    setLocal({ base: text, checked: { ...overrides, [offset]: !checked } })
+                    onChange(toggleTask(text, offset))
+                  }}
+                />
+                <span>{kids(node.children)}</span>
+              </label>
             </li>
           )
         }

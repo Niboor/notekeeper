@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { plainExcerpt } from '../../components/markdown'
 import { t } from '../../i18n'
 import { useMergeNotes } from '../hooks'
 import type { Note } from '../types'
 
 function label(n: Note): string {
   const text = n.parts.find((p) => p.kind === 'text')?.text ?? n.parts.find((p) => p.attachment)?.attachment?.filename ?? '…'
-  return text.replace(/\s+/g, ' ').slice(0, 80)
+  return plainExcerpt(text) || '…'
 }
 
 /** Pick another note of the same column to merge into this one (WEB-15, CORE-N14). */

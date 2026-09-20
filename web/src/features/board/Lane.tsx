@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { InlineName } from '../../components/InlineName'
 import { Menu } from '../../components/Menu'
-import { t } from '../../i18n'
+import { t, tn } from '../../i18n'
 import { Composer } from '../notes/Composer'
 import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
@@ -76,7 +76,7 @@ export function Lane({ id, name, notes, total, current, liftedId, onNoteKeyDown,
             {name}
           </h2>
         )}
-        <span className="count" aria-label={t('lane.count', { count: total })}>
+        <span className="count" aria-label={tn('lane.count', total)}>
           {total}
         </span>
         {!isInbox && !renaming && (

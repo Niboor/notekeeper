@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type FormEvent } from 'react'
 import { api, ApiError, unwrap, unwrapEmpty } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
-import { t } from '../../i18n'
+import { t, tn } from '../../i18n'
 import { formatWhen } from '../share/ShareDialog'
 import { useRevokeAllShares, useRevokeShare, useShareLinks } from '../share/hooks'
 
@@ -32,9 +32,10 @@ function ChatsSection() {
   const bots = useQuery({ queryKey: ['bot-instances'], queryFn: async () => unwrap(await api.GET('/api/v1/bot-instances')) })
   const [code, setCode] = useState<{ code: string; bot: string } | null>(null)
   const pair = useMutation({
-    mutationFn: async (bot: { id: string; name: string }) => {
+    mutationFn: async (bot: { id: string; name: string; address?: string }) => {
       const res = unwrap(await api.POST('/api/v1/me/pairing-codes', { body: { bot_instance_id: bot.id } }))
-      return { code: res.code, bot: bot.name }
+      // The account to write to: the bot's own address in the chat app when it has reported one.
+      return { code: res.code, bot: bot.address ?? bot.name }
     },
     onSuccess: setCode,
   })
@@ -85,6 +86,7 @@ function ChatsSection() {
           <div className="grow">
             {b.name}
             <div className="sub">
+              {b.address && <>{b.address} · </>}
               <span className={`status-dot ${b.online ? 'on' : ''}`} />
               {b.online ? t('settings.chats.online') : t('settings.chats.offline')}
             </div>
@@ -199,7 +201,7 @@ function ShareLinksSection() {
           <div className="grow">
             {l.excerpt || '…'}
             <div className="sub">
-              {t('share.until', { when: formatWhen(l.expires_at) })} · {t('share.views', { count: l.view_count })} ·{' '}
+              {t('share.until', { when: formatWhen(l.expires_at) })} · {tn('share.views', l.view_count)} ·{' '}
               {l.last_accessed_at ? t('settings.share.lastAccess', { when: formatWhen(l.last_accessed_at) }) : t('settings.share.never')}
               {!l.note_active && ` · ${t('settings.share.notWorking')}`}
             </div>
@@ -339,7 +341,13 @@ function DeleteAccountSection() {
     onSuccess: () => void logout().catch(() => undefined),
     onError: (e) => setError(e instanceof ApiError && e.status === 409 ? t('settings.delete.admin') : t('settings.delete.wrong')),
   })
-  if (user?.is_admin) return null
+  if (user?.is_admin)
+    return (
+      <section className="section" aria-labelledby="delete-h">
+        <h2 id="delete-h">{t('settings.delete.title')}</h2>
+        <p>{t('settings.delete.adminNote')}</p>
+      </section>
+    )
   return (
     <section className="section" aria-labelledby="delete-h">
       <h2 id="delete-h">{t('settings.delete.title')}</h2>

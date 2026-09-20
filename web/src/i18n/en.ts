@@ -73,6 +73,7 @@ export const en = {
   'toast.moved': 'Moved',
   'toast.failed': 'That did not work. Nothing was changed.',
   'toast.categoryDeleted': '{count} notes returned to the Inbox',
+  'toast.categoryDeleted.one': '1 note returned to the Inbox',
   'toast.dismissedDeletedForever': 'Note deleted for good',
 
   'nav.newNote': 'New note',
@@ -82,6 +83,7 @@ export const en = {
   'nav.pages': 'Pages',
   'nav.newPage': 'New page',
   'nav.moreForPage': 'Page options',
+  'nav.reminders': 'Reminders',
 
   'page.rename': 'Rename page',
   'page.delete': 'Delete page',
@@ -100,6 +102,7 @@ export const en = {
   'lane.empty': 'Drop notes here',
   'lane.showMore': 'Show more',
   'lane.count': '{count} notes',
+  'lane.count.one': '1 note',
 
   'composer.placeholder': 'Write a note. Start lines with "- [ ]" for a checklist.',
   'composer.submit': 'Add note',
@@ -145,6 +148,10 @@ export const en = {
   'search.scope.trash': 'Trash',
   'search.scope.all': 'Everything',
   'search.more': 'More results',
+  'search.count': '{count} results',
+  'search.count.one': '1 result',
+  'search.countMore': '{count} or more results',
+  'search.wholeNote': 'Show the whole note',
 
   'move.tabInbox': 'Inbox',
   'dnd.lifted': 'Picked up. Arrow keys move it, Space drops it, Escape cancels.',
@@ -170,6 +177,7 @@ export const en = {
   'share.none': 'No active links.',
   'share.until': 'Until {when}',
   'share.views': '{count} views',
+  'share.views.one': '1 view',
   'share.revoke': 'Revoke',
   'share.revoked': 'Link revoked',
   'share.off': 'Sharing is switched off on this server.',
@@ -297,6 +305,10 @@ export const en = {
   'settings.delete.confirm': 'Delete my account and all my data',
   'settings.delete.wrong': 'That password is not right.',
   'settings.delete.admin': 'The administrator account cannot be deleted here.',
+  'settings.delete.adminNote': 'The administrator account is the one that runs this server, so it cannot be deleted from the app.',
+  'notfound.title': 'That page does not exist',
+  'notfound.lead': 'The address may be mistyped, or the note or page it pointed to is gone.',
+  'notfound.home': 'Back to your notes',
   'settings.export.title': 'Export my data',
   'settings.export.lead': 'A ZIP file with all your pages, notes, history, reminders and files, in open formats.',
   'settings.export.button': 'Download export',

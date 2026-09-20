@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { Popover, useDismiss } from './Popover'
 
 export interface MenuItem {
   label: string
@@ -19,42 +20,37 @@ interface Props {
 
 /**
  * A small popup menu: opens on click, closes on outside click or Escape, moves between items
- * with the arrow keys and selects with Enter or Space (WEB-N4).
+ * with the arrow keys and selects with Enter or Space (WEB-N4). The list floats above the page
+ * (see Popover): it is never cut off by a scrolling column or the tab strip, stays inside the
+ * window, and is a bottom sheet on phones.
  */
 export function Menu({ label, items, children, className = '', align = 'right' }: Props) {
   const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLDivElement>(null)
   const menuId = useId()
 
+  useDismiss(open, () => {
+    setOpen(false)
+    button.current?.focus()
+  }, [button, list])
+
   useEffect(() => {
-    if (!open) return
-    const outside = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false)
-        root.current?.querySelector<HTMLElement>('[aria-haspopup]')?.focus()
-      }
-    }
-    document.addEventListener('mousedown', outside)
-    document.addEventListener('keydown', escape)
-    root.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus()
-    return () => {
-      document.removeEventListener('mousedown', outside)
-      document.removeEventListener('keydown', escape)
-    }
+    if (open) list.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus()
   }, [open])
 
-  const move = (dir: 1 | -1) => {
-    const els = Array.from(root.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? [])
+  const menuItems = () => Array.from(list.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? [])
+  const move = (to: 'next' | 'prev' | 'first' | 'last') => {
+    const els = menuItems()
     const i = els.indexOf(document.activeElement as HTMLElement)
-    els[(i + dir + els.length) % els.length]?.focus()
+    const target = to === 'first' ? 0 : to === 'last' ? els.length - 1 : (i + (to === 'next' ? 1 : -1) + els.length) % els.length
+    els[target]?.focus()
   }
 
   return (
-    <div className={`menu-anchor ${className}`} ref={root}>
+    <div className={`menu-anchor ${className}`}>
       <button
+        ref={button}
         type="button"
         className="icon-btn"
         aria-label={label}
@@ -66,18 +62,24 @@ export function Menu({ label, items, children, className = '', align = 'right' }
         {children}
       </button>
       {open && (
-        <div
+        <Popover
           id={menuId}
+          anchor={button}
+          popRef={list}
+          align={align}
+          sheet
           role="menu"
-          className={`pop-menu align-${align}`}
+          className="pop-menu"
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
+            const keys = { ArrowDown: 'next', ArrowUp: 'prev', Home: 'first', End: 'last' } as const
+            if (e.key in keys) {
               e.preventDefault()
-              move(1)
+              move(keys[e.key as keyof typeof keys])
             }
-            if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              move(-1)
+            if (e.key === 'Tab') {
+              // Leaving the list closes it; the focus continues from the button.
+              setOpen(false)
+              button.current?.focus()
             }
           }}
         >
@@ -101,7 +103,7 @@ export function Menu({ label, items, children, className = '', align = 'right' }
               </button>
             ),
           )}
-        </div>
+        </Popover>
       )}
     </div>
   )

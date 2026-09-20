@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../api/client'
 import { Icon } from '../../components/Icon'
+import { useAutoGrow } from '../../components/useAutoGrow'
 import { t } from '../../i18n'
 import { uploadFile, useCreateNote, type UploadedFile } from '../hooks'
 
@@ -32,6 +33,7 @@ export function Composer({ categoryId, onClose }: Props) {
   const area = useRef<HTMLTextAreaElement>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => area.current?.focus(), [])
+  useAutoGrow(area, text)
 
   const ready = files.filter((f) => f.state === 'done' && f.file).map((f) => f.file!.id)
   const uploading = files.some((f) => f.state === 'uploading')

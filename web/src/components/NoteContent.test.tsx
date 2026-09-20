@@ -101,6 +101,19 @@ describe('NoteContent rendering', () => {
     expect(onChange).toHaveBeenCalledWith('- [ ] eggs\n- [x] milk\n- [x] bread')
   })
 
+  it('ticks the box when its words are clicked, but a link in the words only opens the link', async () => {
+    const onChange = vi.fn()
+    const { getByText, container } = render(<NoteContent text={'- [ ] eggs\n- [ ] see [the list](https://example.com/list)'} onChange={onChange} />)
+    const user = userEvent.setup()
+    await user.click(getByText('eggs'))
+    expect(onChange).toHaveBeenLastCalledWith('- [x] eggs\n- [ ] see [the list](https://example.com/list)')
+    onChange.mockClear()
+    const link = container.querySelector('a')!
+    link.addEventListener('click', (e) => e.preventDefault()) // jsdom cannot navigate
+    await user.click(link)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('is read-only without a change handler (share page)', () => {
     const { container } = render(<NoteContent text={'- [ ] a'} />)
     expect(container.querySelector<HTMLInputElement>('input[type=checkbox]')?.disabled).toBe(true)

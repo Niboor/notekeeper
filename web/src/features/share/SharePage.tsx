@@ -50,6 +50,10 @@ export function SharePage() {
 
   return (
     <main className="share-page">
+      <div className="share-brand">
+        <span className="logo" />
+        <span className="brand-name">{t('app.name')}</span>
+      </div>
       <p className="share-notice" role="note">
         {t('shared.notice')}
       </p>

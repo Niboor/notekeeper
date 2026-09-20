@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type Ref } from 'react'
 import { Icon } from '../../components/Icon'
+import { useAutoGrow } from '../../components/useAutoGrow'
 import { Menu, type MenuItem } from '../../components/Menu'
 import { NoteContent } from '../../components/NoteContent'
-import { taskProgress } from '../../components/markdown'
+import { plainExcerpt, taskProgress } from '../../components/markdown'
 import { timeAgo } from '../../components/time'
 import { t } from '../../i18n'
 import { HistoryDialog } from './HistoryDialog'
@@ -72,13 +73,20 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
     setDraft(part?.text ?? '')
     setEditing({ partId: part?.id ?? null, base: note.version })
   }
+  const editorRef = useRef<HTMLTextAreaElement>(null)
+  // Leaving the editor puts the focus back on the card, so the keyboard does not start from the top of the page.
+  const stopEditing = () => {
+    const card = editorRef.current?.closest<HTMLElement>('article')
+    setEditing(null)
+    requestAnimationFrame(() => card?.focus())
+  }
   const save = () => {
     if (!editing) return
     const text = draft.trimEnd()
     if (text.trim() === '') return
     if (editing.partId) edit.mutate({ note, partId: editing.partId, text })
     else addPart.mutate({ noteId: note.id, text })
-    setEditing(null)
+    stopEditing()
   }
 
   const moveItems: MenuItem[] = useMemo(() => {
@@ -102,7 +110,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
     ...(siblings && note.state === 'active' ? [{ label: t('merge.action'), onSelect: () => setMerging(true) }] : []),
     ...(note.state === 'active' && note.parts.length > 1
       ? note.parts.map((p) => ({
-          label: `${t('merge.split')}: ${(p.text ?? p.attachment?.filename ?? p.failed?.filename ?? '…').replace(/\s+/g, ' ').slice(0, 30)}`,
+          label: `${t('merge.split')}: ${plainExcerpt(p.text ?? p.attachment?.filename ?? p.failed?.filename ?? '…', 30)}`,
           onSelect: () => split.mutate({ noteId: note.id, partId: p.id }),
         }))
       : []),
@@ -110,10 +118,10 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
     ...moveItems,
   ]
 
-  const editorRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     if (editing) editorRef.current?.focus()
   }, [editing])
+  useAutoGrow(editorRef, editing ? draft : null)
   const changedElsewhere = editing !== null && note.version !== editing.base
 
   return (
@@ -177,7 +185,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
               aria-label={t('note.edit')}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') setEditing(null)
+                if (e.key === 'Escape') stopEditing()
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault()
                   save()
@@ -187,7 +195,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted,
             />
             <div className="composer-bar">
               <span className="grow" />
-              <button className="btn" onClick={() => setEditing(null)}>
+              <button className="btn" onClick={stopEditing}>
                 {t('note.cancel')}
               </button>
               <button className="btn primary" onClick={save}>

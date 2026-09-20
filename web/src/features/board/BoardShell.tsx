@@ -11,7 +11,7 @@ import { Icon } from '../../components/Icon'
 import { TopbarSlot } from '../../components/topbar'
 import { InlineName } from '../../components/InlineName'
 import { useToast } from '../../components/Toast'
-import { t } from '../../i18n'
+import { t, tn } from '../../i18n'
 import { neighbours } from '../cache'
 import { useBoard, useInbox, useMoreNotes, useMoveNote, usePages } from '../hooks'
 import { NoteCard } from '../notes/NoteCard'
@@ -284,7 +284,7 @@ export function BoardShell() {
     try {
       const res = unwrap(await api.DELETE('/api/v1/categories/{id}', { params: { path: { id: lane.id } } }))
       void qc.invalidateQueries()
-      toast({ message: t('toast.categoryDeleted', { count: res.moved_notes }) })
+      toast({ message: tn('toast.categoryDeleted', res.moved_notes) })
     } catch {
       toast({ message: t('toast.failed') })
     }

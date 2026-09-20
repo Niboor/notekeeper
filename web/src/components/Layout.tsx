@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, Outlet, useNavigate, useSearchParams } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { t } from '../i18n'
 import { NotificationsBell } from '../features/reminders/NotificationsBell'
 import { Icon } from './Icon'
+import { Popover, useDismiss } from './Popover'
 import { useOnline } from './useOnline'
 import { useTheme } from './theme'
 import { TopbarSlot } from './topbar'
@@ -14,12 +15,21 @@ export function Layout() {
   const [theme, toggleTheme] = useTheme()
   const online = useOnline()
   const [open, setOpen] = useState(false)
+  const avatarRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)
+  const { pathname } = useLocation()
   const [query, setQuery] = useState(params.get('q') ?? '')
+  // The search box shows the query of the search page and is empty everywhere else.
+  const shown = pathname === '/search' ? params.get('q') ?? '' : ''
+  const [seen, setSeen] = useState(shown)
+  if (seen !== shown) {
+    setSeen(shown)
+    setQuery(shown)
+  }
 
   // "/" and Ctrl+K focus the search field from anywhere (WEB-14, WEB-16).
   useEffect(() => {
@@ -39,18 +49,7 @@ export function Layout() {
     if (query.trim()) void navigate(`/search?q=${encodeURIComponent(query.trim())}`)
   }
 
-  useEffect(() => {
-    if (!open) return
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !menuRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [open])
+  useDismiss(open, () => setOpen(false), [avatarRef, menuRef])
 
   const initials = (user?.display_name ?? '?').slice(0, 1).toUpperCase()
   return (
@@ -60,7 +59,7 @@ export function Layout() {
           <span className="logo" />
           <span className="brand-name">{t('app.name')}</span>
         </Link>
-        <div ref={setSlot} className="pages" />
+        <div ref={setSlot} className="pages-slot" />
         <form className="search" role="search" onSubmit={submitSearch}>
           <Icon name="search" />
           <input ref={searchRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('nav.searchPlaceholder')} aria-label={t('nav.search')} />
@@ -79,13 +78,16 @@ export function Layout() {
           <button className="icon-btn" onClick={toggleTheme} aria-label={t('nav.theme')} title={t('nav.theme')}>
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
-          <div className="menu-anchor" ref={menuRef}>
-            <button className="avatar" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open} aria-label={t('nav.signedInAs', { name: user?.display_name ?? '' })}>
+          <div className="menu-anchor">
+            <button ref={avatarRef} className="avatar" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open} aria-label={t('nav.signedInAs', { name: user?.display_name ?? '' })}>
               {initials}
             </button>
             {open && (
-              <div className="user-menu" role="menu">
+              <Popover anchor={avatarRef} popRef={menuRef} className="user-menu" role="menu">
                 <div className="who">{t('nav.signedInAs', { name: user?.display_name ?? '' })}</div>
+                <Link to="/reminders" role="menuitem" onClick={() => setOpen(false)}>
+                  {t('nav.reminders')}
+                </Link>
                 <Link to="/settings" role="menuitem" onClick={() => setOpen(false)}>
                   {t('nav.settings')}
                 </Link>
@@ -97,7 +99,7 @@ export function Layout() {
                 <button role="menuitem" onClick={() => void logout()}>
                   {t('nav.signOut')}
                 </button>
-              </div>
+              </Popover>
             )}
           </div>
         </div>

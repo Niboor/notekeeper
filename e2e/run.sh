@@ -68,5 +68,5 @@ pids+=($!)
 for _ in $(seq 1 60); do curl -fsk "$SCHEME://localhost:$WEB/" >/dev/null && break; sleep 0.5; done
 
 cd e2e
-if [ -n "${E2E_HOLD:-}" ]; then echo "stack is up on $E2E_BASE_URL; Ctrl-C to stop"; sleep "${E2E_HOLD}"; exit 0; fi
+if [ -n "${E2E_HOLD:-}" ]; then echo "stack is up on $E2E_BASE_URL (admin alice, activate at $E2E_BASE_URL/activate#$E2E_ACTIVATION_TOKEN); Ctrl-C to stop"; sleep "${E2E_HOLD}"; exit 0; fi
 npx playwright test "$@"

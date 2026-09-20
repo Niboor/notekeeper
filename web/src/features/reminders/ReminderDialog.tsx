@@ -118,18 +118,20 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
         ))}
       </div>
       <h3>{t('remind.custom')}</h3>
-      <div className="row">
+      <div className="remind-custom">
         <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} aria-label={t('remind.custom')} />
-        <label htmlFor="remind-repeat" className="sub">
-          {t('remind.repeat')}
-        </label>
-        <select id="remind-repeat" value={repeat} onChange={(e) => setRepeat(e.target.value as keyof typeof RULES)}>
-          {(Object.keys(RULES) as (keyof typeof RULES)[]).map((k) => (
-            <option key={k} value={k}>
-              {t(`remind.repeat.${k}` as MessageKey)}
-            </option>
-          ))}
-        </select>
+        <div className="repeat">
+          <label htmlFor="remind-repeat" className="sub">
+            {t('remind.repeat')}
+          </label>
+          <select id="remind-repeat" value={repeat} onChange={(e) => setRepeat(e.target.value as keyof typeof RULES)}>
+            {(Object.keys(RULES) as (keyof typeof RULES)[]).map((k) => (
+              <option key={k} value={k}>
+                {t(`remind.repeat.${k}` as MessageKey)}
+              </option>
+            ))}
+          </select>
+        </div>
         <button className="btn primary" onClick={() => add(new Date(custom))} disabled={!custom}>
           {t('remind.set')}
         </button>

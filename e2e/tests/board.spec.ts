@@ -81,6 +81,7 @@ test('hold a note over a page tab to move it to another page', async ({ page }) 
 
   const note = card(lane(page, 'Todo'), 'travelling note')
   const tab = page.getByRole('link', { name: 'Elsewhere' })
+  await tab.scrollIntoViewIfNeeded() // with many pages the strip scrolls; a person brings the tab into view first
   const a = (await note.boundingBox())!
   const t = (await tab.boundingBox())!
   await page.mouse.move(a.x + 40, a.y + 20)

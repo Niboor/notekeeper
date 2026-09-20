@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError } from '../../api/client'
 import { useToast } from '../../components/Toast'
-import { t, type MessageKey } from '../../i18n'
+import { t, tn, type MessageKey } from '../../i18n'
 import { useCreateShare, useRevokeShare, useShareLinks, type Expiry } from './hooks'
 
 const EXPIRIES: { value: Expiry; seconds: number }[] = [
@@ -129,7 +129,7 @@ export function ShareDialog({ noteId, onClose }: { noteId: string; onClose: () =
           <li className="row" key={l.id}>
             <div className="grow">
               {t('share.until', { when: formatWhen(l.expires_at) })}
-              <div className="sub">{t('share.views', { count: l.view_count })}</div>
+              <div className="sub">{tn('share.views', l.view_count)}</div>
             </div>
             <button
               className="btn"

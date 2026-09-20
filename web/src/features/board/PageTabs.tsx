@@ -1,12 +1,12 @@
 import { useDroppable } from '@dnd-kit/core'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, unwrap } from '../../api/client'
 import { Icon } from '../../components/Icon'
 import { InlineName } from '../../components/InlineName'
 import { Menu } from '../../components/Menu'
 import { useToast } from '../../components/Toast'
-import { t } from '../../i18n'
+import { t, tn } from '../../i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePages } from '../hooks'
 import type { Page } from '../types'
@@ -20,6 +20,7 @@ function Tab({ page, current, dropTarget }: { page: Page; current: boolean; drop
       to={`/p/${page.id}`}
       className={`page${current ? ' is-current' : ''}${dropTarget ? ' is-drop-target' : ''}`}
       aria-current={current ? 'page' : undefined}
+      title={page.name}
     >
       {page.name}
     </Link>
@@ -35,6 +36,26 @@ export function PageTabs({ currentId, overPageId }: { currentId: string | undefi
   const [adding, setAdding] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const current = pages.data?.find((p) => p.id === currentId)
+  const strip = useRef<HTMLDivElement>(null)
+
+  // The strip has no scrollbar: the current tab is scrolled into view and the edges fade where more tabs are hidden.
+  useEffect(() => {
+    const el = strip.current
+    if (!el) return
+    el.querySelector<HTMLElement>('[aria-current=page]')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+    const fade = () => {
+      el.dataset.fadeStart = String(el.scrollLeft > 1)
+      el.dataset.fadeEnd = String(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+    }
+    fade()
+    el.addEventListener('scroll', fade, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fade)
+    observer?.observe(el)
+    return () => {
+      el.removeEventListener('scroll', fade)
+      observer?.disconnect()
+    }
+  }, [currentId, pages.data, renaming])
 
   const refresh = () => void qc.invalidateQueries({ queryKey: ['pages'] })
   const create = async (name: string) => {
@@ -62,7 +83,7 @@ export function PageTabs({ currentId, overPageId }: { currentId: string | undefi
     try {
       const res = unwrap(await api.DELETE('/api/v1/pages/{id}', { params: { path: { id: current.id } } }))
       void qc.invalidateQueries()
-      if (res.moved_notes > 0) toast({ message: t('toast.categoryDeleted', { count: res.moved_notes }) })
+      if (res.moved_notes > 0) toast({ message: tn('toast.categoryDeleted', res.moved_notes) })
       const next = (pages.data ?? []).find((p) => p.id !== current.id)
       void navigate(next ? `/p/${next.id}` : '/')
     } catch {
@@ -72,23 +93,27 @@ export function PageTabs({ currentId, overPageId }: { currentId: string | undefi
 
   return (
     <nav className="pages" aria-label={t('nav.pages')}>
-      {renaming && current ? (
-        <InlineName initial={current.name} placeholder={t('page.namePlaceholder')} onCancel={() => setRenaming(false)} onSubmit={(n) => void rename(n)} />
-      ) : (
-        (pages.data ?? []).filter((p) => !p.archived).map((p) => <Tab key={p.id} page={p} current={p.id === currentId} dropTarget={overPageId === p.id} />)
-      )}
-      {current && !renaming && (
-        <Menu label={t('nav.moreForPage')} items={[{ label: t('page.rename'), onSelect: () => setRenaming(true) }, { label: t('page.delete'), danger: true, onSelect: () => void remove() }]} align="left">
-          <Icon name="more" />
-        </Menu>
-      )}
-      {adding ? (
-        <InlineName placeholder={t('page.namePlaceholder')} onCancel={() => setAdding(false)} onSubmit={(n) => void create(n)} />
-      ) : (
-        <button className="icon-btn" aria-label={t('nav.newPage')} title={t('nav.newPage')} onClick={() => setAdding(true)}>
-          <Icon name="plus" />
-        </button>
-      )}
+      <div className="page-tabs" ref={strip}>
+        {renaming && current ? (
+          <InlineName initial={current.name} placeholder={t('page.namePlaceholder')} onCancel={() => setRenaming(false)} onSubmit={(n) => void rename(n)} />
+        ) : (
+          (pages.data ?? []).filter((p) => !p.archived).map((p) => <Tab key={p.id} page={p} current={p.id === currentId} dropTarget={overPageId === p.id} />)
+        )}
+      </div>
+      <div className="page-tools">
+        {current && !renaming && (
+          <Menu label={t('nav.moreForPage')} items={[{ label: t('page.rename'), onSelect: () => setRenaming(true) }, { label: t('page.delete'), danger: true, onSelect: () => void remove() }]} align="left">
+            <Icon name="more" />
+          </Menu>
+        )}
+        {adding ? (
+          <InlineName placeholder={t('page.namePlaceholder')} onCancel={() => setAdding(false)} onSubmit={(n) => void create(n)} />
+        ) : (
+          <button className="icon-btn" aria-label={t('nav.newPage')} title={t('nav.newPage')} onClick={() => setAdding(true)}>
+            <Icon name="plus" />
+          </button>
+        )}
+      </div>
     </nav>
   )
 }
