@@ -146,7 +146,8 @@ export const en = {
   'search.more': 'More results',
 
   'move.tabInbox': 'Inbox',
-  'dnd.lifted': 'Picked up the note. Use the arrow keys to move it, Space to drop, Escape to cancel.',
+  'dnd.lifted': 'Picked up. Arrow keys move it, Space drops it, Escape cancels.',
+  'dnd.instructions': 'Press Space to pick this note up, then use the arrow keys to move it between and within columns, Space to drop it and Escape to cancel.',
   'dnd.movedTo': 'Moved to {lane}, position {pos} of {total}.',
   'dnd.dropped': 'Dropped in {lane}, position {pos} of {total}.',
   'dnd.cancelled': 'Cancelled. The note is back where it was.',

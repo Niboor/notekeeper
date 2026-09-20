@@ -23,12 +23,14 @@ interface Props {
   /** True for the copy shown under the pointer while dragging. */
   overlay?: boolean
   dragging?: boolean
+  /** Picked up with the keyboard. */
+  lifted?: boolean
   /** Where the note currently is (for "move to" menus); hides the current lane from the list. */
   laneId?: string
 }
 
 /** One note as a card: content, attachments, meta line, and its actions. */
-export function NoteCard({ note, dragProps, innerRef, overlay, dragging, laneId }: Props) {
+export function NoteCard({ note, dragProps, innerRef, overlay, dragging, lifted, laneId }: Props) {
   const dismiss = useDismissNote()
   const edit = useEditPart()
   const addPart = useAddPart()
@@ -93,7 +95,7 @@ export function NoteCard({ note, dragProps, innerRef, overlay, dragging, laneId 
   return (
     <article
       ref={innerRef}
-      className={`note${dragging ? ' is-dragging-source' : ''}${overlay ? ' is-lifted' : ''}`}
+      className={`note${dragging ? ' is-dragging-source' : ''}${overlay || lifted ? ' is-lifted' : ''}`}
       data-id={note.id}
       tabIndex={overlay ? -1 : 0}
       {...dragProps}

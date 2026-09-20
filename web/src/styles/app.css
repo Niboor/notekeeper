@@ -94,3 +94,11 @@
   .add-lane { display: none; }
 }
 @media (min-width: 821px) { .lane, .lane.is-current { display: flex; } }
+
+/* Respect the user's motion preference (WEB-N4). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+:root { color-scheme: light dark; }
+:root[data-theme=light] { color-scheme: light; }
+:root[data-theme=dark] { color-scheme: dark; }

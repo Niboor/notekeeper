@@ -1,8 +1,7 @@
 import {
-  DndContext, DragOverlay, KeyboardSensor, MouseSensor, closestCenter, pointerWithin, rectIntersection, useSensor, useSensors,
-  type Announcements, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+  DndContext, DragOverlay, MouseSensor, closestCenter, pointerWithin, rectIntersection, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -18,7 +17,7 @@ import { useBoard, useInbox, useMoveNote, usePages } from '../hooks'
 import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
 import {
-  announceMoved, findLane, insertIndex, isLaneDrop, isPageDrop, isUnchanged, laneOf, moveAcross, pageOf, placementOf, reorder, type Arrangement,
+  findLane, insertIndex, isLaneDrop, isPageDrop, isUnchanged, keyboardStep, laneOf, moveAcross, pageOf, placementOf, rebase, reorder, type Arrangement,
 } from './dnd'
 import { Lane } from './Lane'
 import { PageTabs } from './PageTabs'
@@ -66,7 +65,10 @@ export function BoardShell() {
 
   // While dragging, the arrangement is local; otherwise it is what the server says.
   const [drag, setDrag] = useState<{ note: Note; arrangement: Arrangement; origin: ReturnType<typeof placementOf> } | null>(null)
-  const arrangement = drag?.arrangement ?? served
+  // The lanes on screen can change during a drag (another page opened by holding over its tab): rebase onto them.
+  const [lift, setLift] = useState<{ note: Note; origin: ReturnType<typeof placementOf>; arrangement: Arrangement } | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  const arrangement = drag ? rebase(drag.arrangement, served, drag.note.id) : lift ? rebase(lift.arrangement, served, lift.note.id) : served
   const [overPage, setOverPage] = useState<string | null>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastOver = useRef<string | null>(null)
@@ -79,9 +81,9 @@ export function BoardShell() {
   const currentMobile = lanes.some((l) => l.id === mobileLane) ? mobileLane : INBOX
 
   const sensors = useSensors(
-    // Mouse and keyboard only: on touch, dragging competes with scrolling, so phones use the Move-to menu (WEB-5).
+    // The mouse only: on touch, dragging competes with scrolling, so phones use the Move-to menu, and
+    // the keyboard has its own lift-and-move interaction below (WEB-5).
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const collision: CollisionDetection = useCallback(
@@ -134,16 +136,20 @@ export function BoardShell() {
       return
     }
     clearHold()
-    const from = findLane(drag.arrangement, activeId)
-    const toLane = isLaneDrop(overId) ? laneOf(overId) : findLane(drag.arrangement, overId)
+    const current = rebase(drag.arrangement, served, activeId)
+    const from = findLane(current, activeId)
+    const toLane = isLaneDrop(overId) ? laneOf(overId) : findLane(current, overId)
     if (toLane === undefined) return
-    if (from === toLane) return // sortable reorders inside a lane at drop time
-    const ids = drag.arrangement[toLane] ?? []
+    if (from === toLane) {
+      if (current !== drag.arrangement) setDrag({ ...drag, arrangement: current })
+      return // sortable reorders inside a lane at drop time
+    }
+    const ids = current[toLane] ?? []
     const overRect = e.over.rect
     const activeRect = e.active.rect.current.translated
     const below = !!activeRect && !isLaneDrop(overId) && activeRect.top + activeRect.height / 2 > overRect.top + overRect.height / 2
     const index = isLaneDrop(overId) ? ids.length : insertIndex(ids, overId, below)
-    setDrag({ ...drag, arrangement: moveAcross(drag.arrangement, activeId, toLane, index) })
+    setDrag({ ...drag, arrangement: moveAcross(current, activeId, toLane, index) })
   }
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -151,7 +157,7 @@ export function BoardShell() {
     lastOver.current = null
     if (!drag) return
     const activeId = String(e.active.id)
-    let arr = drag.arrangement
+    let arr = rebase(drag.arrangement, served, activeId)
     const overId = e.over ? String(e.over.id) : null
     if (overId && !isPageDrop(overId) && !isLaneDrop(overId)) {
       const lane = findLane(arr, activeId)
@@ -171,24 +177,64 @@ export function BoardShell() {
   }
   useEffect(() => () => clearTimeout(holdTimer.current), [])
 
-  const announcements: Announcements = {
-    onDragStart: () => t('dnd.lifted'),
-    onDragOver: ({ active, over }) => {
-      const arr = drag?.arrangement ?? served
-      const lane = findLane(arr, String(active.id))
-      if (!over || lane === undefined) return undefined
-      if (isPageDrop(String(over.id))) return t('dnd.holdToOpen')
-      const pos = arr[lane]!.indexOf(String(active.id))
-      return announceMoved('over', names[lane] ?? '', pos, arr[lane]!.length)
-    },
-    onDragEnd: ({ active }) => {
-      const arr = drag?.arrangement ?? served
-      const lane = findLane(arr, String(active.id))
-      if (lane === undefined) return undefined
-      return announceMoved('drop', names[lane] ?? '', arr[lane]!.indexOf(String(active.id)), arr[lane]!.length)
-    },
-    onDragCancel: () => t('dnd.cancelled'),
+  // ---- keyboard: Space lifts a focused note, the arrows move it, Space drops it, Escape cancels ----------
+
+  const laneOrder = useMemo(() => lanes.map((l) => l.id), [lanes])
+  const say = (key: Parameters<typeof t>[0], vars?: Record<string, string | number>) => setAnnouncement(t(key, vars))
+  const laneNameFor = (arr: Arrangement, id: string) => names[findLane(arr, id) ?? ''] ?? ''
+
+  const onNoteKeyDown = (e: React.KeyboardEvent, note: Note) => {
+    if (e.target !== e.currentTarget) return // typing in an editor, or a button, is not a drag
+    if (!lift) {
+      if (e.key === ' ') {
+        e.preventDefault()
+        setLift({ note, origin: placementOf(served, note.id), arrangement: served })
+        say('dnd.lifted')
+      }
+      return
+    }
+    if (lift.note.id !== note.id) return
+    const current = rebase(lift.arrangement, served, note.id)
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setLift(null)
+      say('dnd.cancelled')
+      return
+    }
+    if (e.key === ' ') {
+      e.preventDefault()
+      const after = placementOf(current, note.id)
+      setLift(null)
+      if (!after) return
+      say('dnd.dropped', { lane: laneNameFor(current, note.id), pos: after.index + 1, total: after.ids.length })
+      if (isUnchanged(lift.origin, after)) return
+      const { afterId, beforeId } = neighbours(after.ids, after.index)
+      move.mutate({ note: lift.note, categoryId: after.lane === INBOX ? null : after.lane, index: after.index, afterId, beforeId })
+      return
+    }
+    const next = keyboardStep(current, laneOrder, note.id, e.key)
+    if (e.key.startsWith('Arrow')) e.preventDefault()
+    if (next) {
+      setLift({ ...lift, arrangement: next })
+      const p = placementOf(next, note.id)!
+      say('dnd.movedTo', { lane: laneNameFor(next, note.id), pos: p.index + 1, total: p.ids.length })
+    }
   }
+  // The card is rebuilt in its new lane after a move; put the focus back on it.
+  useEffect(() => {
+    if (lift) document.querySelector<HTMLElement>(`article.note[data-id="${lift.note.id}"]`)?.focus()
+  }, [lift])
+  // Leaving the card (clicking elsewhere) drops the lift without moving anything.
+  useEffect(() => {
+    if (!lift) return
+    const cancel = (e: FocusEvent) => {
+      const el = document.querySelector(`article.note[data-id="${lift.note.id}"]`)
+      if (!el || (e.target as Node) === el) return
+      if (!el.contains(e.target as Node)) setLift(null)
+    }
+    document.addEventListener('focusin', cancel)
+    return () => document.removeEventListener('focusin', cancel)
+  }, [lift])
 
   const addColumn = async (name: string) => {
     setAddingColumn(false)
@@ -271,6 +317,8 @@ export function BoardShell() {
         total={l.total}
         current={currentMobile === l.id}
         composerOpen={composerLane === l.id}
+        liftedId={lift?.note.id}
+        onNoteKeyDown={onNoteKeyDown}
         onOpenComposer={() => setComposerLane(l.id)}
         onCloseComposer={() => setComposerLane(null)}
         hasMore={l.hasMore}
@@ -289,8 +337,14 @@ export function BoardShell() {
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
-      accessibility={{ announcements, screenReaderInstructions: { draggable: t('dnd.lifted') } }}
+      accessibility={{ screenReaderInstructions: { draggable: t('dnd.instructions') } }}
     >
+      <div className="sr-only" role="status" aria-live="assertive" aria-atomic="true" data-testid="dnd-announcer">
+        {announcement}
+      </div>
+      <div id="dnd-instructions" className="sr-only">
+        {t('dnd.instructions')}
+      </div>
       <BoardTopbar>
         <PageTabs currentId={activePageId} overPageId={overPage} />
       </BoardTopbar>

@@ -27,6 +27,21 @@ export function moveAcross(a: Arrangement, note: string, toLane: string, index: 
   return out
 }
 
+/**
+ * Rebuilds a drag arrangement after the lanes on screen changed under it (the drag went to another
+ * page, or a lane appeared or vanished). Server lanes win; the dragged note keeps its place if its
+ * lane still exists and is otherwise in no lane until it is dragged over one.
+ */
+export function rebase(current: Arrangement, served: Arrangement, note: string): Arrangement {
+  const sameLanes = Object.keys(served).length === Object.keys(current).length && Object.keys(served).every((l) => l in current)
+  if (sameLanes) return current
+  const out: Arrangement = {}
+  for (const [lane, ids] of Object.entries(served)) out[lane] = ids.filter((id) => id !== note)
+  const lane = findLane(current, note)
+  if (lane !== undefined && out[lane]) out[lane].splice(Math.min(current[lane]!.indexOf(note), out[lane].length), 0, note)
+  return out
+}
+
 /** Reorders a lane so that `note` sits where `over` is. */
 export function reorder(a: Arrangement, lane: string, note: string, over: string): Arrangement {
   const ids = a[lane]
@@ -63,6 +78,27 @@ export function placementOf(a: Arrangement, note: string): Placement | null {
 /** True when a drop leaves the note exactly where it started. */
 export function isUnchanged(before: Placement | null, after: Placement | null): boolean {
   return !!before && !!after && before.lane === after.lane && before.index === after.index
+}
+
+/** One keyboard step for a lifted note: the arrows move it within a lane and to the neighbouring lane. */
+export function keyboardStep(a: Arrangement, laneOrder: readonly string[], note: string, key: string): Arrangement | null {
+  const lane = findLane(a, note)
+  if (lane === undefined) return null
+  const ids = a[lane]!
+  const index = ids.indexOf(note)
+  switch (key) {
+    case 'ArrowUp':
+      return index > 0 ? moveAcross(a, note, lane, index - 1) : null
+    case 'ArrowDown':
+      return index < ids.length - 1 ? moveAcross(a, note, lane, index + 1) : null
+    case 'ArrowLeft':
+    case 'ArrowRight': {
+      const to = laneOrder[laneOrder.indexOf(lane) + (key === 'ArrowRight' ? 1 : -1)]
+      return to === undefined ? null : moveAcross(a, note, to, Math.min(index, a[to]?.length ?? 0))
+    }
+    default:
+      return null
+  }
 }
 
 // ---- announcements (WEB-N4) ---------------------------------------------------------------------

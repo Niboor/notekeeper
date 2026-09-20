@@ -11,18 +11,27 @@ import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
 import { laneDropId } from './dnd'
 
-function SortableNote({ note, laneId }: { note: Note; laneId: string }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
+function SortableNote({ note, laneId, lifted, onKeyDown }: { note: Note; laneId: string; lifted: boolean; onKeyDown?: (e: React.KeyboardEvent, n: Note) => void }) {
+  const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
   return (
     <NoteCard
       note={note}
       laneId={laneId}
       dragging={isDragging}
+      lifted={lifted}
       innerRef={(el) => {
         setNodeRef(el)
         setActivatorNodeRef(el)
       }}
-      dragProps={{ ...attributes, ...listeners, style: { transform: CSS.Translate.toString(transform), transition } }}
+      dragProps={{
+        // Only the parts of dnd-kit's attributes that make sense here: the keyboard interaction is our own.
+        'aria-roledescription': 'draggable note',
+        'aria-describedby': 'dnd-instructions',
+        tabIndex: 0,
+        ...listeners,
+        onKeyDown: (e) => onKeyDown?.(e, note),
+        style: { transform: CSS.Translate.toString(transform), transition },
+      }}
     />
   )
 }
@@ -37,13 +46,15 @@ interface Props {
   onOpenComposer: () => void
   onCloseComposer: () => void
   hasMore?: boolean
+  liftedId?: string
+  onNoteKeyDown?: (e: React.KeyboardEvent, n: Note) => void
   onShowMore?: () => void
   onRename?: (name: string) => void
   onDelete?: () => void
 }
 
 /** One column: the Inbox or a category. Notes are draggable; an empty lane still accepts drops. */
-export function Lane({ id, name, notes, total, current, composerOpen, onOpenComposer, onCloseComposer, hasMore, onShowMore, onRename, onDelete }: Props) {
+export function Lane({ id, name, notes, total, current, liftedId, onNoteKeyDown, composerOpen, onOpenComposer, onCloseComposer, hasMore, onShowMore, onRename, onDelete }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: laneDropId(id) })
   const [renaming, setRenaming] = useState(false)
   const isInbox = id === INBOX
@@ -84,7 +95,7 @@ export function Lane({ id, name, notes, total, current, composerOpen, onOpenComp
         <div className="lane-notes">
           {composerOpen && <Composer categoryId={isInbox ? null : id} onClose={onCloseComposer} />}
           {notes.map((n) => (
-            <SortableNote key={n.id} note={n} laneId={id} />
+            <SortableNote key={n.id} note={n} laneId={id} lifted={liftedId === n.id} onKeyDown={onNoteKeyDown} />
           ))}
           {notes.length === 0 && !composerOpen && <p className="empty">{isInbox ? t('inbox.empty') : t('lane.empty')}</p>}
           {hasMore && (

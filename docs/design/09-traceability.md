@@ -10,12 +10,12 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 
 | ID | Pri | State | Implemented in | Verified by | Tests citing it |
 |---|---|---|---|---|---|
-| CORE-A1 | Must | fully tested | 02 §1.3; 01 §6 | Authz matrix | 1 |
+| CORE-A1 | Must | fully tested | 02 §1.3; 01 §6 | Authz matrix | 2 |
 | CORE-A2 | Must | implemented | 01 §6, §6.1 | Integration | 0 |
 | CORE-A3 | Must | fully tested | 01 §6.2 | Integration | 1 |
 | CORE-A4 | Must | implemented | 02 §1.3 (no processing) | Review | 1 |
 | CORE-A5 | Should | fully tested | 01 §6.3 | Integration | 1 |
-| CORE-A6 | Should | fully tested | 01 §6.1; 02 §4 | Integration (streaming memory test) | 1 |
+| CORE-A6 | Should | fully tested | 01 §6.1; 02 §4 | Integration (streaming memory test) | 2 |
 | CORE-A7 | Should | unimplemented | 01 §6.3 | Integration | 0 |
 | CORE-A8 | Must | fully tested | 01 §6, §6.1 | Integration | 1 |
 | CORE-A9 | Must | unimplemented | 04 §2.1 | Integration | 0 |
@@ -23,23 +23,23 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-N2 | Must | fully tested | 04 §2.1; 01 §4.1 | Integration, E2E | 1 |
 | CORE-N3 | Must | fully tested | 02 §1.2; 01 §4.1, §7 | Integration, E2E | 1 |
 | CORE-N4 | Must | fully tested | 01 §4.1, §7 | Unit, Integration | 1 |
-| CORE-N5 | Must | implemented | 07 §5; 02 §1.2 | Unit, E2E | 0 |
+| CORE-N5 | Must | fully tested | 07 §5; 02 §1.2 | Unit, E2E | 1 |
 | CORE-N6 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
 | CORE-N7 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
-| CORE-N8 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
+| CORE-N8 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 3 |
 | CORE-N9 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
 | CORE-N10 | Must | fully tested | 02 §1.2; 01 §6.2 | Integration | 1 |
 | CORE-N11 | Must | implemented | 01 §13 (no purge job exists) | Review | 0 |
-| CORE-N13 | Must | fully tested | 01 §8; 02 §1.2 | Integration | 1 |
+| CORE-N13 | Must | fully tested | 01 §8; 02 §1.2 | Integration | 2 |
 | CORE-N14 | Should | unimplemented | 02 §1.2 | Integration | 0 |
 | CORE-N15 | Could | unimplemented | deferred: batch endpoints can be added to 02 §1.2 | - | 0 |
-| CORE-N17 | Should | implemented | 07 §5; 01 §4.2 (history coalescing) | Unit, E2E | 1 |
+| CORE-N17 | Should | fully tested | 07 §5; 01 §4.2 (history coalescing) | Unit, E2E | 4 |
 | CORE-N18 | Must | fully tested | 04 §2.1; 01 §4.1 | Unit, Integration | 2 |
 | CORE-P1 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
 | CORE-P2 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
 | CORE-P3 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
 | CORE-P4 | Must | fully tested | 01 §4.1 (FK set null); 02 §1.2 | Integration | 1 |
-| CORE-P5 | Must | implemented | 02 §1.2; 01 §4.1 | Integration, E2E | 0 |
+| CORE-P5 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 2 |
 | CORE-P6 | Could | implemented | 01 §4.1 (`pages.archived_at`) | Integration | 0 |
 | CORE-P7 | Could | unimplemented | deferred (Could) | - | 0 |
 | CORE-R1 | Should | unimplemented | 02 §1.4; 01 §9 | Integration | 0 |
@@ -181,32 +181,32 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 
 | ID | Pri | State | Implemented in | Verified by | Tests citing it |
 |---|---|---|---|---|---|
-| WEB-1 | Must | unimplemented | 07 §2 | E2E | 0 |
-| WEB-2 | Must | implemented | 07 §2 | E2E | 0 |
-| WEB-3 | Must | unimplemented | 07 §4, §6 | E2E | 0 |
-| WEB-4 | Must | unimplemented | 07 §6; 02 §1.2 | E2E | 0 |
-| WEB-5 | Must | unimplemented | 07 §4, §6 | E2E | 0 |
-| WEB-6 | Must | unimplemented | 07 §4 | E2E | 0 |
-| WEB-7 | Must | unimplemented | 07 §4 | E2E | 0 |
-| WEB-8 | Must | unimplemented | 07 §2, §5 | Unit, E2E | 0 |
-| WEB-9 | Must | unimplemented | 02 §1.2, §1.3 | E2E | 1 |
-| WEB-10 | Must | unimplemented | 02 §1.2 | E2E | 0 |
-| WEB-11 | Must | implemented | 07 §4; 05 §2 | E2E | 1 |
+| WEB-1 | Must | fully tested | 07 §2 | E2E | 1 |
+| WEB-2 | Must | fully tested | 07 §2 | E2E | 1 |
+| WEB-3 | Must | fully tested | 07 §4, §6 | E2E | 1 |
+| WEB-4 | Must | fully tested | 07 §6; 02 §1.2 | E2E | 1 |
+| WEB-5 | Must | fully tested | 07 §4, §6 | E2E | 3 |
+| WEB-6 | Must | fully tested | 07 §4 | E2E | 2 |
+| WEB-7 | Must | fully tested | 07 §4 | E2E | 1 |
+| WEB-8 | Must | implemented | 07 §2, §5 | Unit, E2E | 0 |
+| WEB-9 | Must | implemented | 02 §1.2, §1.3 | E2E | 2 |
+| WEB-10 | Must | implemented | 02 §1.2 | E2E | 0 |
+| WEB-11 | Must | implemented | 07 §4; 05 §2 | E2E | 2 |
 | WEB-12 | Must | implemented | 07 §1; 02 §1.1 | E2E | 0 |
 | WEB-13 | Should | unimplemented | 02 §1.2 (history); 07 §1 | E2E | 0 |
-| WEB-14 | Must | unimplemented | 01 §8; 02 §1.2 | Integration, E2E | 1 |
+| WEB-14 | Must | fully tested | 01 §8; 02 §1.2 | Integration, E2E | 2 |
 | WEB-15 | Should | unimplemented | 02 §1.2 | E2E | 0 |
-| WEB-16 | Should | unimplemented | 07 §2 | E2E | 0 |
+| WEB-16 | Should | implemented | 07 §2 | E2E | 0 |
 | WEB-17 | Could | unimplemented | deferred (Could) | - | 0 |
 | WEB-18 | Should | unimplemented | 05 §5; 02 §1.4 | E2E | 0 |
 | WEB-19 | Must | unimplemented | 02 §1.6; 07 §1 | E2E | 0 |
-| WEB-20 | Should | unimplemented | 07 §5 | E2E | 0 |
+| WEB-20 | Should | fully tested | 07 §5 | E2E | 1 |
 | WEB-21 | Must | unimplemented | 02 §1.4; 03 §6 | E2E | 0 |
-| WEB-N1 | Must | unimplemented | 07 §2 | E2E | 0 |
+| WEB-N1 | Must | fully tested | 07 §2 | E2E | 1 |
 | WEB-N2 | Must | unimplemented | 02 §1; 07 §1 | Review | 0 |
 | WEB-N3 | Must | unimplemented | 07 §9; 02 §1.2 (board endpoint) | E2E | 0 |
-| WEB-N4 | Should | unimplemented | 07 §6 | E2E (axe) | 0 |
-| WEB-N5 | Must | unimplemented | 07 §5; 02 §1.3 | Unit, Integration | 0 |
+| WEB-N4 | Should | implemented | 07 §6 | E2E (axe) | 1 |
+| WEB-N5 | Must | fully tested | 07 §5; 02 §1.3 | Unit, Integration | 1 |
 | WEB-N6 | Must | unimplemented | 07 §10 | E2E | 0 |
 | WEB-N7 | — | - | not a requirement | - | 0 |
 | WEB-N8 | Should | unimplemented | 07 §8 | E2E | 0 |
@@ -322,8 +322,8 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-BOT-11 | Must | unimplemented | 01 §3; 04 §2 | Integration | 0 |
 | SEC-BOT-12 | Must | fully tested | 04 §3; 06 §6 | Unit, E2E | 1 |
 | SEC-BOT-13 | Must | implemented | 03 §4.3; 05 §4.2 | Integration | 1 |
-| SEC-CNT-1 | Must | unimplemented | 07 §5 | Unit, E2E | 0 |
-| SEC-CNT-2 | Must | unimplemented | 07 §5 | Unit, E2E | 0 |
+| SEC-CNT-1 | Must | implemented | 07 §5 | Unit, E2E | 1 |
+| SEC-CNT-2 | Must | fully tested | 07 §5 | Unit, E2E | 1 |
 | SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 1 |
 | SEC-CNT-4 | Must | fully tested | 02 §1.3 | Integration | 1 |
 | SEC-CNT-5 | Must | implemented | 02 §1.3 (no media processing) | Review | 0 |

@@ -6,7 +6,7 @@ import { NoteContent } from './NoteContent'
 
 // Hostile inputs of every kind. Whatever they contain, the rendered DOM must hold no script,
 // frame, embedded object, remote image or event-handler attribute, and every link must be safe
-// (SEC-CNT-1, SEC-CNT-2).
+// (SEC-CNT-1, SEC-CNT-2, WEB-N5).
 const CORPUS = [
   '<script>alert(1)</script>',
   '<img src=x onerror=alert(1)>',

@@ -92,8 +92,9 @@ test-integration: check-libolm ## Integration tests against real PostgreSQL and 
 	cd bots/matrix && go test -race -tags integration -count=1 -timeout 10m ./...
 
 .PHONY: test-e2e
-test-e2e: ## Whole stack in docker-compose driven by Playwright (Docker required)
-	@echo "test-e2e: no end-to-end tests yet (added from milestone M1 on)"
+test-e2e: ## Browser end-to-end tests: real Core and PostgreSQL, the built web app, Playwright (Docker required)
+	cd e2e && npm ci --silent && npx playwright install chromium
+	e2e/run.sh
 
 ##@ Quality
 .PHONY: lint

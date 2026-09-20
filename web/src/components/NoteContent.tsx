@@ -3,7 +3,7 @@
 // allowlist of node types into React elements: no HTML strings, no dangerouslySetInnerHTML (the
 // lint rule forbids it), links restricted to safe schemes, raw HTML shown as text.
 import type { PhrasingContent, RootContent } from 'mdast'
-import { Fragment, useMemo, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { parseNote, safeHref, toggleTask } from './markdown'
 
 interface Props {
@@ -35,6 +35,11 @@ function plainText(nodes: readonly Node[]): string {
 
 export function NoteContent({ text, onChange }: Props) {
   const tree = useMemo(() => parseNote(text), [text])
+  // A ticked box must show at once, in the same frame as the click. The text comes back through the
+  // query cache, which notifies React a tick later, and a controlled checkbox would flash back to
+  // its old state in between. So the toggle is remembered locally until the text itself changes.
+  const [local, setLocal] = useState<{ base: string; checked: Record<number, boolean> }>({ base: text, checked: {} })
+  const overrides = local.base === text ? local.checked : {}
 
   const render = (node: Node, key: string): ReactNode => {
     const kids = (children: readonly Node[] | undefined) => (children ?? []).map((c, i) => render(c, `${key}.${i}`))
@@ -82,15 +87,18 @@ export function NoteContent({ text, onChange }: Props) {
       case 'listItem': {
         if (typeof node.checked === 'boolean') {
           const offset = node.position?.start.offset
+          const checked = offset !== undefined && offset in overrides ? overrides[offset]! : node.checked
           return (
-            <li key={key} className={node.checked ? 'done' : undefined}>
+            <li key={key} className={checked ? 'done' : undefined}>
               <input
                 type="checkbox"
-                checked={node.checked}
+                checked={checked}
                 disabled={!onChange || offset === undefined}
                 aria-label={plainText(node.children) || 'task'}
                 onChange={() => {
-                  if (onChange && offset !== undefined) onChange(toggleTask(text, offset))
+                  if (!onChange || offset === undefined) return
+                  setLocal({ base: text, checked: { ...overrides, [offset]: !checked } })
+                  onChange(toggleTask(text, offset))
                 }}
               />
               <span>{kids(node.children)}</span>

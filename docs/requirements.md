@@ -137,7 +137,7 @@ flowchart LR
 | CORE-N2 | Must | fully tested | New notes created via a bot are placed in the Inbox of the linked user. The Inbox is ordered by created time (CORE-N18). |
 | CORE-N3 | Must | fully tested | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
 | CORE-N4 | Must | fully tested | Note order within a category is user-controlled and persistent. The Inbox is not manually ordered: it is sorted by created time, newest first (CORE-N18); manual ordering starts when a note is moved into a category. |
-| CORE-N5 | Must | implemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
+| CORE-N5 | Must | fully tested | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
 | CORE-N6 | Must | fully tested | Deleting ("dismissing") a note is a **soft delete**: state becomes `deleted`, `deleted_at` is set, and the note remembers its previous location. |
 | CORE-N7 | Must | fully tested | A deleted note can be **restored** to its previous location; if that category no longer exists, it is restored to the Inbox. |
 | CORE-N8 | Must | fully tested | Undo of a dismissal is a server-side restore, so it works from any device and from the Trash view, not just as a transient client-side action. |
@@ -147,7 +147,7 @@ flowchart LR
 | CORE-N13 | Must | fully tested | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English** (inflections and plurals, e.g. "ticket"/"tickets"). Further languages, Dutch first, can be added later without changing the API; language is not a per-note setting the user has to maintain. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
 | CORE-N14 | Should | unimplemented | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | unimplemented | Bulk operations (dismiss/move multiple notes). |
-| CORE-N17 | Should | implemented | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
+| CORE-N17 | Should | fully tested | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
 | CORE-N18 | Must | fully tested | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. The Inbox is sorted by created time, so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
 
 ### 4.3 Pages and categories — functional requirements
@@ -158,7 +158,7 @@ flowchart LR
 | CORE-P2 | Must | fully tested | Users can create, rename, reorder and delete categories within a page. |
 | CORE-P3 | Must | fully tested | Categories can be moved to another page. |
 | CORE-P4 | Must | fully tested | Deleting a category never destroys notes: its notes are moved to the Inbox (and the user is told how many). Deleting a page does the same for all its categories. |
-| CORE-P5 | Must | implemented | A new account starts with an empty Inbox and no pages; the UI guides the user to create the first page. |
+| CORE-P5 | Must | fully tested | A new account starts with an empty Inbox and no pages; the UI guides the user to create the first page. |
 | CORE-P6 | Could | implemented | Archive a page (hidden from the main navigation, not deleted). |
 | CORE-P7 | Could | unimplemented | Per-category colour/icon. |
 
@@ -382,37 +382,37 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| WEB-1 | Must | unimplemented | **Page view**: shows the selected page's categories as horizontally arranged columns of note cards. |
-| WEB-2 | Must | implemented | **Inbox**: the uncategorised notes are always reachable from any page (e.g. a persistent side panel or tray) so notes can be dragged straight from the Inbox into a column of the current page. The Inbox has a visible count. |
-| WEB-3 | Must | unimplemented | **Drag and drop**: a note can be dragged between columns (also across the Inbox), and reordered within a column. The UI updates immediately (optimistic) and reconciles with the server. |
-| WEB-4 | Must | unimplemented | Moving a note to a category on **another page** is possible (e.g. via a "move to..." menu; dragging onto a page in the navigation is a nice extra). |
-| WEB-5 | Must | unimplemented | Every drag-and-drop action has a **non-drag alternative** (keyboard and menu "move to...") for accessibility and for touch devices where drag is awkward. |
-| WEB-6 | Must | unimplemented | **Dismiss** button on every note (one click, no confirmation dialog), followed by a transient **Undo** affordance (toast) of at least ~10 seconds. |
-| WEB-7 | Must | unimplemented | **Trash view**: list of deleted notes with restore and permanent-delete actions (CORE-N10), and indication of where each came from. |
-| WEB-8 | Must | unimplemented | Notes render: text (formatted, links clickable), image attachments shown inline (lazy-loaded, scaled by the browser) with a full-size viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
-| WEB-9 | Must | unimplemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app, into the Inbox or into any existing category (at the top of that column), with text (including checklist items) and attachments. |
-| WEB-10 | Must | unimplemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
+| WEB-1 | Must | fully tested | **Page view**: shows the selected page's categories as horizontally arranged columns of note cards. |
+| WEB-2 | Must | fully tested | **Inbox**: the uncategorised notes are always reachable from any page (e.g. a persistent side panel or tray) so notes can be dragged straight from the Inbox into a column of the current page. The Inbox has a visible count. |
+| WEB-3 | Must | fully tested | **Drag and drop**: a note can be dragged between columns (also across the Inbox), and reordered within a column. The UI updates immediately (optimistic) and reconciles with the server. |
+| WEB-4 | Must | fully tested | Moving a note to a category on **another page** is possible (e.g. via a "move to..." menu; dragging onto a page in the navigation is a nice extra). |
+| WEB-5 | Must | fully tested | Every drag-and-drop action has a **non-drag alternative** (keyboard and menu "move to...") for accessibility and for touch devices where drag is awkward. |
+| WEB-6 | Must | fully tested | **Dismiss** button on every note (one click, no confirmation dialog), followed by a transient **Undo** affordance (toast) of at least ~10 seconds. |
+| WEB-7 | Must | fully tested | **Trash view**: list of deleted notes with restore and permanent-delete actions (CORE-N10), and indication of where each came from. |
+| WEB-8 | Must | implemented | Notes render: text (formatted, links clickable), image attachments shown inline (lazy-loaded, scaled by the browser) with a full-size viewer, other attachments as downloadable items (filename, size, type), creation time and origin ("via Matrix"). Notes with several parts render as one card. |
+| WEB-9 | Must | implemented | Notes can be edited inline (text) and attachments can be added/removed manually in the app. New notes can also be created directly in the app, into the Inbox or into any existing category (at the top of that column), with text (including checklist items) and attachments. |
+| WEB-10 | Must | implemented | Page and category management (create, rename, reorder, delete) with clear feedback about what happens to contained notes (CORE-P4). |
 | WEB-11 | Must | implemented | Live updates: a note arriving from a bot appears in the Inbox within seconds, without reload, including when the user is mid-drag or editing (no jarring reflow of what is being edited). If a change to a note arrives while the user has unsaved edits in it, the draft is never overwritten: a banner shows that the note changed elsewhere (with a way to view the incoming version), saving the draft is a normal later edit that wins under EDT-5, and the incoming version stays in history. |
 | WEB-12 | Must | implemented | Account settings: password, sessions, linked chat identities (link/unlink via the pairing flow of AUTH-B3, and which identities receive reminders), timezone, bot status, grouping window. Also: sign out everywhere (AUTH-U10), revoke all share links (CORE-SH14), and which security notices are muted (AUTH-U11). |
 | WEB-13 | Should | unimplemented | Note history: view earlier text versions of a note (including versions overwritten by chat edits) and restore one (EDT-3). Notes changed from chat show a subtle "edited" marker. |
-| WEB-14 | Must | unimplemented | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
+| WEB-14 | Must | fully tested | **Global search**, reachable from every view (persistent search field plus keyboard shortcut): searches all pages, categories and the Inbox, optionally the Trash. Results show a snippet, where the note lives (page/category, Inbox or Trash) and its date; selecting one opens the note in place. Filters: page, category, has attachment, and (once reminders ship, §4.6) has reminder. Backed by CORE-N13. |
 | WEB-15 | Should | unimplemented | Merge/split notes (CORE-N14). |
-| WEB-16 | Should | unimplemented | Keyboard shortcuts for common actions (new note, search, dismiss, move, focus Inbox). |
+| WEB-16 | Should | implemented | Keyboard shortcuts for common actions (new note, search, dismiss, move, focus Inbox). |
 | WEB-17 | Could | unimplemented | Alternative layouts for a page (list, compact) — exact look is deferred (see below). |
 | WEB-18 | Should | unimplemented | Reminders on notes: set, change, snooze and clear a reminder with a date/time picker and quick options; a visible indicator on cards with a pending reminder; list of upcoming reminders; in-app notification when one is due (CORE-R1..R9). |
 | WEB-19 | Must | unimplemented | **Admin section**, visible only to the admin: create users and hand out activation links, disable/enable/delete users, set storage quotas, view storage usage, register bot instances and rotate their credentials (AUTH-U6). |
-| WEB-20 | Should | unimplemented | Checklist checkboxes on cards can be toggled directly, without entering edit mode (CORE-N17). |
+| WEB-20 | Should | fully tested | Checklist checkboxes on cards can be toggled directly, without entering edit mode (CORE-N17). |
 | WEB-21 | Must | unimplemented | **Sharing UI.** A "Share" action on every note: choose an expiry, create the link, copy it (and use the device share sheet where the browser offers one), see existing links for the note and revoke them. A settings view lists all active links (CORE-SH3). Notes with an active link show an indicator. |
 
 ### 8.2 Web app non-functional requirements
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| WEB-N1 | Must | unimplemented | **Responsive**: fully usable on a phone-sized viewport, since the app must be reachable "from every device I own". |
+| WEB-N1 | Must | fully tested | **Responsive**: fully usable on a phone-sized viewport, since the app must be reachable "from every device I own". |
 | WEB-N2 | Must | unimplemented | Only the user API is used (plus the public share API on the share page), so the same functionality is available to a future Android client. |
 | WEB-N3 | Must | unimplemented | Interaction feels instant: user actions are reflected within 100 ms (optimistic UI); initial page load ≤ 2 s on a typical broadband connection for a page with up to 500 notes. |
-| WEB-N4 | Should | unimplemented | Accessible (WCAG 2.1 AA): keyboard operable, screen-reader labelled, sufficient contrast, respects reduced-motion and dark mode. |
-| WEB-N5 | Must | unimplemented | All user-supplied content (note text, filenames, formatted chat content) is sanitised before rendering; attachments are served with safe content types and headers to prevent XSS. |
+| WEB-N4 | Should | implemented | Accessible (WCAG 2.1 AA): keyboard operable, screen-reader labelled, sufficient contrast, respects reduced-motion and dark mode. |
+| WEB-N5 | Must | fully tested | All user-supplied content (note text, filenames, formatted chat content) is sanitised before rendering; attachments are served with safe content types and headers to prevent XSS. |
 | WEB-N6 | Must | unimplemented | Supports current versions of major evergreen browsers (Firefox, Chromium-based, Safari). |
 | WEB-N8 | Should | unimplemented | Installable as a PWA (manifest, service worker for the app shell), so the web app can serve as the "app" on phones until a native client exists. |
 | WEB-N7 | — | — | *Exact visual design (columns vs other arrangements, theming) is intentionally undefined and will be specified separately.* |

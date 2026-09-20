@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { announceMoved, findLane, insertIndex, isUnchanged, moveAcross, placementOf, reorder } from './dnd'
+import { announceMoved, findLane, insertIndex, isUnchanged, keyboardStep, moveAcross, placementOf, rebase, reorder } from './dnd'
 
 const arr = () => ({ inbox: ['i1', 'i2'], todo: ['a', 'b', 'c'], done: [] as string[] })
 
@@ -39,6 +39,34 @@ describe('drag arrangement', () => {
     expect(isUnchanged(before, placementOf(moveAcross(arr(), 'b', 'todo', 0), 'b'))).toBe(false)
     expect(isUnchanged(before, placementOf(moveAcross(arr(), 'b', 'done', 0), 'b'))).toBe(false)
     expect(isUnchanged(null, before)).toBe(false)
+  })
+
+  it('moves a lifted note with the arrow keys, including into empty lanes and back to the Inbox', () => {
+    const lanes = ['inbox', 'todo', 'done']
+    const start = arr()
+    expect(keyboardStep(start, lanes, 'b', 'ArrowUp')!.todo).toEqual(['b', 'a', 'c'])
+    expect(keyboardStep(start, lanes, 'b', 'ArrowDown')!.todo).toEqual(['a', 'c', 'b'])
+    expect(keyboardStep(start, lanes, 'b', 'ArrowRight')).toEqual({ inbox: ['i1', 'i2'], todo: ['a', 'c'], done: ['b'] }) // empty lane
+    expect(keyboardStep(start, lanes, 'b', 'ArrowLeft')!.inbox).toEqual(['i1', 'b', 'i2']) // keeps its row, clamped
+    expect(keyboardStep(start, lanes, 'a', 'ArrowUp')).toBeNull() // already at the top
+    expect(keyboardStep(start, lanes, 'c', 'ArrowDown')).toBeNull()
+    expect(keyboardStep(start, lanes, 'i1', 'ArrowLeft')).toBeNull() // nothing left of the Inbox
+    expect(keyboardStep(moveAcross(start, 'b', 'done', 0), lanes, 'b', 'ArrowRight')).toBeNull()
+    expect(keyboardStep(start, lanes, 'b', 'x')).toBeNull()
+    expect(keyboardStep(start, lanes, 'nope', 'ArrowUp')).toBeNull()
+  })
+
+  it('rebases a drag when the lanes change under it, e.g. after opening another page', () => {
+    const during = moveAcross(arr(), 'a', 'done', 0) // dragging 'a', now sitting in "done" of the first page
+    const otherPage = { inbox: ['i1', 'i2'], arrivals: ['x'] } // the second page has different lanes
+    const rebased = rebase(during, otherPage, 'a')
+    expect(rebased).toEqual({ inbox: ['i1', 'i2'], arrivals: ['x'] }) // 'a' is in no lane until dragged over one
+    expect(moveAcross(rebased, 'a', 'arrivals', 1).arrivals).toEqual(['x', 'a'])
+    // Unchanged lanes are left alone.
+    expect(rebase(during, arr(), 'a')).toBe(during)
+    // A lane that still exists keeps the dragged note where it was.
+    const sameInbox = rebase({ inbox: ['i1', 'a', 'i2'], gone: [] }, { inbox: ['i1', 'a', 'i2'], other: [] }, 'a')
+    expect(sameInbox.inbox).toEqual(['i1', 'a', 'i2'])
   })
 
   it('announces positions in words a screen reader can use', () => {
