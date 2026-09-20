@@ -558,3 +558,15 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 	)
 	return i, err
 }
+
+const userWasActivated = `-- name: UserWasActivated :one
+select exists(select 1 from audit_log where action = 'user.activated' and target_id = $1)
+`
+
+// The audit log outlives password resets, so it says whether an account has ever been set up.
+func (q *Queries) UserWasActivated(ctx context.Context, targetID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRow(ctx, userWasActivated, targetID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

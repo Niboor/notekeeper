@@ -40,3 +40,6 @@ delete from share_links where expires_at < $1 or revoked_at < $1;
 
 -- name: NoteHasAttachment :one
 select exists(select 1 from note_parts where user_id = $1 and note_id = $2 and attachment_id = $3);
+
+-- name: ShareLinkIDsOfNote :many
+select id from share_links where user_id = $1 and note_id = $2;

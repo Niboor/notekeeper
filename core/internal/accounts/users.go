@@ -92,12 +92,16 @@ type ActivationLink struct {
 // SEC-ADM-2): whoever held the old credentials is signed out at once.
 func (s *Service) IssueActivation(ctx context.Context, actor Actor, userID uuid.UUID) (ActivationLink, error) {
 	var link ActivationLink
+	wasActivated := false
 	err := s.St.InTx(ctx, func(q *dbq.Queries) error {
+		// Issuing the link clears the password, so whether the account was ever set up has to be read
+		// first, and from the audit log, which outlives resets.
+		wasActivated, _ = q.UserWasActivated(ctx, uuid.NullUUID{UUID: userID, Valid: true})
 		var err error
 		link, err = s.issueActivation(ctx, q, actor, userID)
 		return err
 	})
-	if u, gerr := s.St.Q().GetUser(ctx, userID); err == nil && gerr == nil && u.PasswordHash != nil { // not for a brand-new account
+	if err == nil && wasActivated { // a brand-new account has nobody to tell
 		s.notice(ctx, userID, "", "🔐 A link for setting a new password was issued for your Notekeeper account. If you did not ask for this, contact the administrator.")
 	}
 	return link, err
@@ -200,9 +204,7 @@ func (s *Service) Activate(ctx context.Context, token, password string, c Client
 		if err != nil {
 			return err
 		}
-		if before, err := q.GetUser(ctx, userID); err == nil {
-			hadPassword = before.PasswordHash != nil
-		}
+		hadPassword, _ = q.UserWasActivated(ctx, uuid.NullUUID{UUID: userID, Valid: true}) // a reset, not a first activation
 		n, err := q.ActivateUser(ctx, dbq.ActivateUserParams{ID: userID, PasswordHash: &hash, UpdatedAt: s.Now()})
 		if err != nil {
 			return err

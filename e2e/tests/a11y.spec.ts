@@ -8,7 +8,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme })
     const fx = await openFreshBoard(page)
     await createNote(page, 'a note with a [link](https://example.org)\n\n- [ ] and a task', fx.columns.Todo)
-    for (const path of [`/p/${fx.pageId}`, '/trash', '/search?q=note', '/settings', '/reminders']) {
+    for (const path of [`/p/${fx.pageId}`, '/trash', '/search?q=note', '/settings', '/reminders', '/admin']) {
       await page.goto(path)
       await page.waitForLoadState('networkidle')
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()

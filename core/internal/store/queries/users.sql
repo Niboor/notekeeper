@@ -86,3 +86,7 @@ delete from note_parts where user_id = $1;
 
 -- name: DeleteUserAttachments :execrows
 delete from attachments where user_id = $1;
+
+-- name: UserWasActivated :one
+-- The audit log outlives password resets, so it says whether an account has ever been set up.
+select exists(select 1 from audit_log where action = 'user.activated' and target_id = $1);

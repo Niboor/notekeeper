@@ -758,17 +758,23 @@ func (s *Service) Merge(ctx context.Context, user, targetID, sourceID uuid.UUID)
 		if _, err := tx.Q.MoveRemindersToNote(ctx, dbq.MoveRemindersToNoteParams{UserID: user, NoteID: sourceID, NoteID_2: targetID}); err != nil {
 			return err
 		}
+		links, err := tx.Q.ShareLinkIDsOfNote(ctx, dbq.ShareLinkIDsOfNoteParams{UserID: user, NoteID: sourceID})
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Q.DeleteNoteAnyState(ctx, dbq.DeleteNoteAnyStateParams{ID: sourceID, UserID: user}); err != nil {
 			return err
+		}
+		for _, l := range links { // the links of the removed note went with it: tell clients which ones
+			if err := tx.Change(ctx, "share_link", l, "delete", nil); err != nil {
+				return err
+			}
 		}
 		n, err := tx.Q.TouchNote(ctx, dbq.TouchNoteParams{ID: targetID, UserID: user, UpdatedAt: s.now()})
 		if err != nil {
 			return err
 		}
 		if err := tx.Change(ctx, "note", sourceID, "delete", nil); err != nil {
-			return err
-		}
-		if err := tx.Change(ctx, "share_link", sourceID, "delete", nil); err != nil { // links of the removed note went with it
 			return err
 		}
 		if err := tx.Change(ctx, "note", targetID, "upsert", &n.Version); err != nil {

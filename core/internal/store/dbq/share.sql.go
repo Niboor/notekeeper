@@ -252,6 +252,35 @@ func (q *Queries) RevokeShareLink(ctx context.Context, arg RevokeShareLinkParams
 	return i, err
 }
 
+const shareLinkIDsOfNote = `-- name: ShareLinkIDsOfNote :many
+select id from share_links where user_id = $1 and note_id = $2
+`
+
+type ShareLinkIDsOfNoteParams struct {
+	UserID uuid.UUID
+	NoteID uuid.UUID
+}
+
+func (q *Queries) ShareLinkIDsOfNote(ctx context.Context, arg ShareLinkIDsOfNoteParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, shareLinkIDsOfNote, arg.UserID, arg.NoteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const touchShareLink = `-- name: TouchShareLink :exec
 update share_links set view_count = view_count + 1, last_accessed_at = $2 where id = $1
 `

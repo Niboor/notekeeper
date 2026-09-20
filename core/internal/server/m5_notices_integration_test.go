@@ -111,3 +111,47 @@ func TestSecurityNoticesReachTheAppAndTheChat(t *testing.T) {
 		t.Fatal("a chat that was just unlinked must not be told about it in the chat that is going away")
 	}
 }
+
+// An activation link for an account that is already set up (a lost password, or a takeover attempt) is
+// reported to the owner in the app and in their chats, and so is the reset that follows; a brand-new
+// account, which has nobody to tell, produces nothing (AUTH-U11, SEC-AUD-4).
+func TestActivationLinkNoticesAreSentForExistingAccountsOnly(t *testing.T) {
+	s := newStack(t)
+	key := s.makeBot("m", "example.org")
+	ch := s.chatter("frank", key)
+	s.makeUser("root", true)
+	// A brand-new account: created and activated without any notice.
+	s.makeUser("newbie", false)
+	if s.securityNotifications("newbie") != 0 {
+		t.Fatalf("a new account was told about its own creation: %d", s.securityNotifications("newbie"))
+	}
+	if _, err := s.db.Admin.Exec(t.Context(), `delete from bot_outbox where kind = 'notice'; delete from notifications`); err != nil {
+		t.Fatal(err)
+	}
+	var id string
+	_ = s.db.Admin.QueryRow(t.Context(), `select id::text from users where username = 'frank'`).Scan(&id)
+
+	admin := s.newClient()
+	admin.login("root")
+	res := admin.do("POST", "/api/v1/admin/users/"+id+"/activation-link", nil)
+	if res.Status != 201 {
+		t.Fatalf("issue: %d %s", res.Status, res.Body)
+	}
+	if !hasNotice(s.noticeTexts(), "link for setting a new password") || s.securityNotifications("frank") != 1 {
+		t.Fatalf("no notice about the link: %v, %d notifications", s.noticeTexts(), s.securityNotifications("frank"))
+	}
+	for _, it := range s.outboxItems("notice") {
+		if it["conversation_id"] != ch.conv {
+			t.Fatalf("the notice went to %v", it["conversation_id"])
+		}
+	}
+	var link struct{ Token string }
+	res.JSON(t, &link)
+	fresh := s.newClient()
+	if r := fresh.do("POST", "/api/v1/auth/activate", map[string]any{"token": link.Token, "password": "a brand new long passphrase 7"}); r.Status != 200 {
+		t.Fatalf("activate: %d %s", r.Status, r.Body)
+	}
+	if !hasNotice(s.noticeTexts(), "was reset with a link") || !hasNotice(s.noticeTexts(), "New sign-in") {
+		t.Fatalf("no notice about the reset: %v", s.noticeTexts())
+	}
+}
