@@ -57,7 +57,7 @@ func TestLoadRefusesWeakOrPlaceholderSecrets(t *testing.T) {
 }
 
 func TestAllowedDomainsAreOptionalAndNormalised(t *testing.T) {
-	base := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": "0123456789abcdef", "NK_BOT_DATABASE_URL": "postgres://x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
+	base := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": strings.Repeat("k", 16), "NK_BOT_DATABASE_URL": "postgres://x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
 	get := func(extra string) func(string) string {
 		return func(k string) string {
 			if k == "MX_ALLOWED_DOMAINS" {
@@ -75,7 +75,7 @@ func TestAllowedDomainsAreOptionalAndNormalised(t *testing.T) {
 }
 
 func TestBotRefusesThePublishedDevelopmentPassword(t *testing.T) {
-	env := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": "0123456789abcdef", "NK_BOT_DATABASE_URL": "postgres://nk_bot_matrix:nk_bot_dev@db/x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
+	env := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": strings.Repeat("k", 16), "NK_BOT_DATABASE_URL": "postgres://nk_bot_matrix:nk_bot_dev@db/x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
 	get := func(k string) string { return env[k] }
 	if _, err := Load(get); err == nil {
 		t.Fatal("the development password was accepted")
