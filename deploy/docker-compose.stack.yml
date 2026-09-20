@@ -1,0 +1,76 @@
+# The whole application as built images: PostgreSQL, the migration, Core and the web image with its
+# nginx (both hosts). It is what `make test-e2e-stack` runs the browser tests against, so the images,
+# the proxy routes and the security headers are exercised together. An example, not a production
+# deployment (NFR-D6): the secrets here are throwaway and the ports are published for the tests.
+name: notekeeper-stack
+
+x-core-env: &core-env
+  NK_DATABASE_URL: postgres://nk_app:nk_app_dev@db:5432/notekeeper?sslmode=disable
+  NK_MIGRATE_DATABASE_URL: postgres://nk_migrate:nk_migrate_dev@db:5432/notekeeper?sslmode=disable
+  NK_TOKEN_KEYS: "stack:c3RhY2stdGVzdC1rZXktMzItYnl0ZXMtbG9uZy0hISE="   # 32 bytes, base64: a test key only
+  NK_APP_URL: http://localhost:8088
+  NK_SHARE_URL: http://share.localhost:8088
+  NK_TRUSTED_PROXIES: 172.28.0.0/24
+  NK_ARGON2_MEMORY_KIB: "8192"
+  NK_LOG_LEVEL: warn
+  NK_RATE_IP_PER_MIN: "60000"     # one browser from one address is much faster than a person
+  NK_RATE_USER_PER_MIN: "30000"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: notekeeper
+      POSTGRES_USER: nk
+      POSTGRES_PASSWORD: nk-dev-only
+    volumes:
+      - ./sql/roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nk -d notekeeper"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [stack]
+
+  migrate:
+    image: notekeeper/core:dev
+    command: ["migrate"]
+    environment: *core-env
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [stack]
+
+  core:
+    image: notekeeper/core:dev
+    command: ["serve"]
+    environment: *core-env
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    ports:
+      - "127.0.0.1:18081:8081"   # the bot API, published for the tests only (SEC-OPS-4 in production)
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [stack]
+
+  web:
+    image: notekeeper/web:dev
+    environment:
+      APP_HOST: localhost
+      SHARE_HOST: share.localhost
+      CORE_USER_UPSTREAM: core:8080
+      CORE_PUBLIC_UPSTREAM: core:8082
+    depends_on: [core]
+    ports:
+      - "127.0.0.1:8088:8080"
+    read_only: true
+    tmpfs: ["/tmp", "/var/cache/nginx", "/etc/nginx/conf.d:uid=101,gid=101,mode=755"]   # the rendered server blocks live in memory
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [stack]
+
+networks:
+  stack:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

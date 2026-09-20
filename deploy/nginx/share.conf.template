@@ -1,0 +1,39 @@
+# The share host: a different origin that never sees the application's cookies (CORE-SH8, SEC-SHR-5).
+# It serves the static app, but only the share page route (/s) and the assets it needs, and forwards
+# only the public share API to Core's public listener. Cookies are dropped in both directions; the page
+# is not indexed, not cached and sends no referrer (SEC-SHR-6, CORE-SH10).
+server {
+    listen 8080;
+    server_name ${SHARE_HOST};
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+
+    location /api/public/v1/ {
+        proxy_pass http://${CORE_PUBLIC_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Cookie "";
+        proxy_hide_header Set-Cookie;
+        proxy_buffering off;
+        proxy_read_timeout 5m;
+        # Core sets no-store, noindex and the referrer policy on these answers itself.
+    }
+    location = /s {
+        add_header Cache-Control "no-store" always;
+        include /etc/nginx/snippets/headers.conf;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files /index.html =404;
+    }
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        include /etc/nginx/snippets/headers.conf;
+        try_files $uri =404;
+    }
+    location ~ ^/(icon-192\.png|icon-512\.png|apple-touch-icon\.png|favicon\.ico)$ {
+        include /etc/nginx/snippets/headers.conf;
+        try_files $uri =404;
+    }
+    location / { return 404; }   # nothing else exists here
+}

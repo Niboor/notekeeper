@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	_ "time/tzdata" // reminders and profiles use IANA zones; do not depend on the image having them
 
 	"github.com/Niboor/notekeeper/core/internal/app"
 	"github.com/Niboor/notekeeper/core/internal/config"

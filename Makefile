@@ -44,6 +44,16 @@ tools: ## Install pinned developer tools into .bin/
 web-install: ## Install web dependencies
 	cd web && npm ci
 
+##@ Container images
+.PHONY: images test-e2e-stack
+images: ## Build the Core, web and Matrix bot images (tag :dev); needs Docker
+	docker build -f deploy/docker/Dockerfile.core -t notekeeper/core:dev .
+	docker build -f deploy/docker/Dockerfile.web -t notekeeper/web:dev .
+	docker build -f deploy/docker/Dockerfile.bot -t notekeeper/matrix-bot:dev .
+
+test-e2e-stack: ## Browser tests against the built images behind nginx (proxy routes, CSP, share host); needs Docker
+	e2e/run-stack.sh
+
 ##@ Performance
 .PHONY: test-perf
 test-perf: ## Latency at the documented size: 50 000 notes for one user (NFR-P1..P3); needs Docker

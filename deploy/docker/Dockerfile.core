@@ -1,0 +1,19 @@
+# Core: one static binary (serve, migrate, admin) on a distroless base that runs as a non-root user
+# with a read-only root filesystem (SEC-OPS-2). Build from the repository root:
+#   docker build -f deploy/docker/Dockerfile.core -t notekeeper/core .
+FROM golang:1.26-bookworm AS build
+ARG VERSION=dev
+WORKDIR /src
+COPY go.work ./
+COPY core ./core
+COPY bots/sdk ./bots/sdk
+COPY bots/matrix/go.mod bots/matrix/go.sum ./bots/matrix/
+RUN \
+    cd core && CGO_ENABLED=0 GOFLAGS=-trimpath go build -ldflags "-s -w -X github.com/Niboor/notekeeper/core/internal/version.Version=${VERSION}" -o /out/core ./cmd/core
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/core /core
+USER 65532:65532
+EXPOSE 8080 8081 8082 9090
+ENTRYPOINT ["/core"]
+CMD ["serve"]
