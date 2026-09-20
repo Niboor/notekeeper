@@ -79,11 +79,58 @@ jobs:
       - name: Install Playwright browser
         run: cd e2e && npm ci && npx playwright install --with-deps chromium
 
-      - name: Install the other browsers (WEB-N6)
-        run: cd e2e && npx playwright install --with-deps firefox webkit
+      - name: Browser end-to-end tests (Chromium)
+        run: e2e/run.sh
 
-      - name: Browser end-to-end tests (Chromium, and Firefox and WebKit on the @cross tests)
-        run: E2E_BROWSERS=all e2e/run.sh
+  # Firefox and WebKit run the @cross tests (WEB-N6). Their first real run is pending, and WebKit may not accept
+  # the app's Secure cookies over plain http on localhost, so this job reports without blocking until it is proven.
+  e2e-cross-browser:
+    name: browsers other than Chromium
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            core/go.sum
+            bots/matrix/go.sum
+            bots/sdk/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+      - name: Install web dependencies
+        run: make web-install
+      - name: Install Playwright browsers
+        run: cd e2e && npm ci && npx playwright install --with-deps chromium firefox webkit
+      - name: Browser tests on Firefox and WebKit
+        run: E2E_BROWSERS=all e2e/run.sh --project=firefox --project=webkit
+
+  images:
+    name: scan image ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        image: [core, web, matrix-bot]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -f deploy/docker/Dockerfile.${{ matrix.image == 'matrix-bot' && 'bot' || matrix.image }} -t notekeeper/${{ matrix.image }}:dev .
+      # Known vulnerabilities in the built image (SEC-OPS-6); the source dependencies are scanned by make check.
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: notekeeper/${{ matrix.image }}:dev
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
 
   e2e-stack:
     name: make test-e2e-stack

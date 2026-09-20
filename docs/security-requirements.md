@@ -206,7 +206,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-OPS-3 | Must | fully tested | Unnecessary network paths: only Core and the bots reach PostgreSQL; bots reach only their chat platform and Core. Example NetworkPolicies demonstrate this. | NFR-S2 |
 | SEC-OPS-4 | Must | fully tested | Metrics, health, debug or profiling endpoints being reachable from the internet: they are served on a separate internal port and not routed by the ingress. | NFR-O2, NFR-O4 |
 | SEC-OPS-5 | Must | fully tested | The application's runtime database role altering the schema or reading other components' private tables (bot crypto state): migrations use a separate, more privileged role; each component has its own least-privilege role. | NFR-D4, NFR-S2 |
-| SEC-OPS-6 | Must | fully tested | Known-vulnerable dependencies or images shipping unnoticed: CI scans dependencies and images, versions are pinned, base images are minimal. | NFR-S6 |
+| SEC-OPS-6 | Must | implemented | Known-vulnerable dependencies or images shipping unnoticed: CI scans dependencies and images, versions are pinned, base images are minimal. | NFR-S6 |
 | SEC-OPS-7 | Must | fully tested | Shipping any default credential (default admin password, sample bot secret, example token). | SEC-AUTH-13 |
 | SEC-OPS-8 | Should | fully tested | TLS being weak or absent at the ingress: the example ingress enforces TLS with modern settings and HSTS. | SEC-DATA-3 |
 

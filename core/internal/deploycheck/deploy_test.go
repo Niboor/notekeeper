@@ -101,6 +101,11 @@ func TestEveryPodIsLockedDown(t *testing.T) {
 			if len(drop) != 1 || drop[0] != "ALL" || get(sc, "capabilities", "add") != nil {
 				t.Errorf("%s/%v: capabilities are not dropped", name, get(c, "name"))
 			}
+			// Every writable volume must be writable by the user the pod runs as: a pod that runs as a
+			// non-root user with memory volumes needs an fsGroup, or nginx starts with no server blocks.
+			if vols, _ := spec["volumes"].([]any); len(vols) > 0 && get(spec, "securityContext", "fsGroup") == nil {
+				t.Errorf("%s: has volumes but no fsGroup, so a non-root user may not be able to write them", name)
+			}
 			res := get(c, "resources", "limits", "memory")
 			if res == nil {
 				t.Errorf("%s/%v: no memory limit", name, get(c, "name"))

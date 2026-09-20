@@ -360,7 +360,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-OPS-3 | Must | fully tested | 08 §2, §1 | CI check | 1 |
 | SEC-OPS-4 | Must | fully tested | README §2; 08 §1 | CI check | 2 |
 | SEC-OPS-5 | Must | fully tested | 01 §12 | Integration | 2 |
-| SEC-OPS-6 | Must | fully tested | 08 §6 | CI check | 1 |
+| SEC-OPS-6 | Must | implemented | 08 §6 | CI check | 1 |
 | SEC-OPS-7 | Must | fully tested | 08 §2 | CI check | 2 |
 | SEC-OPS-8 | Should | fully tested | 08 §2, §1 | CI check | 1 |
 | SEC-SHR-1 | Must | fully tested | 01 §10 | Integration | 1 |

@@ -16,6 +16,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 101
         runAsGroup: 101
+        fsGroup: 101   # the memory volumes for nginx's rendered config and cache must be writable by uid 101
         seccompProfile: {type: RuntimeDefault}
       affinity:
         podAntiAffinity:
