@@ -31,7 +31,7 @@ flowchart TB
 ```
 
 - **Hostnames:** the application hostname and the **share hostname**, preferably on different registrable domains so that no cookie can be scoped to both (CORE-SH8, SEC-SHR-5). Both point at the same nginx image; nginx serves different `server` blocks: on the share host only `/` (static build) and no other route, no cookies, the strict CSP of [07](07-web-app.md) §7.
-- **Ingress routing:** on the application host `/api/v1` → Core `:8080`, everything else → web. On the share host `/api/public/v1` → Core `:8082`, everything else → web. **Nothing routes to `:8081` or `:9090`** (SEC-OPS-4). Core additionally checks the `Host` header per listener ([README](README.md) §2).
+- **Ingress routing:** on the application host `/api/v1` → Core `:8080`, `/s` and below → 404 (the share page is never loaded on the application's origin), everything else → web. On the share host `/api/public/v1` → Core `:8082`, everything else → web. **Nothing routes to `:8081` or `:9090`** (SEC-OPS-4). Core additionally checks the `Host` header per listener ([README](README.md) §2).
 - **Bot API** is a ClusterIP Service used only by bot pods, enforced by a NetworkPolicy (SEC-OPS-3).
 - **TLS** terminates at the ingress; the example enables HSTS and modern protocols (SEC-OPS-8, SEC-BASE-3). Database connections use TLS where the server offers it (SEC-DATA-4).
 
