@@ -291,6 +291,9 @@ func TestChatToInbox(t *testing.T) {
 		t.Fatalf("created: %d %s", res.Status, res.Body)
 	}
 	changeEv := sse.until(t, "change")
+	for !strings.Contains(changeEv.Data, *out.NoteID) && strings.Contains(changeEv.Data, `"notification"`) {
+		changeEv = sse.until(t, "change") // the notice about the linked chat comes first
+	}
 	if !strings.Contains(changeEv.Data, *out.NoteID) {
 		t.Fatalf("SSE change should name the note: %+v", changeEv)
 	}
@@ -468,7 +471,7 @@ func TestChangeFeed(t *testing.T) {
 		Cursor string `json:"cursor"`
 	}
 	c.do("GET", "/api/v1/changes?cursor="+start.Cursor, nil).JSON(t, &feed)
-	if len(feed.Items) != 4 { // identity + three notes
+	if len(feed.Items) != 5 { // identity, the notice about it, and three notes
 		t.Fatalf("changes: %+v", feed)
 	}
 	for i, it := range feed.Items {

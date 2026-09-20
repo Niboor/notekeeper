@@ -18,6 +18,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/notes"
+	"github.com/Niboor/notekeeper/core/internal/notify"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -148,6 +149,9 @@ func (s *Service) Create(ctx context.Context, actor Actor, user, note uuid.UUID,
 		}
 		link = Link{ID: row.ID, NoteID: row.NoteID, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, NoteActive: true}
 		if err := tx.Change(ctx, "share_link", id, "upsert", nil); err != nil {
+			return err
+		}
+		if err := notify.Security(ctx, tx, now, notify.MuteShare, "🔗 A share link was created for one of your notes ("+preset+"). See and end your links in Settings."); err != nil {
 			return err
 		}
 		return store.Audit(ctx, tx.Q, store.AuditEntry{ActorKind: actor.Kind, ActorID: actor.ID, Action: "share.created", TargetKind: "note", TargetID: &note,

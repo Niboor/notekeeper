@@ -59,6 +59,10 @@ func (s *stack) chatter(name, key string) *chatter {
 	if res.Status != 200 {
 		s.t.Fatalf("link: %d %s", res.Status, res.Body)
 	}
+	// Linking a chat and signing in produced notices; tests about other things start without them.
+	if _, err := s.db.Admin.Exec(context.Background(), `delete from bot_outbox where kind = 'notice'; delete from notifications where kind = 'security'`); err != nil {
+		s.t.Fatal(err)
+	}
 	// Test timestamps run hours ahead of the real clock; Core's clamp on far-future timestamps
 	// (CORE-N18, tested separately) must not squash them.
 	s.svc.Ingest.Now = func() time.Time { return time.Now().Add(1000 * time.Hour) }

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Niboor/notekeeper/core/internal/auth"
+	"github.com/Niboor/notekeeper/core/internal/notify"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"github.com/Niboor/notekeeper/core/internal/throttle"
@@ -154,6 +155,9 @@ func (s *Service) Link(ctx context.Context, bot *Principal, externalUser, conver
 		if err := tx.Change(ctx, "identity", identity, "upsert", nil); err != nil {
 			return err
 		}
+		if err := notify.Security(ctx, tx, now, "", "🔐 A chat was linked to your Notekeeper account: "+bot.Type+" "+externalUser+"."); err != nil {
+			return err
+		}
 		return store.Audit(ctx, tx.Q, store.AuditEntry{ActorKind: "bot", ActorID: &bot.InstanceID, Action: "identity.linked",
 			TargetKind: "user", TargetID: &tx.UserID})
 	})
@@ -253,6 +257,9 @@ func (s *Service) Unlink(ctx context.Context, actor Actor, user, identity uuid.U
 			}
 		}
 		if err := tx.Change(ctx, "identity", identity, "delete", nil); err != nil {
+			return err
+		}
+		if err := notify.Security(ctx, tx, s.Now(), "", "🔐 A chat was unlinked from your Notekeeper account: "+row.BotType+" "+row.ExternalUserID+"."); err != nil {
 			return err
 		}
 		return store.Audit(ctx, tx.Q, store.AuditEntry{ActorKind: actor.Kind, ActorID: actor.ID, Action: "identity.unlinked",

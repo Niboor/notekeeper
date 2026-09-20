@@ -16,6 +16,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/Niboor/notekeeper/core/internal/auth"
+	"github.com/Niboor/notekeeper/core/internal/notify"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"github.com/Niboor/notekeeper/core/internal/throttle"
@@ -149,6 +150,23 @@ func (s *Service) tokens(session uuid.UUID, generation int32, sessionExpiry time
 	}
 }
 
+// notice tells the user about a security-relevant event in the app and in their chats (AUTH-U11). It
+// runs after the change has committed, in its own transaction, and never fails the caller: a notice
+// that cannot be written is logged, and the action it reports has already happened.
+func (s *Service) notice(ctx context.Context, user uuid.UUID, muteKey, text string) {
+	err := s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
+		return notify.Security(ctx, tx, s.Now(), muteKey, text)
+	})
+	if err != nil && s.Log != nil {
+		s.Log.Error("could not record a security notice", "error", err)
+	}
+}
+
+func signInNotice(c ClientInfo, at time.Time) string {
+	return "🔐 New sign-in to your Notekeeper account: " + SessionLabel(c.UserAgent) + " at " + at.UTC().Format("Mon 2 Jan, 15:04 UTC") +
+		". If this was not you, change your password and sign out everywhere in Settings."
+}
+
 // LoginInput is the data of a login attempt.
 type LoginInput struct {
 	Username, Password string
@@ -211,6 +229,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 		return Tokens{}, err
 	}
 	out.Principal = s.principalOf(u, sid)
+	s.notice(ctx, u.ID, notify.MuteSession, signInNotice(in.Client, s.Now()))
 	return out, nil
 }
 
@@ -439,7 +458,7 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	if err != nil {
 		return err
 	}
-	return s.St.InTx(ctx, func(q *dbq.Queries) error {
+	err = s.St.InTx(ctx, func(q *dbq.Queries) error {
 		if err := q.SetPasswordHash(ctx, dbq.SetPasswordHashParams{ID: u.ID, PasswordHash: &h, UpdatedAt: s.Now()}); err != nil {
 			return err
 		}
@@ -448,6 +467,11 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 		}
 		return store.Audit(ctx, q, store.AuditEntry{ActorKind: "user", ActorID: &u.ID, Action: "password.changed"})
 	})
+	if err != nil {
+		return err
+	}
+	s.notice(ctx, u.ID, "", "🔐 Your Notekeeper password was changed, and your other sessions were signed out. If this was not you, contact the administrator.")
+	return nil
 }
 
 // SessionLabel makes a short description such as "Firefox on Linux" from a User-Agent header.

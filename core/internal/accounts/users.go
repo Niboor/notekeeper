@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Niboor/notekeeper/core/internal/auth"
+	"github.com/Niboor/notekeeper/core/internal/notify"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -96,6 +97,9 @@ func (s *Service) IssueActivation(ctx context.Context, actor Actor, userID uuid.
 		link, err = s.issueActivation(ctx, q, actor, userID)
 		return err
 	})
+	if u, gerr := s.St.Q().GetUser(ctx, userID); err == nil && gerr == nil && u.PasswordHash != nil { // not for a brand-new account
+		s.notice(ctx, userID, "", "🔐 A link for setting a new password was issued for your Notekeeper account. If you did not ask for this, contact the administrator.")
+	}
 	return link, err
 }
 
@@ -185,6 +189,7 @@ func (s *Service) Activate(ctx context.Context, token, password string, c Client
 	var out Tokens
 	var sid uuid.UUID
 	var user dbq.User
+	hadPassword := false
 	err = s.St.InTx(ctx, func(q *dbq.Queries) error {
 		userID, err := q.ConsumeUserToken(ctx, dbq.ConsumeUserTokenParams{
 			TokenHash: auth.HashToken(token), Kind: tokenActivation, UsedAt: ptr(s.Now()),
@@ -194,6 +199,9 @@ func (s *Service) Activate(ctx context.Context, token, password string, c Client
 		}
 		if err != nil {
 			return err
+		}
+		if before, err := q.GetUser(ctx, userID); err == nil {
+			hadPassword = before.PasswordHash != nil
 		}
 		n, err := q.ActivateUser(ctx, dbq.ActivateUserParams{ID: userID, PasswordHash: &hash, UpdatedAt: s.Now()})
 		if err != nil {
@@ -215,6 +223,10 @@ func (s *Service) Activate(ctx context.Context, token, password string, c Client
 		return Tokens{}, err
 	}
 	out.Principal = s.principalOf(user, sid)
+	if hadPassword { // a reset, not the first activation of a new account
+		s.notice(ctx, user.ID, "", "🔐 The password of your Notekeeper account was reset with a link.")
+		s.notice(ctx, user.ID, notify.MuteSession, signInNotice(c, s.Now()))
+	}
 	return out, nil
 }
 
