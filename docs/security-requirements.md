@@ -190,7 +190,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-MX-1 | Must | fully tested | The bot reading or ingesting messages from group rooms, or from a DM after a third member joined. | MX-1, MX-2 |
+| SEC-MX-1 | Must | fully tested | The bot reading or ingesting messages from group rooms, from a DM after a third member joined, or from users of a homeserver other than its own (unless the operator lists it). | MX-1, MX-2 |
 | SEC-MX-2 | Must | fully tested | Reminder or delivery content being posted into a room that no longer consists solely of the bot and the linked user. The bot re-checks room membership immediately before sending. | MX-12, BOT-12 |
 | SEC-MX-3 | Must | fully tested | Decrypted message content or device keys leaking through logs, crash dumps or unencrypted storage. | MX-N1, SEC-DATA-1 |
 | SEC-MX-4 | Must | fully tested | Two bot instances sharing one Matrix device identity (split-brain, key theft surface). | MX-N2 |

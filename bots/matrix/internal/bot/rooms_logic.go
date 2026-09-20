@@ -3,6 +3,8 @@ package bot
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"maunium.net/go/mautrix/event"
@@ -38,6 +40,12 @@ func (b *Bot) onMember(ctx context.Context, evt *event.Event) {
 // onInvite accepts direct-message invites only, and only a few per minute (SEC-MX-1). Anything
 // else is declined: the bot has no business in group rooms.
 func (b *Bot) onInvite(ctx context.Context, evt *event.Event, member *event.MemberEventContent) {
+	if !b.senderAllowed(evt.Sender) {
+		b.log.Info("declining an invite from a user of another homeserver", "room", evt.RoomID, "homeserver", evt.Sender.Homeserver())
+		b.met.events.WithLabelValues("foreign_homeserver").Inc()
+		_, _ = b.client.LeaveRoom(ctx, evt.RoomID)
+		return
+	}
 	if !b.inviteAllowed() {
 		b.log.Warn("invite rate limit reached; declining", "room", evt.RoomID)
 		_, _ = b.client.LeaveRoom(ctx, evt.RoomID)
@@ -166,4 +174,15 @@ func (b *Bot) remember(room id.RoomID, dm bool) {
 	b.mu.Lock()
 	b.dmCache[room] = dm
 	b.mu.Unlock()
+}
+
+// senderAllowed reports whether the bot serves users of the sender's homeserver: its own, unless the
+// operator listed others (MX_ALLOWED_DOMAINS). A bot deployed for one Matrix server never answers, saves
+// from or links users of any other server, even one it is federated with.
+func (b *Bot) senderAllowed(user id.UserID) bool {
+	domain := strings.ToLower(user.Homeserver())
+	if len(b.cfg.AllowedDomains) > 0 {
+		return slices.Contains(b.cfg.AllowedDomains, domain)
+	}
+	return domain != "" && domain == strings.ToLower(b.client.UserID.Homeserver())
 }

@@ -27,6 +27,11 @@ type Config struct {
 	ListenAddr string // health and metrics
 	LogLevel   string
 
+	// AllowedDomains are the homeserver names whose users the bot talks to. Empty means only its own
+	// homeserver (the domain of the bot's account), so a bot deployed for one Matrix server does not answer
+	// users of other servers it may be federated with. Set MX_ALLOWED_DOMAINS to allow more.
+	AllowedDomains []string
+
 	HeartbeatEvery time.Duration
 
 	// MaxAttachmentBytes is the largest file the bot downloads from chat; bigger ones are recorded as
@@ -45,6 +50,11 @@ func Load(getenv func(string) string) (Config, error) {
 		InstanceName: def(getenv("NK_BOT_INSTANCE"), "matrix"), CoreURL: strings.TrimRight(getenv("NK_CORE_URL"), "/"),
 		BotKey: getenv("NK_BOT_KEY"), ListenAddr: def(getenv("NK_BOT_LISTEN"), ":9091"), LogLevel: def(getenv("NK_LOG_LEVEL"), "info"),
 		HeartbeatEvery: 30 * time.Second, MaxAttachmentBytes: 25 << 20,
+	}
+	for _, d := range strings.Split(getenv("MX_ALLOWED_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			c.AllowedDomains = append(c.AllowedDomains, d)
+		}
 	}
 	if v := getenv("NK_MAX_ATTACHMENT_BYTES"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)

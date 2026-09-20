@@ -55,3 +55,21 @@ func TestLoadRefusesWeakOrPlaceholderSecrets(t *testing.T) {
 		t.Error("placeholder secret accepted (SEC-OPS-1)")
 	}
 }
+
+func TestAllowedDomainsAreOptionalAndNormalised(t *testing.T) {
+	base := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": "0123456789abcdef", "NK_BOT_DATABASE_URL": "postgres://x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
+	get := func(extra string) func(string) string {
+		return func(k string) string {
+			if k == "MX_ALLOWED_DOMAINS" {
+				return extra
+			}
+			return base[k]
+		}
+	}
+	if c, err := Load(get("")); err != nil || len(c.AllowedDomains) != 0 {
+		t.Fatalf("default: %+v %v", c.AllowedDomains, err)
+	}
+	if c, err := Load(get(" One.example, two.example ,")); err != nil || len(c.AllowedDomains) != 2 || c.AllowedDomains[0] != "one.example" {
+		t.Fatalf("list: %+v %v", c.AllowedDomains, err)
+	}
+}

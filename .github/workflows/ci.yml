@@ -1,16 +1,21 @@
 name: CI
 
+# Every job below runs on every pull request, on every merge to master (main), and as the gate of a
+# release (release.yml calls this workflow before it publishes anything).
 on:
   push:
     branches: [master, main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
+# A new push to a pull request replaces its running checks; runs on master are never cancelled, so every
+# merge gets a full result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:

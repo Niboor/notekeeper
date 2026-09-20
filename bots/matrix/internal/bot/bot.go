@@ -190,7 +190,7 @@ func requestID(evt id.EventID) string {
 }
 
 func (b *Bot) onMessage(ctx context.Context, evt *event.Event) {
-	if evt.Sender == b.client.UserID {
+	if evt.Sender == b.client.UserID || !b.senderAllowed(evt.Sender) {
 		return
 	}
 	if !b.allowedOrStall(ctx, evt.RoomID) {
@@ -200,7 +200,7 @@ func (b *Bot) onMessage(ctx context.Context, evt *event.Event) {
 }
 
 func (b *Bot) onRedaction(ctx context.Context, evt *event.Event) {
-	if evt.Sender == b.client.UserID || !b.allowedOrStall(ctx, evt.RoomID) {
+	if evt.Sender == b.client.UserID || !b.senderAllowed(evt.Sender) || !b.allowedOrStall(ctx, evt.RoomID) {
 		return
 	}
 	b.handle(ctx, evt, normalise.Redaction(evt))
@@ -284,7 +284,7 @@ const (
 // so the user knows to send it again instead of wondering why the note never appeared (CR-004). The
 // crypto helper has already waited for the keys and asked the sender's devices for them.
 func (b *Bot) tellUndecryptable(evt *event.Event) {
-	if evt.Sender == b.client.UserID {
+	if evt.Sender == b.client.UserID || !b.senderAllowed(evt.Sender) {
 		return
 	}
 	b.mu.Lock()

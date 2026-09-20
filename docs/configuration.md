@@ -79,6 +79,7 @@ kept in PostgreSQL and are not configurable here. Refusals are counted in `nk_ra
 |---|---|---|
 | `MX_HOMESERVER` | required | `https://matrix.example.org`, the homeserver the bot's account lives on |
 | `MX_USER` | required | The bot account: a localpart or a full Matrix ID |
+| `MX_ALLOWED_DOMAINS` | the bot's own homeserver | Comma-separated Matrix server names whose users the bot serves. Empty means only the server of the bot's own account: invites from users of any other server are declined and their messages ignored, even when the servers are federated. Core enforces the same from its side, because a bot instance can only link identities of its configured `identity_domain` (SEC-BOT-5) |
 | `MX_PASSWORD` | required | The account password, used to log in once; the device is then kept in the crypto store |
 | `MX_PICKLE_KEY` | required | At least 16 characters; encrypts the device keys at rest (MX-N1). Keep it stable: losing it loses the device |
 | `NK_BOT_DATABASE_URL` | required | The bot's own database role and schema (`nk_bot_matrix`). It cannot read Core's tables (SEC-OPS-5) |

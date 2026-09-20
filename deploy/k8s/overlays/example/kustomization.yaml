@@ -7,10 +7,12 @@ namespace: notekeeper
 resources:
   - ../../base
   - namespace.yaml
+# The images published by the release workflow (.github/workflows/release.yml). Use your own registry path if
+# you build them yourself, and pin the tag (or the digest) you have tested.
 images:
-  - {name: notekeeper/core, newTag: "1.0.0"}
-  - {name: notekeeper/web, newTag: "1.0.0"}
-  - {name: notekeeper/matrix-bot, newTag: "1.0.0"}
+  - {name: notekeeper/core, newName: ghcr.io/niboor/notekeeper-core, newTag: "1.0.0"}
+  - {name: notekeeper/web, newName: ghcr.io/niboor/notekeeper-web, newTag: "1.0.0"}
+  - {name: notekeeper/matrix-bot, newName: ghcr.io/niboor/notekeeper-matrix-bot, newTag: "1.0.0"}
 patches:
   - target: {kind: ConfigMap, name: notekeeper-config}
     patch: |-

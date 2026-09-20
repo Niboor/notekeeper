@@ -56,6 +56,7 @@ Messages the bot could not decrypt (the keys never arrived, even after the crypt
 
 ## 4. Rooms, invites and DMs (MX-1, MX-2, SEC-MX-1)
 
+- **One homeserver.** A bot process is one Matrix account on one homeserver (`MX_HOMESERVER`), and it serves the users of that server only: an invite from a user of another server is declined, and messages from such users are ignored before anything is looked up or sent (`MX_ALLOWED_DOMAINS` widens this on purpose). Core adds a second barrier: a bot instance has an `identity_domain` and can only link identities of that domain. To close the door completely, also disable federation on the homeserver (`federation_domain_whitelist: []` on Synapse).
 - **Invites:** accept only invites whose `is_direct` flag is set, rate limited; decline others. After joining, the bot checks the room has exactly two joined members (the bot and the inviter).
 - **Third member joins:** the bot sets `rooms.ignored = true`, stops processing that room (no ingest, no deliveries), and sends a single `m.notice` explaining why (MX-2).
 - **Unlinked senders** are handled by Core's response (`identity_unlinked` and its `reply_text`, rate limited by Core).

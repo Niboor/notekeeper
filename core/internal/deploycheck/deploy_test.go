@@ -378,3 +378,55 @@ func TestDatabaseTLSAndNoMediaProcessing(t *testing.T) {
 		return nil
 	})
 }
+
+// The workflows do what the setup promises: the full CI runs on pull requests and on merges to master, and a
+// version tag publishes the three images to ghcr only after that CI has passed, with write access to
+// packages given to the publishing job alone (SEC-OPS-6).
+func TestWorkflowsForPullRequestsMergesAndReleases(t *testing.T) {
+	load := func(name string) obj {
+		var d obj
+		if err := yaml.Unmarshal([]byte(repoFile(t, ".github", "workflows", name)), &d); err != nil {
+			t.Fatal(name, err)
+		}
+		return d
+	}
+	ci, release := load("ci.yml"), load("release.yml")
+	// yaml.v3 reads the key `on` as a string.
+	triggers, _ := ci["on"].(obj)
+	for _, want := range []string{"pull_request", "push", "workflow_call"} {
+		if _, ok := triggers[want]; !ok {
+			t.Errorf("ci.yml is not triggered by %s", want)
+		}
+	}
+	if branches, _ := get(triggers, "push", "branches").([]any); len(branches) == 0 {
+		t.Error("ci.yml does not run on pushes to the main branch")
+	}
+	for _, job := range []string{"check", "e2e", "images", "e2e-stack"} {
+		if get(ci, "jobs", job) == nil {
+			t.Errorf("ci.yml has no %s job", job)
+		}
+	}
+	rt, _ := release["on"].(obj)
+	tags, _ := get(rt, "push", "tags").([]any)
+	if len(tags) == 0 || !strings.HasPrefix(tags[0].(string), "v") {
+		t.Errorf("release.yml is not triggered by version tags: %v", tags)
+	}
+	if get(release, "jobs", "ci", "uses") != "./.github/workflows/ci.yml" {
+		t.Error("the release does not run the CI workflow first")
+	}
+	if needs := get(release, "jobs", "publish", "needs"); needs != "ci" {
+		t.Errorf("publishing does not wait for the tests: needs = %v", needs)
+	}
+	if get(release, "permissions", "packages") != nil {
+		t.Error("write access to packages is granted to the whole release workflow, not only to publishing")
+	}
+	if get(release, "jobs", "publish", "permissions", "packages") != "write" {
+		t.Error("the publishing job cannot push to ghcr")
+	}
+	text := repoFile(t, ".github", "workflows", "release.yml")
+	for _, image := range []string{"notekeeper-${{ matrix.image }}", "Dockerfile.core", "Dockerfile.web", "Dockerfile.bot", "ghcr.io"} {
+		if !strings.Contains(text, image) {
+			t.Errorf("release.yml does not mention %s", image)
+		}
+	}
+}

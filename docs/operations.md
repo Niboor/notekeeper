@@ -36,12 +36,14 @@ For the person who installs and looks after a deployment. What every setting mea
    <homeserver domain>` and `core admin bot-credential <name>`). The bot key is shown once: put it in the
    bot's Secret as `NK_BOT_KEY`. The domain is the part after the colon in your users' Matrix IDs; the
    bot refuses to link identities from any other domain.
-7. **The Matrix account.** Create an account for the bot on your homeserver (its name is `MX_USER`), then
+7. **The Matrix account.** (One bot serves one homeserver: its own. Users of other servers, even federated ones, are declined; set `MX_ALLOWED_DOMAINS` only if you want that, and disable federation on the homeserver if you do not need it.) Create an account for the bot on your homeserver (its name is `MX_USER`), then
    start the bot. It logs in once and keeps its device in PostgreSQL, encrypted with `MX_PICKLE_KEY`.
 8. **Create accounts.** In *Administration*, create a user and give them the activation link. They open it,
    choose a password, and link a chat under *Settings → Chats*. Nothing can be self-registered.
 
 ## 3. Upgrading
+
+Releases are images on ghcr (`ghcr.io/<owner>/notekeeper-core`, `-web`, `-matrix-bot`), published when a version tag such as `v1.2.3` is pushed and its tests have passed; pin the tag you have tried (or its digest) in your overlay.
 
 Run the new migration Job first, then roll out the new images. Migrations are forward-only and are written to
 work with the previous release still running (add before remove), so a rolling update needs no downtime.

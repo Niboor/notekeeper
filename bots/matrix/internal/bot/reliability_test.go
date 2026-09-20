@@ -268,3 +268,27 @@ func TestBackfillPrependsTheGapToALimitedTimeline(t *testing.T) {
 		t.Fatal("the initial sync was backfilled")
 	}
 }
+
+// A bot deployed for one Matrix server does not serve the users of other servers, even federated ones,
+// unless the operator lists them (MX_ALLOWED_DOMAINS).
+func TestBotServesOnlyItsOwnHomeserverByDefault(t *testing.T) {
+	b, calls := memberRig(t, "dm")
+	if !b.senderAllowed("@alice:x") || b.senderAllowed("@mallory:evil.example") || b.senderAllowed("@alice:X.evil") {
+		t.Fatal("only users of the bot's own homeserver (x) may be served")
+	}
+	// An invite from another homeserver is declined at once: the bot leaves, never joins, never looks at the room.
+	b.onInvite(t.Context(), &event.Event{RoomID: "!r:evil.example", Sender: "@mallory:evil.example"}, &event.MemberEventContent{Membership: event.MembershipInvite, IsDirect: true})
+	if calls.Load() != 1 {
+		t.Fatalf("calls = %d: expected one request (leave)", calls.Load())
+	}
+	// Messages from such a user are ignored before anything else happens.
+	b.onMessage(t.Context(), &event.Event{RoomID: "!r:x", Sender: "@mallory:evil.example", Type: event.EventMessage})
+	if calls.Load() != 1 {
+		t.Fatal("a message from another homeserver was looked at")
+	}
+	// The operator can allow more.
+	b.cfg.AllowedDomains = []string{"x", "partner.example"}
+	if !b.senderAllowed("@bob:partner.example") || b.senderAllowed("@mallory:evil.example") {
+		t.Fatal("MX_ALLOWED_DOMAINS was not honoured")
+	}
+}

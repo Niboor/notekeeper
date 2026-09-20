@@ -104,6 +104,14 @@ Images: `deploy/docker/Dockerfile.{core,bot,web}` (Core static on distroless; th
 
 `golangci-lint`, `tsc`, ESLint, `kustomize build` with `kube-linter` and `kubeconform` on the example manifests, (including the `dangerouslySetInnerHTML` ban), `make generate` drift check, all test tiers, `govulncheck`, `osv-scanner`, `trivy` on the built images (the `images` job of the GitHub workflow; it runs there only), `kube-linter` and `kubeconform` on the manifests, `gitleaks` (SEC-OPS-1, SEC-OPS-6), and **`make docs-check`**, which runs `docs/design/tools/traceability.py`: it fails if a requirement has no design mapping, or if a Must is only "deferred"; it then regenerates [09-traceability.md](09-traceability.md) and the target fails if that changes the committed file (`git diff --exit-code`), so the design cannot silently drift from the requirements.
 
+### 6.1 The GitHub workflows
+
+- **`ci.yml`** runs the jobs `check` (`make check`), `e2e` (Chromium), `e2e-cross-browser` (Firefox and WebKit, non-blocking for now), `images` (build and trivy scan of the three images) and `e2e-stack` (the built images behind nginx). It runs on **every pull request** and on **every push to master** (a new push to a pull request cancels its earlier run; runs on master are never cancelled), and it can be called by another workflow.
+- **`release.yml`** runs when a version tag `vX.Y.Z` (or `vX.Y.Z-rc1`) is pushed. It calls `ci.yml` first; only when that passes does it build and push `ghcr.io/<owner>/notekeeper-core`, `notekeeper-web` and `notekeeper-matrix-bot` (linux/amd64) with the tags `X.Y.Z`, `X.Y` and, for a version without a pre-release suffix, `latest`, embeds the version in the binaries, attaches a build-provenance attestation, and creates a GitHub release with generated notes. Only the publishing job has `packages: write`.
+- **`dependabot.yml`** proposes updates of the actions, the three Go modules, npm and the base images every week, each as a pull request that runs the full CI.
+
+None of this has run yet (no repository exists), which is recorded in decision 61. The example Kustomize overlay points at the ghcr names.
+
 ## 7. Observability
 
 `slog` JSON logs with request ids (bots send `X-Request-ID` so one chat message can be followed end to end, NFR-O1). Metrics on `:9090` (NFR-O2): HTTP by route class, ingest outcomes and grouping decisions, change-feed and SSE gauges, outbox depth and delivery outcomes, reminder scheduling lag, job durations and failures, database pool, auth failures, rate-limit hits, share-link 404s.

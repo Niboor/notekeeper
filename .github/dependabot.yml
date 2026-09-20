@@ -1,0 +1,10 @@
+# Keeps the pinned versions current (SEC-OPS-6). Each update arrives as a pull request that runs the full CI.
+version: 2
+updates:
+  - {package-ecosystem: github-actions, directory: /, schedule: {interval: weekly}}
+  - {package-ecosystem: gomod, directory: /core, schedule: {interval: weekly}}
+  - {package-ecosystem: gomod, directory: /bots/sdk, schedule: {interval: weekly}}
+  - {package-ecosystem: gomod, directory: /bots/matrix, schedule: {interval: weekly}}
+  - {package-ecosystem: npm, directory: /web, schedule: {interval: weekly}}
+  - {package-ecosystem: npm, directory: /e2e, schedule: {interval: weekly}}
+  - {package-ecosystem: docker, directory: /deploy/docker, schedule: {interval: weekly}}
