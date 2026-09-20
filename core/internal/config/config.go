@@ -51,6 +51,12 @@ type Config struct {
 	MaxAttachmentBytes int64
 	DefaultQuotaBytes  int64
 
+	// Sharing (CORE-SH2, CORE-SH11, SEC-SHR-11): the operator can switch it off, cap how long a link
+	// may live, and cap how many links one user may hold at once.
+	ShareEnabled     bool
+	ShareMaxLifetime time.Duration
+	ShareMaxActive   int
+
 	// Ingress addresses whose X-Forwarded-For is trusted for per-address throttling.
 	TrustedProxies []string
 }
@@ -126,6 +132,15 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.MaxAttachmentBytes, c.DefaultQuotaBytes = int64(maxAtt), int64(quota)
+	c.ShareEnabled = strings.ToLower(env(getenv, "NK_SHARE_ENABLED", "true")) != "false"
+	if c.ShareMaxLifetime, err = duration(getenv, "NK_SHARE_MAX_LIFETIME", 30*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	shareMax, err := number(getenv, "NK_SHARE_MAX_ACTIVE", 200)
+	if err != nil {
+		return Config{}, err
+	}
+	c.ShareMaxActive = int(shareMax)
 	c.Argon2MemoryKiB, c.Argon2Iterations, c.Argon2Parallelism, c.Argon2Concurrency = uint32(mem), uint32(iter), uint8(par), int(conc)
 	return c, nil
 }

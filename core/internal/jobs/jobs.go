@@ -17,6 +17,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
+	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
 
@@ -36,6 +37,7 @@ type Deps struct {
 	Store  *store.Store
 	Blobs  *blobs.Service
 	Outbox *outbox.Service
+	Shares *shares.Service
 	Log    *slog.Logger
 	Now    func() time.Time
 }
@@ -156,6 +158,24 @@ func (w *ExpireOutboxWorker) Work(ctx context.Context, _ *river.Job[ExpireOutbox
 	return w.D.Outbox.Expire(ctx)
 }
 
+// PurgeShareLinksArgs deletes links that ended more than a week ago (docs/design/05 section 3).
+type PurgeShareLinksArgs struct{}
+
+// Kind identifies the job type.
+func (PurgeShareLinksArgs) Kind() string { return "purge_share_links" }
+
+// PurgeShareLinksWorker performs PurgeShareLinksArgs.
+type PurgeShareLinksWorker struct {
+	river.WorkerDefaults[PurgeShareLinksArgs]
+	D Deps
+}
+
+// Work purges old links.
+func (w *PurgeShareLinksWorker) Work(ctx context.Context, _ *river.Job[PurgeShareLinksArgs]) error {
+	_, err := w.D.Shares.Purge(ctx, 7*24*time.Hour)
+	return err
+}
+
 // New builds the River client. Call Start on it in the serving process; tests and insert-only
 // callers can use it without starting workers.
 func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
@@ -163,6 +183,7 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 	river.AddWorker(workers, &PurgeWorker{D: d})
 	river.AddWorker(workers, &ReleaseStaleUploadsWorker{D: d})
 	river.AddWorker(workers, &ExpireOutboxWorker{D: d})
+	river.AddWorker(workers, &PurgeShareLinksWorker{D: d})
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}},
 		Workers: workers,
@@ -176,6 +197,9 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 				nil),
 			river.NewPeriodicJob(river.PeriodicInterval(5*time.Minute),
 				func() (river.JobArgs, *river.InsertOpts) { return ExpireOutboxArgs{}, nil },
+				nil),
+			river.NewPeriodicJob(river.PeriodicInterval(time.Hour),
+				func() (river.JobArgs, *river.InsertOpts) { return PurgeShareLinksArgs{}, nil },
 				nil),
 		},
 	})

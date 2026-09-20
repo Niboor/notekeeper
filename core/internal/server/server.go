@@ -27,8 +27,8 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/notes"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
+	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/store"
-	"github.com/Niboor/notekeeper/core/internal/version"
 )
 
 // Deps are the collaborators the handlers need. They grow with each milestone.
@@ -45,6 +45,7 @@ type Deps struct {
 	Blobs    *blobs.Service
 	Ingest   *ingest.Service
 	Outbox   *outbox.Service
+	Shares   *shares.Service
 	Hub      *realtime.Hub
 }
 
@@ -62,9 +63,12 @@ type userAPI struct {
 	notes   *notes.Service
 	board   *board.Service
 	blobs   *blobs.Service
+	shares  *shares.Service
 	hub     *realtime.Hub
 	trusted []netip.Prefix
 	log     *slog.Logger
+
+	shareURL string // public address of the share page, without a trailing slash
 }
 
 // NewRouters builds the handlers for the four listeners.
@@ -104,7 +108,7 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
-	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, hub: d.Hub, trusted: trusted, log: d.Log}
+	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
 	user := base("user", d.Config.AppHosts, false)
 	// The authentication middleware sits on a route group, so it runs after routing (it needs the
 	// route) but BEFORE the generated code parses parameters and bodies: an unauthenticated caller
@@ -141,15 +145,26 @@ func NewRouters(d Deps) (Routers, error) {
 			botapi.ChiServerOptions{BaseRouter: g, ErrorHandlerFunc: badRequest})
 	})
 
-	// ---- public share API ---- (placeholder until milestone M4)
+	// ---- public share API ----
 	public := base("public", d.Config.ShareHosts, false)
-	publicapi.HandlerFromMux(publicapi.NewStrictHandlerWithOptions(publicHandler{}, nil, publicapi.StrictHTTPServerOptions{
-		RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}), public)
+	pub := newPublicAPI(d.Shares, trusted)
+	public.Group(func(g chi.Router) {
+		g.Use(pub.guard)
+		publicapi.HandlerWithOptions(publicapi.NewStrictHandlerWithOptions(pub, []publicapi.StrictMiddlewareFunc{stashHTTPPublic}, publicapi.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
+			publicapi.ChiServerOptions{BaseRouter: g, ErrorHandlerFunc: badRequest})
+	})
 
 	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(reg, d.Ready), hub: d.Hub}, nil
 }
 
 func stashHTTPUser(f userapi.StrictHandlerFunc, _ string) userapi.StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
+		return f(httpx.WithHTTP(ctx, w, r), w, r, args)
+	}
+}
+
+func stashHTTPPublic(f publicapi.StrictHandlerFunc, _ string) publicapi.StrictHandlerFunc {
 	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, args interface{}) (interface{}, error) {
 		return f(httpx.WithHTTP(ctx, w, r), w, r, args)
 	}
@@ -173,12 +188,6 @@ func (r Routers) Listeners(cfg config.Config) []httpx.Listener {
 		{Name: "public", Addr: cfg.PublicAddr, Handler: r.Public},
 		{Name: "ops", Addr: cfg.OpsAddr, Handler: r.Ops},
 	}
-}
-
-type publicHandler struct{}
-
-func (publicHandler) GetPublicVersion(context.Context, publicapi.GetPublicVersionRequestObject) (publicapi.GetPublicVersionResponseObject, error) {
-	return publicapi.GetPublicVersion200JSONResponse{Version: version.Version}, nil
 }
 
 // uploadRoute reports the streaming upload routes, the only ones allowed to exceed the JSON body

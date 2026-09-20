@@ -920,6 +920,78 @@ paths:
         '204': {description: Disabled}
         default: {$ref: '#/components/responses/Problem'}
 
+  # ---- sharing ----------------------------------------------------------------------------
+  /api/v1/notes/{id}/share-links:
+    post:
+      operationId: createShareLink
+      summary: Create a read-only link to a note that expires; the token is returned once
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateShareLinkRequest'}
+      responses:
+        '201':
+          description: The new link. `url` contains the token and is never shown again.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreatedShareLink'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/share-links:
+    get:
+      operationId: listShareLinks
+      summary: Active share links of the user, optionally for one note
+      security: *user
+      parameters:
+        - name: note_id
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Active links, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, enabled, max_lifetime_seconds]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/ShareLink'}
+                  enabled: {type: boolean, description: False when the operator switched sharing off}
+                  max_lifetime_seconds: {type: integer}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/share-links/{id}:
+    delete:
+      operationId: revokeShareLink
+      summary: Revoke a link; it stops working at once
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '204': {description: Revoked}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/share-links/revoke-all:
+    post:
+      operationId: revokeAllShareLinks
+      summary: Revoke every share link of the user
+      security: *user
+      responses:
+        '200':
+          description: How many links were revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked: {type: integer}
+        default: {$ref: '#/components/responses/Problem'}
+
 components:
   securitySchemes:
     sessionAuth:
@@ -1015,6 +1087,32 @@ components:
         display_name: {type: string, minLength: 1, maxLength: 100}
         timezone: {type: string, maxLength: 64}
         settings: {type: object, additionalProperties: true}
+    CreateShareLinkRequest:
+      type: object
+      required: [expires_in]
+      properties:
+        expires_in:
+          type: string
+          enum: ['1h', '1d', '7d', '30d']
+          description: How long the link works. The operator may set a lower maximum.
+    ShareLink:
+      type: object
+      required: [id, note_id, created_at, expires_at, view_count, note_active, excerpt]
+      properties:
+        id: {type: string, format: uuid}
+        note_id: {type: string, format: uuid}
+        excerpt: {type: string, description: The start of the note's text, for recognising it}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        last_accessed_at: {type: string, format: date-time, nullable: true}
+        view_count: {type: integer}
+        note_active: {type: boolean, description: False while the note is in the Trash; the link is then not working}
+    CreatedShareLink:
+      type: object
+      required: [link, url]
+      properties:
+        link: {$ref: '#/components/schemas/ShareLink'}
+        url: {type: string, description: The address to give to the recipient, with the token in the fragment}
     ChangePasswordRequest:
       type: object
       required: [current_password, new_password]

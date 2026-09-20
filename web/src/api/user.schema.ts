@@ -728,6 +728,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notes/{id}/share-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a read-only link to a note that expires; the token is returned once */
+        post: operations["createShareLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/share-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active share links of the user, optionally for one note */
+        get: operations["listShareLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/share-links/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a link; it stops working at once */
+        delete: operations["revokeShareLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/share-links/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke every share link of the user */
+        post: operations["revokeAllShareLinks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -791,6 +859,35 @@ export interface components {
             settings?: {
                 [key: string]: unknown;
             };
+        };
+        CreateShareLinkRequest: {
+            /**
+             * @description How long the link works. The operator may set a lower maximum.
+             * @enum {string}
+             */
+            expires_in: "1h" | "1d" | "7d" | "30d";
+        };
+        ShareLink: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            note_id: string;
+            /** @description The start of the note's text */
+            excerpt: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            last_accessed_at?: string | null;
+            view_count: number;
+            /** @description False while the note is in the Trash; the link is then not working */
+            note_active: boolean;
+        };
+        CreatedShareLink: {
+            link: components["schemas"]["ShareLink"];
+            /** @description The address to give to the recipient */
+            url: string;
         };
         ChangePasswordRequest: {
             current_password: string;
@@ -2396,6 +2493,105 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createShareLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateShareLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description The new link. `url` contains the token and is never shown again. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedShareLink"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShareLinks: {
+        parameters: {
+            query?: {
+                note_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active links, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ShareLink"][];
+                        /** @description False when the operator switched sharing off */
+                        enabled: boolean;
+                        max_lifetime_seconds: number;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    revokeShareLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    revokeAllShareLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many links were revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revoked: number;
+                    };
+                };
             };
             default: components["responses"]["Problem"];
         };

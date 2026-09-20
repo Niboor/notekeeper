@@ -10,14 +10,75 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for SharedPartKind.
+const (
+	Attachment       SharedPartKind = "attachment"
+	FailedAttachment SharedPartKind = "failed_attachment"
+	Text             SharedPartKind = "text"
+	Unsupported      SharedPartKind = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the SharedPartKind enum.
+func (e SharedPartKind) Valid() bool {
+	switch e {
+	case Attachment:
+		return true
+	case FailedAttachment:
+		return true
+	case Text:
+		return true
+	case Unsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Code      *string `json:"code,omitempty"`
+	Detail    *string `json:"detail,omitempty"`
+	RequestId *string `json:"request_id,omitempty"`
+	Status    *int    `json:"status,omitempty"`
+	Title     *string `json:"title,omitempty"`
+	Type      *string `json:"type,omitempty"`
+}
+
+// SharedNote defines model for SharedNote.
+type SharedNote struct {
+	CreatedAt time.Time    `json:"created_at"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	Parts     []SharedPart `json:"parts"`
+}
+
+// SharedPart defines model for SharedPart.
+type SharedPart struct {
+	Attachment *struct {
+		Filename  string             `json:"filename"`
+		Id        openapi_types.UUID `json:"id"`
+		MediaType string             `json:"media_type"`
+		Size      int64              `json:"size"`
+	} `json:"attachment,omitempty"`
+	FailedFilename *string        `json:"failed_filename,omitempty"`
+	Kind           SharedPartKind `json:"kind"`
+	Text           *string        `json:"text,omitempty"`
+}
+
+// SharedPartKind defines model for SharedPart.Kind.
+type SharedPartKind string
 
 // Version defines model for Version.
 type Version struct {
@@ -26,6 +87,12 @@ type Version struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetSharedNote The current content of the shared note
+	// (GET /api/public/v1/share)
+	GetSharedNote(w http.ResponseWriter, r *http.Request)
+	// GetSharedAttachment One attachment of the shared note (Range is supported)
+	// (GET /api/public/v1/share/attachments/{id})
+	GetSharedAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetPublicVersion Build information (M0 pipeline placeholder)
 	// (GET /api/public/v1/version)
 	GetPublicVersion(w http.ResponseWriter, r *http.Request)
@@ -34,6 +101,18 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// GetSharedNote The current content of the shared note
+// (GET /api/public/v1/share)
+func (_ Unimplemented) GetSharedNote(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSharedAttachment One attachment of the shared note (Range is supported)
+// (GET /api/public/v1/share/attachments/{id})
+func (_ Unimplemented) GetSharedAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // GetPublicVersion Build information (M0 pipeline placeholder)
 // (GET /api/public/v1/version)
@@ -49,6 +128,46 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetSharedNote operation middleware
+func (siw *ServerInterfaceWrapper) GetSharedNote(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSharedNote(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSharedAttachment operation middleware
+func (siw *ServerInterfaceWrapper) GetSharedAttachment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSharedAttachment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetPublicVersion operation middleware
 func (siw *ServerInterfaceWrapper) GetPublicVersion(w http.ResponseWriter, r *http.Request) {
@@ -178,10 +297,121 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/public/v1/share", wrapper.GetSharedNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/public/v1/share/attachments/{id}", wrapper.GetSharedAttachment)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/public/v1/version", wrapper.GetPublicVersion)
 	})
 
 	return r
+}
+
+type ProblemApplicationProblemPlusJSONResponse Problem
+
+type GetSharedNoteRequestObject struct {
+}
+
+type GetSharedNoteResponseObject interface {
+	VisitGetSharedNoteResponse(w http.ResponseWriter) error
+}
+
+type GetSharedNote200JSONResponse SharedNote
+
+func (response GetSharedNote200JSONResponse) VisitGetSharedNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSharedNotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSharedNotedefaultApplicationProblemPlusJSONResponse) VisitGetSharedNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSharedAttachmentRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetSharedAttachmentResponseObject interface {
+	VisitGetSharedAttachmentResponse(w http.ResponseWriter) error
+}
+
+type GetSharedAttachment200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetSharedAttachment200ApplicationoctetStreamResponse) VisitGetSharedAttachmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetSharedAttachment206ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetSharedAttachment206ApplicationoctetStreamResponse) VisitGetSharedAttachmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(206)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetSharedAttachmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSharedAttachmentdefaultApplicationProblemPlusJSONResponse) VisitGetSharedAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetPublicVersionRequestObject struct {
@@ -207,6 +437,12 @@ func (response GetPublicVersion200JSONResponse) VisitGetPublicVersionResponse(w 
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetSharedNote The current content of the shared note
+	// (GET /api/public/v1/share)
+	GetSharedNote(ctx context.Context, request GetSharedNoteRequestObject) (GetSharedNoteResponseObject, error)
+	// GetSharedAttachment One attachment of the shared note (Range is supported)
+	// (GET /api/public/v1/share/attachments/{id})
+	GetSharedAttachment(ctx context.Context, request GetSharedAttachmentRequestObject) (GetSharedAttachmentResponseObject, error)
 	// GetPublicVersion Build information (M0 pipeline placeholder)
 	// (GET /api/public/v1/version)
 	GetPublicVersion(ctx context.Context, request GetPublicVersionRequestObject) (GetPublicVersionResponseObject, error)
@@ -251,6 +487,56 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetSharedNote operation middleware
+func (sh *strictHandler) GetSharedNote(w http.ResponseWriter, r *http.Request) {
+	var request GetSharedNoteRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSharedNote(ctx, request.(GetSharedNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSharedNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSharedNoteResponseObject); ok {
+		if err := validResponse.VisitGetSharedNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSharedAttachment operation middleware
+func (sh *strictHandler) GetSharedAttachment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetSharedAttachmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSharedAttachment(ctx, request.(GetSharedAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSharedAttachment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSharedAttachmentResponseObject); ok {
+		if err := validResponse.VisitGetSharedAttachmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetPublicVersion operation middleware
 func (sh *strictHandler) GetPublicVersion(w http.ResponseWriter, r *http.Request) {
 	var request GetPublicVersionRequestObject
@@ -280,13 +566,21 @@ func (sh *strictHandler) GetPublicVersion(w http.ResponseWriter, r *http.Request
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"VJJBb9swDIX/isDtsAGO5TY337bL0MOGYhmGAU0PivQaq7UpTaIDBIX/+yAlWdqTCJJ6T+LHV7JhioHB",
-	"kql/pWwHTKaGv5GyD1zCmEJEEo9aOFwLcoygnrIkz3taloYS/s4+wVH/8L/xsbk0ht0zrNBSOj0/haLh",
-	"kG3yUaok/YRxq8DjURlrkbOSoAJD5cEkOMVB0CgzyxCSz3Bqd1QynMtKwgtYeS6pLf9ZbUp29atmBxiH",
-	"1KoN0gFOVYvAby4PIQubCe2WN4BywWbtkP2edXe7MtG3k1MZtjxUrdstU0PiZSz/+hEEL0BEUnHejd6e",
-	"Nb/c31FzHRjdtF3b0dJQiGATPfW0brt2TQ1FI0MdrzbR65OKPtzoN9PeQ8pRWJjyijtHPX2D3NfmC6/C",
-	"IMfA+UTrtuvKYQMLuN43MY7eVgX9nE/SJ+4l+pjwRD190NfF0Oet0BeLyu89t2upoQw7Jy9H6h8eG8rz",
-	"NJl0pJ6+zn50qnBPU7VXn753KvqI0TNUHI3FEEaH9LlYLP8CAAD//w==",
+	"vFXBbuM2EP0Vgu1hi8qWNyn24FsKFMWiaBtsFkWBJAhocmzNRiLZ4ShYN/C/F0PZlrRWEuSQnkxzqDcz",
+	"7z0OH7UNTQwePCe9fNQEKQafIP+5pLCqoZGlDZ7BsyxNjDVawxh8GbsTP35JwUss2QoaI6vvCdZ6qb8r",
+	"e/yyi6bygLvb7QrtIFnCKHB6qX8hCqRlf3/4mzoihQjE2BVogwP55W0EvdSJCf1GZ1A2WE+GCP5pIfEd",
+	"uslwYsNtGoTQM2yAJMbI9XS+buMkcIzosPoCluXoVWUI3B+BYaIfAsPg7kwmeh2okZV2hmHG2IAuTlPD",
+	"14gE6VXfREOd3MjQpJfk6iq+NMR9q9oQmW3uUAhFAqeX18MGRpUdUt4+SUiGPyHEMBtbNXvnjWNrrMGb",
+	"ZlqQTt0jG22LboqIBhyauyfUK3TCf2GEg54//NQDHb3xDQ052bG+UZo96BQRa4M1uLtn+7pHnzsD3zaS",
+	"ieGrsDvg6Ygz2mt9amMMxOAGuQcGFpxJAw/7ytmnSv8LKGE3AsYiPfSB56EPB0/RRQewLSFvr8SRHXAS",
+	"13wO95CxUWZHBcYB6UJ37Om/Z9las+5U79yIv8G2Gz7o10G+Hw+hT2DcLPh6q4y1kJLioIIHlXM65QND",
+	"oUzLVSBM4NRqq7jahxVLNoVetm78qAbVVThXV0AP4FROEfzg4yoklurnN/4KQLlgU+kg4caXi7OZiThv",
+	"nEpgpVB1Pr/JbXVTSctIuQeIQCq2qxrtHvPi8qMueiH0+/livhDRQgRvIuqlPp8v5uf5knKV2S1NxLJD",
+	"KR/elxlI9jeQXSIK5wfgo9NL/SvwYKgV4zfkbLF45v143bsxyDLxdHyuIEvTzf+1aWt+CvBY4eAp6l2m",
+	"l9djf13f7m4LndqmMbTdZ7ItEXhW+8ZUWPcyun0du2KSyLK/mal8RLd7mdmL4V2OhkwDDJRypdn7olzv",
+	"/Dx/+tvF1EIx4PiFsSjNvkLDYBl4lpjANGMtj3lW6IW500yTIsoAFBHPFh/+r7QXiozfwEHFQwVva6M/",
+	"PajeChMOUu8+5aowqeP0/mHKVoMp+5SPLvPhw5x+w0t6SDHBch8asTQi5ecWa6dkLouIMube/b5QESPU",
+	"6EHF2lioQu2AhInd7r8AAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

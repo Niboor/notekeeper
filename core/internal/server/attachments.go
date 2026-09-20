@@ -76,9 +76,14 @@ type attachmentDownload struct {
 	r      *http.Request
 	reader *blobs.Reader
 	att    blobs.Attachment
+	cache  string // Cache-Control; the default is for the signed-in owner
 }
 
 func (d attachmentDownload) VisitDownloadAttachmentResponse(w http.ResponseWriter) error {
+	return d.serve(w)
+}
+
+func (d attachmentDownload) serve(w http.ResponseWriter) error {
 	h := w.Header()
 	disposition, contentType := "attachment", "application/octet-stream"
 	if inlineTypes[d.att.MediaType] {
@@ -88,7 +93,10 @@ func (d attachmentDownload) VisitDownloadAttachmentResponse(w http.ResponseWrite
 	h.Set("Content-Disposition", contentDisposition(disposition, d.att.Filename))
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Security-Policy", "sandbox")
-	h.Set("Cache-Control", "private, no-cache") // design decision D5
+	if d.cache == "" {
+		d.cache = "private, no-cache" // design decision D5
+	}
+	h.Set("Cache-Control", d.cache)
 	if len(d.att.SHA256) > 0 {
 		h.Set("ETag", fmt.Sprintf(`"%x"`, d.att.SHA256[:16]))
 	}

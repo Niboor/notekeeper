@@ -33,14 +33,15 @@ const password = "correct horse battery staple"
 
 // stack is a complete Core (user and bot listeners on real HTTP servers) over a fresh database.
 type stack struct {
-	t    *testing.T
-	db   *testdb.DB
-	st   *store.Store
-	svc  *app.Services
-	user *httptest.Server
-	bot  *httptest.Server
-	hub  *realtime.Hub
-	cfg  config.Config
+	t      *testing.T
+	db     *testdb.DB
+	st     *store.Store
+	svc    *app.Services
+	user   *httptest.Server
+	bot    *httptest.Server
+	public *httptest.Server
+	hub    *realtime.Hub
+	cfg    config.Config
 }
 
 func newStack(t *testing.T) *stack { return newStackWith(t, nil) }
@@ -55,11 +56,16 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 		RefreshGrace: 60 * time.Second, ActivationTTL: 7 * 24 * time.Hour,
 		Argon2MemoryKiB: 8, Argon2Iterations: 1, Argon2Parallelism: 1, Argon2Concurrency: 8,
 		MaxAttachmentBytes: 25 << 20, DefaultQuotaBytes: 2 << 30,
+		ShareEnabled: true, ShareMaxLifetime: 30 * 24 * time.Hour, ShareMaxActive: 200, ShareURL: "https://share.example.net",
 	}
 	if mod != nil {
 		mod(&cfg)
 	}
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	var logOut io.Writer = io.Discard
+	if os.Getenv("NK_TEST_LOG") != "" {
+		logOut = os.Stderr // request failures with their errors, for debugging a failing test
+	}
+	log := slog.New(slog.NewTextHandler(logOut, nil))
 	st := store.New(d.App)
 	svc, err := app.NewServices(cfg, st, log)
 	if err != nil {
@@ -69,16 +75,17 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 	routers, err := server.NewRouters(server.Deps{Config: cfg, Log: log, Store: st, Accounts: svc.Accounts, Bots: svc.Bots,
-		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Hub: hub})
+		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Shares: svc.Shares, Hub: hub})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &stack{t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot)}
+	s := &stack{t: t, db: d, st: st, svc: svc, hub: hub, cfg: cfg, user: httptest.NewServer(routers.User), bot: httptest.NewServer(routers.Bot), public: httptest.NewServer(routers.Public)}
 	t.Cleanup(func() {
 		hub.Shutdown()
 		s.user.CloseClientConnections()
 		s.user.Close()
 		s.bot.Close()
+		s.public.Close()
 		cancel()
 	})
 	return s

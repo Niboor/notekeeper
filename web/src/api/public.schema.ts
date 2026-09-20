@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/public/v1/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The current content of the shared note */
+        get: operations["getSharedNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/v1/share/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One attachment of the shared note (Range is supported) */
+        get: operations["getSharedAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/v1/version": {
         parameters: {
             query?: never;
@@ -25,11 +59,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Problem: {
+            type?: string;
+            title?: string;
+            status?: number;
+            code?: string;
+            detail?: string;
+            request_id?: string;
+        };
+        SharedNote: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            parts: components["schemas"]["SharedPart"][];
+        };
+        SharedPart: {
+            /** @enum {string} */
+            kind: "text" | "attachment" | "failed_attachment" | "unsupported";
+            text?: string;
+            attachment?: {
+                /** Format: uuid */
+                id: string;
+                filename: string;
+                media_type: string;
+                /** Format: int64 */
+                size: number;
+            };
+            failed_filename?: string;
+        };
         Version: {
             version: string;
         };
     };
-    responses: never;
+    responses: {
+        /** @description Error */
+        Problem: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -37,6 +110,59 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getSharedNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedNote"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getSharedAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description A range of the file */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     getPublicVersion: {
         parameters: {
             query?: never;

@@ -7,6 +7,42 @@ info:
     X-Share-Token header. Served only on the share hostname.
     See docs/design/02-api.md section 3.
 paths:
+  /api/public/v1/share:
+    get:
+      operationId: getSharedNote
+      summary: The current content of the shared note
+      security:
+        - shareToken: []
+      responses:
+        '200':
+          description: The note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SharedNote'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/public/v1/share/attachments/{id}:
+    get:
+      operationId: getSharedAttachment
+      summary: One attachment of the shared note (Range is supported)
+      security:
+        - shareToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The file
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        '206':
+          description: A range of the file
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
   /api/public/v1/version:
     get:
       operationId: getPublicVersion
@@ -20,7 +56,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/Version'
 components:
+  securitySchemes:
+    shareToken:
+      type: apiKey
+      in: header
+      name: X-Share-Token
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
   schemas:
+    Problem:
+      type: object
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        request_id: {type: string}
+    SharedNote:
+      type: object
+      required: [created_at, expires_at, parts]
+      properties:
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        parts:
+          type: array
+          items: {$ref: '#/components/schemas/SharedPart'}
+    SharedPart:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string, enum: [text, attachment, failed_attachment, unsupported]}
+        text: {type: string}
+        attachment:
+          type: object
+          required: [id, filename, media_type, size]
+          properties:
+            id: {type: string, format: uuid}
+            filename: {type: string}
+            media_type: {type: string}
+            size: {type: integer, format: int64}
+        failed_filename: {type: string}
     Version:
       type: object
       required: [version]

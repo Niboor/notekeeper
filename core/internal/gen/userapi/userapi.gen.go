@@ -84,6 +84,30 @@ func (e ChangeOp) Valid() bool {
 	}
 }
 
+// Defines values for CreateShareLinkRequestExpiresIn.
+const (
+	N1d  CreateShareLinkRequestExpiresIn = "1d"
+	N1h  CreateShareLinkRequestExpiresIn = "1h"
+	N30d CreateShareLinkRequestExpiresIn = "30d"
+	N7d  CreateShareLinkRequestExpiresIn = "7d"
+)
+
+// Valid indicates whether the value is a known member of the CreateShareLinkRequestExpiresIn enum.
+func (e CreateShareLinkRequestExpiresIn) Valid() bool {
+	switch e {
+	case N1d:
+		return true
+	case N1h:
+		return true
+	case N30d:
+		return true
+	case N7d:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LoginRequestClientKind.
 const (
 	Native LoginRequestClientKind = "native"
@@ -470,12 +494,29 @@ type CreatePage struct {
 	Name string              `json:"name"`
 }
 
+// CreateShareLinkRequest defines model for CreateShareLinkRequest.
+type CreateShareLinkRequest struct {
+	// ExpiresIn How long the link works. The operator may set a lower maximum.
+	ExpiresIn CreateShareLinkRequestExpiresIn `json:"expires_in"`
+}
+
+// CreateShareLinkRequestExpiresIn How long the link works. The operator may set a lower maximum.
+type CreateShareLinkRequestExpiresIn string
+
 // CreateUser defines model for CreateUser.
 type CreateUser struct {
 	DisplayName *string `json:"display_name,omitempty"`
 	Email       *string `json:"email,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	Username    string  `json:"username"`
+}
+
+// CreatedShareLink defines model for CreatedShareLink.
+type CreatedShareLink struct {
+	Link ShareLink `json:"link"`
+
+	// Url The address to give to the recipient
+	Url string `json:"url"`
 }
 
 // Deleted defines model for Deleted.
@@ -706,6 +747,22 @@ type Session struct {
 	LastUsedAt time.Time          `json:"last_used_at"`
 }
 
+// ShareLink defines model for ShareLink.
+type ShareLink struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Excerpt The start of the note's text
+	Excerpt        string             `json:"excerpt"`
+	ExpiresAt      time.Time          `json:"expires_at"`
+	Id             openapi_types.UUID `json:"id"`
+	LastAccessedAt *time.Time         `json:"last_accessed_at,omitempty"`
+
+	// NoteActive False while the note is in the Trash; the link is then not working
+	NoteActive bool               `json:"note_active"`
+	NoteId     openapi_types.UUID `json:"note_id"`
+	ViewCount  int                `json:"view_count"`
+}
+
 // UpdateCategory defines model for UpdateCategory.
 type UpdateCategory struct {
 	AfterId  *openapi_types.UUID `json:"after_id,omitempty"`
@@ -819,6 +876,11 @@ type SearchNotesParams struct {
 // SearchNotesParamsScope defines parameters for SearchNotes.
 type SearchNotesParamsScope string
 
+// ListShareLinksParams defines parameters for ListShareLinks.
+type ListShareLinksParams struct {
+	NoteId *openapi_types.UUID `form:"note_id,omitempty" json:"note_id,omitempty"`
+}
+
 // ListTrashParams defines parameters for ListTrash.
 type ListTrashParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -878,6 +940,9 @@ type AddNotePartJSONRequestBody = NewPart
 
 // EditNotePartJSONRequestBody defines body for EditNotePart for application/json ContentType.
 type EditNotePartJSONRequestBody = EditPart
+
+// CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
+type CreateShareLinkJSONRequestBody = CreateShareLinkRequest
 
 // CreatePageJSONRequestBody defines body for CreatePage for application/json ContentType.
 type CreatePageJSONRequestBody = CreatePage
@@ -1013,6 +1078,9 @@ type ServerInterface interface {
 	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
 	// (POST /api/v1/notes/{id}/restore)
 	RestoreNote(w http.ResponseWriter, r *http.Request, id Id)
+	// CreateShareLink Create a read-only link to a note that expires; the token is returned once
+	// (POST /api/v1/notes/{id}/share-links)
+	CreateShareLink(w http.ResponseWriter, r *http.Request, id Id)
 	// ListPages The user's pages in order
 	// (GET /api/v1/pages)
 	ListPages(w http.ResponseWriter, r *http.Request)
@@ -1031,6 +1099,15 @@ type ServerInterface interface {
 	// SearchNotes Full-text search over the user's notes
 	// (GET /api/v1/search)
 	SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams)
+	// ListShareLinks Active share links of the user, optionally for one note
+	// (GET /api/v1/share-links)
+	ListShareLinks(w http.ResponseWriter, r *http.Request, params ListShareLinksParams)
+	// RevokeAllShareLinks Revoke every share link of the user
+	// (POST /api/v1/share-links/revoke-all)
+	RevokeAllShareLinks(w http.ResponseWriter, r *http.Request)
+	// RevokeShareLink Revoke a link; it stops working at once
+	// (DELETE /api/v1/share-links/{id})
+	RevokeShareLink(w http.ResponseWriter, r *http.Request, id Id)
 	// ListTrash Dismissed notes, newest first
 	// (GET /api/v1/trash/notes)
 	ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams)
@@ -1295,6 +1372,12 @@ func (_ Unimplemented) RestoreNote(w http.ResponseWriter, r *http.Request, id Id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// CreateShareLink Create a read-only link to a note that expires; the token is returned once
+// (POST /api/v1/notes/{id}/share-links)
+func (_ Unimplemented) CreateShareLink(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListPages The user's pages in order
 // (GET /api/v1/pages)
 func (_ Unimplemented) ListPages(w http.ResponseWriter, r *http.Request) {
@@ -1328,6 +1411,24 @@ func (_ Unimplemented) GetBoard(w http.ResponseWriter, r *http.Request, id Id, p
 // SearchNotes Full-text search over the user's notes
 // (GET /api/v1/search)
 func (_ Unimplemented) SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListShareLinks Active share links of the user, optionally for one note
+// (GET /api/v1/share-links)
+func (_ Unimplemented) ListShareLinks(w http.ResponseWriter, r *http.Request, params ListShareLinksParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RevokeAllShareLinks Revoke every share link of the user
+// (POST /api/v1/share-links/revoke-all)
+func (_ Unimplemented) RevokeAllShareLinks(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RevokeShareLink Revoke a link; it stops working at once
+// (DELETE /api/v1/share-links/{id})
+func (_ Unimplemented) RevokeShareLink(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2359,6 +2460,32 @@ func (siw *ServerInterfaceWrapper) RestoreNote(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// CreateShareLink operation middleware
+func (siw *ServerInterfaceWrapper) CreateShareLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateShareLink(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPages operation middleware
 func (siw *ServerInterfaceWrapper) ListPages(w http.ResponseWriter, r *http.Request) {
 
@@ -2596,6 +2723,79 @@ func (siw *ServerInterfaceWrapper) SearchNotes(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SearchNotes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListShareLinks operation middleware
+func (siw *ServerInterfaceWrapper) ListShareLinks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListShareLinksParams
+
+	// ------------- Optional query parameter "note_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "note_id", r.URL.Query(), &params.NoteId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "note_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "note_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListShareLinks(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeAllShareLinks operation middleware
+func (siw *ServerInterfaceWrapper) RevokeAllShareLinks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeAllShareLinks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeShareLink operation middleware
+func (siw *ServerInterfaceWrapper) RevokeShareLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeShareLink(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2927,6 +3127,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/admin/bot-instances/{id}/credentials/{credentialId}", wrapper.AdminDisableBotCredential)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/share-links", wrapper.CreateShareLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/share-links", wrapper.ListShareLinks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/share-links/{id}", wrapper.RevokeShareLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/share-links/revoke-all", wrapper.RevokeAllShareLinks)
 	})
 
 	return r
@@ -4565,6 +4777,46 @@ func (response RestoreNotedefaultApplicationProblemPlusJSONResponse) VisitRestor
 	return err
 }
 
+type CreateShareLinkRequestObject struct {
+	Id   Id `json:"id"`
+	Body *CreateShareLinkJSONRequestBody
+}
+
+type CreateShareLinkResponseObject interface {
+	VisitCreateShareLinkResponse(w http.ResponseWriter) error
+}
+
+type CreateShareLink201JSONResponse CreatedShareLink
+
+func (response CreateShareLink201JSONResponse) VisitCreateShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShareLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateShareLinkdefaultApplicationProblemPlusJSONResponse) VisitCreateShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPagesRequestObject struct {
 }
 
@@ -4802,6 +5054,123 @@ func (response SearchNotesdefaultApplicationProblemPlusJSONResponse) VisitSearch
 	return err
 }
 
+type ListShareLinksRequestObject struct {
+	Params ListShareLinksParams
+}
+
+type ListShareLinksResponseObject interface {
+	VisitListShareLinksResponse(w http.ResponseWriter) error
+}
+
+type ListShareLinks200JSONResponse struct {
+	// Enabled False when the operator switched sharing off
+	Enabled            bool        `json:"enabled"`
+	Items              []ShareLink `json:"items"`
+	MaxLifetimeSeconds int         `json:"max_lifetime_seconds"`
+}
+
+func (response ListShareLinks200JSONResponse) VisitListShareLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListShareLinksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListShareLinksdefaultApplicationProblemPlusJSONResponse) VisitListShareLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAllShareLinksRequestObject struct {
+}
+
+type RevokeAllShareLinksResponseObject interface {
+	VisitRevokeAllShareLinksResponse(w http.ResponseWriter) error
+}
+
+type RevokeAllShareLinks200JSONResponse struct {
+	Revoked int `json:"revoked"`
+}
+
+func (response RevokeAllShareLinks200JSONResponse) VisitRevokeAllShareLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAllShareLinksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RevokeAllShareLinksdefaultApplicationProblemPlusJSONResponse) VisitRevokeAllShareLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeShareLinkRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type RevokeShareLinkResponseObject interface {
+	VisitRevokeShareLinkResponse(w http.ResponseWriter) error
+}
+
+type RevokeShareLink204Response struct {
+}
+
+func (response RevokeShareLink204Response) VisitRevokeShareLinkResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeShareLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RevokeShareLinkdefaultApplicationProblemPlusJSONResponse) VisitRevokeShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListTrashRequestObject struct {
 	Params ListTrashParams
 }
@@ -4990,6 +5359,9 @@ type StrictServerInterface interface {
 	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
 	// (POST /api/v1/notes/{id}/restore)
 	RestoreNote(ctx context.Context, request RestoreNoteRequestObject) (RestoreNoteResponseObject, error)
+	// CreateShareLink Create a read-only link to a note that expires; the token is returned once
+	// (POST /api/v1/notes/{id}/share-links)
+	CreateShareLink(ctx context.Context, request CreateShareLinkRequestObject) (CreateShareLinkResponseObject, error)
 	// ListPages The user's pages in order
 	// (GET /api/v1/pages)
 	ListPages(ctx context.Context, request ListPagesRequestObject) (ListPagesResponseObject, error)
@@ -5008,6 +5380,15 @@ type StrictServerInterface interface {
 	// SearchNotes Full-text search over the user's notes
 	// (GET /api/v1/search)
 	SearchNotes(ctx context.Context, request SearchNotesRequestObject) (SearchNotesResponseObject, error)
+	// ListShareLinks Active share links of the user, optionally for one note
+	// (GET /api/v1/share-links)
+	ListShareLinks(ctx context.Context, request ListShareLinksRequestObject) (ListShareLinksResponseObject, error)
+	// RevokeAllShareLinks Revoke every share link of the user
+	// (POST /api/v1/share-links/revoke-all)
+	RevokeAllShareLinks(ctx context.Context, request RevokeAllShareLinksRequestObject) (RevokeAllShareLinksResponseObject, error)
+	// RevokeShareLink Revoke a link; it stops working at once
+	// (DELETE /api/v1/share-links/{id})
+	RevokeShareLink(ctx context.Context, request RevokeShareLinkRequestObject) (RevokeShareLinkResponseObject, error)
 	// ListTrash Dismissed notes, newest first
 	// (GET /api/v1/trash/notes)
 	ListTrash(ctx context.Context, request ListTrashRequestObject) (ListTrashResponseObject, error)
@@ -6251,6 +6632,39 @@ func (sh *strictHandler) RestoreNote(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
+// CreateShareLink operation middleware
+func (sh *strictHandler) CreateShareLink(w http.ResponseWriter, r *http.Request, id Id) {
+	var request CreateShareLinkRequestObject
+
+	request.Id = id
+
+	var body CreateShareLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateShareLink(ctx, request.(CreateShareLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateShareLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateShareLinkResponseObject); ok {
+		if err := validResponse.VisitCreateShareLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPages operation middleware
 func (sh *strictHandler) ListPages(w http.ResponseWriter, r *http.Request) {
 	var request ListPagesRequestObject
@@ -6418,6 +6832,82 @@ func (sh *strictHandler) SearchNotes(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// ListShareLinks operation middleware
+func (sh *strictHandler) ListShareLinks(w http.ResponseWriter, r *http.Request, params ListShareLinksParams) {
+	var request ListShareLinksRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListShareLinks(ctx, request.(ListShareLinksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListShareLinks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListShareLinksResponseObject); ok {
+		if err := validResponse.VisitListShareLinksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeAllShareLinks operation middleware
+func (sh *strictHandler) RevokeAllShareLinks(w http.ResponseWriter, r *http.Request) {
+	var request RevokeAllShareLinksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeAllShareLinks(ctx, request.(RevokeAllShareLinksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeAllShareLinks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeAllShareLinksResponseObject); ok {
+		if err := validResponse.VisitRevokeAllShareLinksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeShareLink operation middleware
+func (sh *strictHandler) RevokeShareLink(w http.ResponseWriter, r *http.Request, id Id) {
+	var request RevokeShareLinkRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeShareLink(ctx, request.(RevokeShareLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeShareLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeShareLinkResponseObject); ok {
+		if err := validResponse.VisitRevokeShareLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListTrash operation middleware
 func (sh *strictHandler) ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams) {
 	var request ListTrashRequestObject
@@ -6473,111 +6963,120 @@ func (sh *strictHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"FTINjoNxcPf17v8CAAD//w==",
+	"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",
+	"K2QanARHwe232/8LAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -183,13 +183,14 @@ func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 	attachment := uuid.NewString()
 	victim.upload(attachment, "secret.pdf", "application/pdf", []byte("%PDF-1.4 secret"))
 	victim.attachNote(attachment)
+	shareLink := victim.share(note.ID, "1d").Link.ID
 
 	// Which kind of object each path parameter names, by the collection it follows.
-	real := map[string]string{"attachments": attachment, "notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID}
+	real := map[string]string{"attachments": attachment, "notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID, "share-links": shareLink}
 	bodies := map[string]any{
 		"updatePage": map[string]any{"name": "x"}, "updateCategory": map[string]any{"name": "x"},
 		"moveNote": map[string]any{"category_id": nil}, "addNotePart": map[string]any{"type": "text", "text": "x"},
-		"editNotePart": map[string]any{"text": "x"},
+		"editNotePart": map[string]any{"text": "x"}, "createShareLink": map[string]any{"expires_in": "1d"},
 	}
 
 	spec, _ := userapiSpec()
