@@ -36,6 +36,10 @@ server {
         include /etc/nginx/snippets/headers.conf;
         try_files $uri =404;
     }
+    # The share page (and anything below /s) is served by the share host only, so a share token pasted
+    # here is never loaded into the application's origin (CORE-SH8, SEC-SHR-5). /sw.js does not match.
+    location ~ ^/s(/|$) { return 404; }
+
     location / {
         add_header Cache-Control "no-cache" always;
         include /etc/nginx/snippets/headers.conf;

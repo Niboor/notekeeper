@@ -426,6 +426,18 @@ func TestShareHostServerBlockIsMinimal(t *testing.T) {
 	}
 }
 
+// The application host never serves the share page, so a share token is never handled on the app's origin (CORE-SH8, SEC-SHR-5).
+func TestAppHostRefusesTheSharePage(t *testing.T) {
+	text := repoFile(t, "deploy", "nginx", "app.conf.template")
+	block := regexp.MustCompile(`location ~ \^/s\(/\|\$\) \{ return 404; \}`).FindStringIndex(text)
+	if block == nil {
+		t.Fatal("the app server block does not answer 404 for /s and below")
+	}
+	if fallback := strings.Index(text, "try_files $uri /index.html"); fallback < 0 || block[0] > fallback {
+		t.Error("the /s block must come before the single-page fallback")
+	}
+}
+
 // Database connections in the example manifests require TLS (SEC-DATA-4), and nothing in the repository
 // parses or transcodes untrusted media: files are stored and served as they came (SEC-CNT-5, CORE-A4).
 func TestDatabaseTLSAndNoMediaProcessing(t *testing.T) {
