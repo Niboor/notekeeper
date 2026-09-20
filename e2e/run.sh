@@ -21,6 +21,17 @@ $COMPOSE up -d --wait db
 $COMPOSE exec -T db psql -U nk -d postgres -v ON_ERROR_STOP=1 -q -c "drop database if exists $DB with (force)" -c "create database $DB"
 $COMPOSE exec -T db psql -U nk -d "$DB" -v ON_ERROR_STOP=1 -q < deploy/sql/roles.sql
 
+# E2E_TLS=1 serves the app over https with a throwaway certificate. WebKit does not accept the Secure
+# cookies of an http origin, not even on localhost, so its run needs it.
+SCHEME=http
+if [ -n "${E2E_TLS:-}" ]; then
+  SCHEME=https
+  mkdir -p "$ROOT/e2e/.tls"
+  openssl req -x509 -newkey rsa:2048 -nodes -days 2 -keyout "$ROOT/e2e/.tls/key.pem" -out "$ROOT/e2e/.tls/cert.pem" \
+    -subj /CN=localhost -addext "subjectAltName=DNS:localhost,DNS:share.localhost" 2>/dev/null
+  export NK_PREVIEW_CERT="$ROOT/e2e/.tls/cert.pem" NK_PREVIEW_KEY="$ROOT/e2e/.tls/key.pem"
+fi
+
 (cd core && go build -o ../.bin/core ./cmd/core)
 (cd web && npm run build --silent)
 
@@ -28,10 +39,10 @@ export NK_ALLOW_DEV_CREDENTIALS=true   # the throwaway database of this run uses
 export NK_DATABASE_URL="postgres://nk_app:nk_app_dev@localhost:5432/$DB?sslmode=disable"
 MIGRATE_URL="postgres://nk_migrate:nk_migrate_dev@localhost:5432/$DB?sslmode=disable"   # the schema owner: for the migration only
 export NK_TOKEN_KEYS="e2e:$(head -c 32 /dev/urandom | base64)"
-export NK_APP_URL="http://localhost:$WEB"
+export NK_APP_URL="$SCHEME://localhost:$WEB"
 # The share page is served from another origin (share.localhost is a different host from localhost),
 # so the app's cookies do not exist there (CORE-SH8, SEC-SHR-5).
-export NK_SHARE_URL="http://share.localhost:$WEB"
+export NK_SHARE_URL="$SCHEME://share.localhost:$WEB"
 export NK_USER_ADDR=":$CORE_USER" NK_BOT_ADDR=":$CORE_BOT" NK_PUBLIC_ADDR=":$CORE_PUBLIC" NK_OPS_ADDR=":$CORE_OPS"
 export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL=warn
 # One browser hammers the API from one address, much faster than a person does: raise the limits, do not disable them.
@@ -49,12 +60,12 @@ export E2E_ACTIVATION_TOKEN="${link#activate#}"
 .bin/core admin bot-create matrix e2e-bot localhost >/dev/null
 export E2E_BOT_KEY="$(.bin/core admin bot-credential e2e-bot | grep -o 'nkb\.[^ ]*')"
 export E2E_BOT_URL="http://localhost:$CORE_BOT"
-export E2E_BASE_URL="http://localhost:$WEB"
+export E2E_BASE_URL="$SCHEME://localhost:$WEB"
 
 # exec, so that the recorded pid is the server itself and the cleanup really stops it
 (cd web && NK_API_PROXY="http://localhost:$CORE_USER" NK_PUBLIC_PROXY="http://localhost:$CORE_PUBLIC" exec ./node_modules/.bin/vite preview --port "$WEB" --strictPort >"$ROOT/e2e/web.log" 2>&1) &
 pids+=($!)
-for _ in $(seq 1 60); do curl -fs "http://localhost:$WEB/" >/dev/null && break; sleep 0.5; done
+for _ in $(seq 1 60); do curl -fsk "$SCHEME://localhost:$WEB/" >/dev/null && break; sleep 0.5; done
 
 cd e2e
 if [ -n "${E2E_HOLD:-}" ]; then echo "stack is up on $E2E_BASE_URL; Ctrl-C to stop"; sleep "${E2E_HOLD}"; exit 0; fi

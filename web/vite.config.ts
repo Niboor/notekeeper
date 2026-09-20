@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
@@ -34,6 +35,10 @@ export default defineConfig({
   },
   // `vite preview` serves the production build; the end-to-end tests run against it.
   preview: {
+    // The end-to-end run for WebKit needs https (NK_PREVIEW_CERT and NK_PREVIEW_KEY name a throwaway certificate).
+    https: process.env.NK_PREVIEW_CERT && process.env.NK_PREVIEW_KEY
+      ? { cert: readFileSync(process.env.NK_PREVIEW_CERT), key: readFileSync(process.env.NK_PREVIEW_KEY) }
+      : undefined,
     proxy,
     allowedHosts: ['.localhost'],
   },

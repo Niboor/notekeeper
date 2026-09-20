@@ -13,6 +13,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:4174',
+    ignoreHTTPSErrors: true, // the throwaway certificate of E2E_TLS runs
     storageState: 'auth.json',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

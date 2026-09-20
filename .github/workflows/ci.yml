@@ -87,12 +87,10 @@ jobs:
       - name: Browser end-to-end tests (Chromium)
         run: e2e/run.sh
 
-  # Firefox and WebKit run the @cross tests (WEB-N6). Their first real run is pending, and WebKit may not accept
-  # the app's Secure cookies over plain http on localhost, so this job reports without blocking until it is proven.
+  # Firefox and WebKit run the @cross tests (WEB-N6). Firefox passes and blocks; WebKit is still being proven.
   e2e-cross-browser:
     name: browsers other than Chromium
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -114,8 +112,13 @@ jobs:
         run: make web-install
       - name: Install Playwright browsers
         run: cd e2e && npm ci && npx playwright install --with-deps chromium firefox webkit
-      - name: Browser tests on Firefox and WebKit
-        run: E2E_BROWSERS=all e2e/run.sh --project=firefox --project=webkit
+      - name: Browser tests on Firefox
+        run: E2E_BROWSERS=all e2e/run.sh --project=firefox
+      # WebKit does not accept the Secure cookies of an http origin, so it runs against https with a throwaway
+      # certificate. Not proven yet: it reports without failing the job.
+      - name: Browser tests on WebKit (https)
+        continue-on-error: true
+        run: E2E_BROWSERS=all E2E_TLS=1 e2e/run.sh --project=webkit
 
   images:
     name: scan image ${{ matrix.image }}
@@ -130,7 +133,7 @@ jobs:
         run: docker build -f deploy/docker/Dockerfile.${{ matrix.image == 'matrix-bot' && 'bot' || matrix.image }} -t notekeeper/${{ matrix.image }}:dev .
       # Known vulnerabilities in the built image (SEC-OPS-6); the source dependencies are scanned by make check.
       - name: Scan the image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: notekeeper/${{ matrix.image }}:dev
           severity: HIGH,CRITICAL

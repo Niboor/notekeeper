@@ -17,7 +17,7 @@ test('share a note, open it as a stranger, and revoke the link @cross', async ({
   await dialog.getByLabel('Link works for').selectOption('1d')
   await dialog.getByRole('button', { name: 'Create link' }).click()
   const url = await dialog.getByRole('textbox').inputValue()
-  expect(url).toMatch(/^http:\/\/share\.localhost:\d+\/s#[\w-]{32}$/)
+  expect(url).toMatch(/^https?:\/\/share\.localhost:\d+\/s#[\w-]{32}$/)
   const token = url.split('#')[1]!
   await dialog.getByRole('button', { name: 'Close' }).click()
   await expect(note.getByText('Shared', { exact: true })).toBeVisible()

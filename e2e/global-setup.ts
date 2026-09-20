@@ -9,7 +9,7 @@ import { PASSWORD, SENDER } from './tests/helpers'
 export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = config.projects[0]!.use.baseURL!
   const browser = await chromium.launch()
-  const context = await browser.newContext({ baseURL })
+  const context = await browser.newContext({ baseURL, ignoreHTTPSErrors: true })
   const page = await context.newPage()
 
   await page.goto(`/activate#${process.env.E2E_ACTIVATION_TOKEN}`)
