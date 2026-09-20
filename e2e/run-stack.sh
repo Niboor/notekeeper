@@ -10,8 +10,11 @@ COMPOSE="docker compose -f $ROOT/deploy/docker-compose.stack.yml"
 cleanup() { $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-docker build -q -f deploy/docker/Dockerfile.core -t notekeeper/core:dev . >/dev/null
-docker build -q -f deploy/docker/Dockerfile.web -t notekeeper/web:dev . >/dev/null
+# CI builds the images beforehand, with its layer cache, and sets E2E_SKIP_BUILD.
+if [ -z "${E2E_SKIP_BUILD:-}" ]; then
+  docker build -q -f deploy/docker/Dockerfile.core -t notekeeper/core:dev . >/dev/null
+  docker build -q -f deploy/docker/Dockerfile.web -t notekeeper/web:dev . >/dev/null
+fi
 $COMPOSE up -d --wait db core web
 
 # Operator setup, as in a real installation: the admin (who is also the test user) and a bot instance.

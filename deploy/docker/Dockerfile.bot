@@ -5,11 +5,15 @@ FROM golang:1.26-bookworm AS build
 ARG VERSION=dev
 RUN apt-get update && apt-get install -y --no-install-recommends libolm-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY go.work ./
-COPY bots ./bots
+# The dependencies come first, in a layer of their own: it changes only with a go.mod or go.sum, so a change
+# to the sources reuses it (from the layer cache in CI).
+COPY go.work go.work.sum ./
 COPY core/go.mod core/go.sum ./core/
-RUN \
-    cd bots/matrix && CGO_ENABLED=1 GOFLAGS=-trimpath go build -ldflags "-s -w -X main.Version=${VERSION}" -o /out/matrix-bot ./cmd/matrix-bot
+COPY bots/sdk/go.mod bots/sdk/go.sum ./bots/sdk/
+COPY bots/matrix/go.mod bots/matrix/go.sum ./bots/matrix/
+RUN cd bots/matrix && go mod download
+COPY bots ./bots
+RUN cd bots/matrix && CGO_ENABLED=1 GOFLAGS=-trimpath go build -ldflags "-s -w -X main.Version=${VERSION}" -o /out/matrix-bot ./cmd/matrix-bot
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends libolm3 ca-certificates && rm -rf /var/lib/apt/lists/* \
