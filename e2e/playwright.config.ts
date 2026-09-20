@@ -18,5 +18,15 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     // Cookies are Secure; Chromium accepts them on http://localhost.
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // The other evergreen engines run the tests tagged @cross (WEB-N6). They need their browsers and system
+    // libraries (`npx playwright install --with-deps firefox webkit`), so they run when E2E_BROWSERS=all, as in CI.
+    ...(process.env.E2E_BROWSERS === 'all'
+      ? [
+          { name: 'firefox', grep: /@cross/, use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', grep: /@cross/, use: { ...devices['Desktop Safari'] } },
+        ]
+      : []),
+  ],
 })

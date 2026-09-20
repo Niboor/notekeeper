@@ -45,6 +45,7 @@ func TestPasswordPolicy(t *testing.T) {
 	}
 }
 
+// Also demonstrates: SEC-BASE-1.
 func TestPasswordHashVerifyAndRehash(t *testing.T) {
 	ctx := context.Background()
 	weak, err := NewHasher(Params{Memory: 8, Time: 1, Threads: 1}, 2)
@@ -157,6 +158,7 @@ func TestParseKeyringRejectsWeakKeys(t *testing.T) {
 	}
 }
 
+// Also demonstrates: SEC-BASE-2.
 func TestPairingCodes(t *testing.T) {
 	for range 50 {
 		c := NewPairingCode()

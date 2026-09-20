@@ -96,3 +96,29 @@ func TestPrivacyNoteIsStatedClearly(t *testing.T) {
 		t.Error("the README does not point to the privacy note")
 	}
 }
+
+// The operator can find how to install, back up and restore (attachments included), rotate secrets and
+// watch the system, and a developer can find how to add a chat platform (NFR-Q4, NFR-R4, SEC-BASE-4, SEC-DATA-7).
+func TestOperationsAndDeveloperDocumentationExist(t *testing.T) {
+	root := repoRoot(t)
+	need := map[string][]string{
+		"docs/operations.md": {"Backup and restore", "pg_dump", "attachments", "Restore", "Rotating secrets", "Token keys", "Encrypt and restrict backups", "retention", "Upgrading", "Watching it"},
+		"docs/bot-guide.md":  {"outbox", "event_id", "at least once", "lifecycle", "Attachments", "Testing"},
+		"docs/user-guide.md": {"Reminders", "Sharing", "Export my data", "Delete my account"},
+	}
+	for file, phrases := range need {
+		b, err := os.ReadFile(filepath.Join(root, file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range phrases {
+			if !strings.Contains(string(b), p) {
+				t.Errorf("%s does not cover %q", file, p)
+			}
+		}
+	}
+	design, err := os.ReadFile(filepath.Join(root, "docs", "design", "README.md"))
+	if err != nil || len(design) < 500 {
+		t.Fatal("the architecture documentation is missing")
+	}
+}

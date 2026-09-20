@@ -3,6 +3,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/server"
 	"github.com/Niboor/notekeeper/core/internal/store"
+	"github.com/Niboor/notekeeper/core/internal/testdb"
 )
 
 // A second Core process on the same database and keys serves a session created by the first, and
@@ -343,5 +345,129 @@ func TestTrashIsNeverPurgedAutomatically(t *testing.T) {
 	// Only an explicit action removes it (NFR-R3).
 	if r := u.c.do("DELETE", "/api/v1/notes/"+n.ID, nil); r.Status != 204 {
 		t.Fatalf("permanent delete: %d", r.Status)
+	}
+}
+
+// Fields the server controls cannot be set from a request, and nobody becomes an admin by any request
+// (SEC-ISO-6, SEC-ISO-7, AUTH-U7).
+func TestClientsCannotSetServerControlledFields(t *testing.T) {
+	s := newStack(t)
+	s.makeUser("root", true)
+	u, other := s.appUser("mallory"), s.appUser("victim")
+	foreign := other.note("", "victims", nil)
+	var mine noteJSON
+	res := u.c.do("POST", "/api/v1/notes", map[string]any{"parts": []map[string]any{{"type": "text", "text": "hi"}}, "user_id": s.lookupUser("victim").String(),
+		"state": "deleted", "version": 99, "created_at": "2001-01-01T00:00:00Z", "deleted_at": "2001-01-01T00:00:00Z", "received_at": "2001-01-01T00:00:00Z"})
+	if res.Status == 201 {
+		res.JSON(t, &mine)
+	}
+	var owner uuid.UUID
+	var state string
+	var version int
+	var created time.Time
+	if res.Status == 201 {
+		_ = s.db.Admin.QueryRow(t.Context(), `select user_id, state, version, created_at from notes where id = $1`, mine.ID).Scan(&owner, &state, &version, &created)
+		if owner != s.lookupUser("mallory") || state != "active" || version != 1 || created.Year() < 2020 {
+			t.Fatalf("a request set server fields: owner %v state %s version %d created %v", owner, state, version, created)
+		}
+	} else if res.Status != 400 {
+		t.Fatalf("create: %d", res.Status)
+	}
+	if u.c.do("GET", "/api/v1/notes/"+foreign.ID, nil).Status != 404 {
+		t.Fatal("a foreign note became visible")
+	}
+	// Profile and account fields.
+	u.c.do("PATCH", "/api/v1/me", map[string]any{"display_name": "Mal", "is_admin": true, "status": "active", "quota_bytes": 1 << 50, "id": uuid.NewString()})
+	var admin bool
+	var quota *int64
+	_ = s.db.Admin.QueryRow(t.Context(), `select is_admin, quota_bytes from users u left join user_storage s on s.user_id = u.id where username = 'mallory'`).Scan(&admin, &quota)
+	if admin || (quota != nil && *quota > 1<<40) {
+		t.Fatalf("a request changed the role or quota: admin %v quota %v", admin, quota)
+	}
+	// No admin operation for a user, and no second bootstrap.
+	for _, path := range []string{"/api/v1/admin/users", "/api/v1/admin/bot-instances"} {
+		if r := u.c.do("GET", path, nil); r.Status != 403 {
+			t.Errorf("%s for a user: %d", path, r.Status)
+		}
+	}
+	if _, err := s.svc.Accounts.Bootstrap(t.Context(), "second-admin"); err == nil {
+		t.Fatal("a second admin was created")
+	}
+	if s.count(`select count(*) from users where is_admin`) != 1 {
+		t.Fatal("there must be exactly one admin")
+	}
+}
+
+// An account has the documented fields, a unique username whatever its case, and nothing depends on an
+// e-mail address (AUTH-U2).
+func TestAccountsHaveTheDocumentedFields(t *testing.T) {
+	s := newStack(t)
+	s.makeUser("root", true)
+	admin := s.newClient()
+	admin.login("root")
+	create := func(body map[string]any) response { return admin.do("POST", "/api/v1/admin/users", body) }
+	if r := create(map[string]any{"username": "Nora", "display_name": "Nora N", "email": "nora@example.org", "timezone": "Europe/Brussels"}); r.Status != 201 {
+		t.Fatalf("create: %d %s", r.Status, r.Body)
+	}
+	for _, dup := range []string{"nora", "NORA", " Nora "} {
+		if r := create(map[string]any{"username": dup}); r.Status != 409 {
+			t.Errorf("duplicate username %q: %d", dup, r.Status)
+		}
+	}
+	for _, bad := range []string{"", "has space", "way-too-long-" + strings.Repeat("x", 40), "../etc"} {
+		if r := create(map[string]any{"username": bad}); r.Status != 400 {
+			t.Errorf("invalid username %q: %d", bad, r.Status)
+		}
+	}
+	var name, tz string
+	var id uuid.UUID
+	var email *string
+	if err := s.db.Admin.QueryRow(t.Context(), `select id, display_name, timezone, email from users where username = 'nora'`).Scan(&id, &name, &tz, &email); err != nil {
+		t.Fatal(err)
+	}
+	if id == uuid.Nil || name != "Nora N" || tz != "Europe/Brussels" || email == nil {
+		t.Fatalf("stored: %v %q %q %v", id, name, tz, email)
+	}
+}
+
+// A pg_dump backup restored into a new database gives back a working installation, files included: the
+// same sessions, notes, attachments, search, reminders and share links (NFR-R4, SEC-DATA-7).
+func TestBackupAndRestoreIncludeAttachments(t *testing.T) {
+	s := newStack(t)
+	key := s.makeBot("m", "example.org")
+	u := s.chatter("olga", key)
+	file := randomBytes(900_000)
+	n, att := u.noteWithFile("boarding pass", "pass.pdf", "application/pdf", file)
+	u.remind(n.ID, time.Now().Add(time.Hour), "")
+	link := u.share(n.ID, "1d")
+	u.send("$m1", 0, text("a chat message"))
+
+	restored := newStackOn(t, testdb.Restore(t, s.db), nil)
+	// The person's session survives the restore: cookies from before still work, since sessions live in the database.
+	c := &client{s: restored, cookies: u.c.cookies}
+	if r := c.do("GET", "/api/v1/attachments/"+att, nil); r.Status != 200 || !bytes.Equal(r.Body, file) {
+		t.Fatalf("attachment after restore: %d, %d bytes", r.Status, len(r.Body))
+	}
+	var inbox notePageFull
+	if r := c.do("GET", "/api/v1/inbox/notes", nil); r.Status != 200 || !strings.Contains(string(r.Body), "a chat message") || !strings.Contains(string(r.Body), "boarding pass") {
+		t.Fatalf("inbox after restore: %d %s", r.Status, r.Body)
+	} else {
+		r.JSON(t, &inbox)
+	}
+	if r := c.do("GET", "/api/v1/search?q=boarding", nil); r.Status != 200 || !strings.Contains(string(r.Body), n.ID) {
+		t.Fatalf("search after restore: %d", r.Status)
+	}
+	if r := c.do("GET", "/api/v1/reminders", nil); r.Status != 200 || !strings.Contains(string(r.Body), "boarding pass") {
+		t.Fatalf("reminders after restore: %d", r.Status)
+	}
+	if r := restored.publicDo(link.token(t), "GET", "/api/public/v1/share", nil); r.Status != 200 {
+		t.Fatalf("share link after restore: %d", r.Status)
+	}
+	// The restored database still enforces its rules: row-level security holds for the runtime role.
+	if _, err := restored.db.App.Exec(t.Context(), `update note_parts set text = 'x'`); err != nil {
+		t.Fatal(err)
+	}
+	if restored.count(`select count(*) from note_parts where text = 'x'`) != 0 {
+		t.Fatal("the restored database lost its row-level security")
 	}
 }

@@ -71,6 +71,7 @@ describe('NoteContent XSS corpus', () => {
   })
 })
 
+// Notes render as formatted text with clickable, safe links and task lists (WEB-8).
 describe('NoteContent rendering', () => {
   it('renders formatting, links and line breaks', () => {
     const { container } = render(<NoteContent text={'**bold** and *italic*\nsecond line\n\nsee https://example.org/a?b=1 and [docs](https://example.com)'} />)

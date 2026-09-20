@@ -80,3 +80,22 @@ func TestPlaceholderCredentialsAreRefused(t *testing.T) {
 		t.Fatal("a placeholder token key was accepted")
 	}
 }
+
+// Security-relevant limits are configuration, not code (SEC-BASE-5).
+func TestSecurityLimitsAreConfigurable(t *testing.T) {
+	env := map[string]string{
+		"NK_ACCESS_TOKEN_TTL": "5m", "NK_SESSION_IDLE_LIFETIME": "24h", "NK_SESSION_ABSOLUTE_LIFETIME": "48h", "NK_REFRESH_GRACE": "10s", "NK_ACTIVATION_TTL": "1h",
+		"NK_RATE_USER_PER_MIN": "11", "NK_RATE_IP_PER_MIN": "12", "NK_RATE_BOT_PER_MIN": "13", "NK_RATE_IDENTITY_PER_MIN": "14", "NK_MAX_CONCURRENT_UPLOADS": "2",
+		"NK_SHARE_MAX_LIFETIME": "24h", "NK_SHARE_MAX_ACTIVE": "5", "NK_MAX_ATTACHMENT_BYTES": "1000", "NK_DEFAULT_QUOTA_BYTES": "2000",
+		"NK_ARGON2_MEMORY_KIB": "1024", "NK_ARGON2_ITERATIONS": "1",
+	}
+	c, err := LoadFrom(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.AccessTokenTTL.Minutes() != 5 || c.SessionIdleLifetime.Hours() != 24 || c.SessionAbsoluteLifetime.Hours() != 48 || c.RefreshGrace.Seconds() != 10 || c.ActivationTTL.Hours() != 1 ||
+		c.RateUserPerMin != 11 || c.RateIPPerMin != 12 || c.RateBotPerMin != 13 || c.RateIdentityPerMin != 14 || c.MaxConcurrentUpload != 2 ||
+		c.ShareMaxLifetime.Hours() != 24 || c.ShareMaxActive != 5 || c.MaxAttachmentBytes != 1000 || c.DefaultQuotaBytes != 2000 || c.Argon2MemoryKiB != 1024 || c.Argon2Iterations != 1 {
+		t.Fatalf("a limit did not follow its variable: %+v", c)
+	}
+}

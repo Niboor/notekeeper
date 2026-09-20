@@ -32,6 +32,7 @@ type notePage struct {
 	Total      *int64  `json:"total"`
 }
 
+// Also demonstrates: AUTH-C4.
 func TestLoginCookiesAndCSRF(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)
@@ -98,6 +99,7 @@ func TestLoginCookiesAndCSRF(t *testing.T) {
 	}
 }
 
+// Also demonstrates: AUTH-C10.
 func TestSilentRenewalOverHTTP(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)
@@ -121,6 +123,7 @@ func TestSilentRenewalOverHTTP(t *testing.T) {
 	}
 }
 
+// Also demonstrates: AUTH-C3.
 func TestNativeClientsGetTokensInTheBody(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)
@@ -200,6 +203,7 @@ func TestActivationOverHTTP(t *testing.T) {
 
 // TestChatToInbox is the M1 exit criterion (F1, F2 at API level): a text message sent by a
 // linked chat identity appears in the web Inbox, and the web app is told live.
+// Also demonstrates: BOT-3, BOT-4, BOT-8.
 func TestChatToInbox(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)
@@ -354,6 +358,7 @@ func TestChatToInbox(t *testing.T) {
 }
 
 // Bot credentials are per instance, rotatable and disabled at once (AUTH-B1, SEC-BOT-2, SEC-BOT-8).
+// Also demonstrates: BOT-1, AUTH-B2.
 func TestBotAPIRejectsOtherCredentials(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)

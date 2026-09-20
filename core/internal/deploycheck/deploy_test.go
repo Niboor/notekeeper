@@ -83,6 +83,7 @@ func podSpecs(docs []obj) map[string]obj {
 
 // Containers do not run as root or privileged, have read-only root filesystems, drop capabilities and
 // cannot escalate (SEC-OPS-2).
+// Also demonstrates: NFR-D3, NFR-D6.
 func TestEveryPodIsLockedDown(t *testing.T) {
 	for name, spec := range podSpecs(render(t)) {
 		if get(spec, "securityContext", "runAsNonRoot") != true || get(spec, "securityContext", "seccompProfile", "type") != "RuntimeDefault" {
@@ -264,7 +265,7 @@ func TestImagesAreMinimalAndNonRoot(t *testing.T) {
 			}
 		}
 		last := froms[len(froms)-1][1]
-		if !(strings.Contains(last, "distroless") || strings.Contains(last, "unprivileged") || strings.Contains(last, "slim")) {
+		if minimal := strings.Contains(last, "distroless") || strings.Contains(last, "unprivileged") || strings.Contains(last, "slim"); !minimal {
 			t.Errorf("%s: final image %s is not a minimal base", f, last)
 		}
 		if !regexp.MustCompile(`(?m)^USER (65532|101)`).MatchString(text) {
@@ -291,4 +292,31 @@ func TestShareHostServerBlockIsMinimal(t *testing.T) {
 	if !strings.Contains(headers, "script-src 'self'") || strings.Contains(headers, "unsafe-eval") || regexp.MustCompile(`script-src[^;]*unsafe-inline`).MatchString(headers) {
 		t.Error("the content security policy allows inline or eval scripts")
 	}
+}
+
+// Database connections in the example manifests require TLS (SEC-DATA-4), and nothing in the repository
+// parses or transcodes untrusted media: files are stored and served as they came (SEC-CNT-5, CORE-A4).
+func TestDatabaseTLSAndNoMediaProcessing(t *testing.T) {
+	overlay := repoFile(t, "deploy", "k8s", "overlays", "example", "kustomization.yaml")
+	for _, line := range strings.Split(overlay, "\n") {
+		if strings.Contains(line, "DATABASE_URL=") && !strings.Contains(line, "sslmode=require") {
+			t.Errorf("a database URL without TLS: %s", strings.TrimSpace(line))
+		}
+	}
+	mods := repoFile(t, "core", "go.mod") + repoFile(t, "bots", "matrix", "go.mod") + repoFile(t, "bots", "sdk", "go.mod")
+	for _, lib := range []string{"disintegration/imaging", "nfnt/resize", "h2non/bimg", "davidbyttow/govips", "pdfcpu", "unidoc", "ffmpeg", "gographics/imagick", "golang.org/x/image", "chai2010/webp"} {
+		if strings.Contains(mods, lib) {
+			t.Errorf("a media processing library is a dependency: %s", lib)
+		}
+	}
+	_ = filepath.WalkDir(filepath.Join("..", "..", ".."), func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.Contains(path, "node_modules") {
+			return nil
+		}
+		b, _ := os.ReadFile(path)
+		if regexp.MustCompile(`(?m)^\s*"image(/[a-z]+)?"$`).Match(b) {
+			t.Errorf("%s imports the image package: uploads must not be decoded", path)
+		}
+		return nil
+	})
 }

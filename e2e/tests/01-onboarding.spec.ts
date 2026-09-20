@@ -4,7 +4,7 @@ import { card, lane } from './helpers'
 // The first-run path: an account with nothing in it guides the user to create a page (CORE-P5),
 // then a column, then a first note (F6). The board shows a page's columns (WEB-1) beside the
 // Inbox tray (WEB-2).
-test('a new account is guided from an empty page to a first note', async ({ page }) => {
+test('a new account is guided from an empty page to a first note @cross', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('Make your first page')).toBeVisible()
 

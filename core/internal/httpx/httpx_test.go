@@ -79,6 +79,7 @@ func TestRequestIDTrust(t *testing.T) {
 	}
 }
 
+// Also demonstrates: SEC-API-5.
 func TestRecovererHidesPanic(t *testing.T) {
 	h := RequestID(false)(Recoverer(slog.New(slog.NewTextHandler(io.Discard, nil)))(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom secret") })))

@@ -55,6 +55,7 @@ func (s *stack) event(key, sender, id, text string, ts time.Time) response {
 
 // The Inbox is ordered by the platform timestamp, not by arrival (CORE-N2, CORE-N18, design decision D1),
 // and pages through it with an opaque cursor.
+// Also demonstrates: NFR-P4.
 func TestInboxOrderAndPagination(t *testing.T) {
 	s := newStack(t)
 	c, key := s.linked("alice", "@alice:example.org")
@@ -100,6 +101,7 @@ func TestInboxOrderAndPagination(t *testing.T) {
 
 // Two identical deliveries at the same moment (a bot restarted mid-batch, or two replicas by
 // mistake) create one note (BOT-7, BOT-B4).
+// Also demonstrates: NFR-R2.
 func TestConcurrentDuplicateDeliveryCreatesOneNote(t *testing.T) {
 	s := newStack(t)
 	c, key := s.linked("alice", "@alice:example.org")
@@ -135,6 +137,7 @@ func TestConcurrentDuplicateDeliveryCreatesOneNote(t *testing.T) {
 }
 
 // A change made through one Core replica reaches an event stream held by another (CORE-S2).
+// Also demonstrates: NFR-D1.
 func TestChangesReachStreamsOnOtherReplicas(t *testing.T) {
 	s := newStack(t)
 	c, key := s.linked("alice", "@alice:example.org")
@@ -382,6 +385,7 @@ var _ = store.ErrNotFound
 // Sign-up is closed and there is no self-service reset: the only operations an anonymous caller
 // can invoke are these, and none creates an account or sets a password without a link (AUTH-U3,
 // SEC-AUTH-11). Adding an anonymous operation fails this test until someone looks at it.
+// Also demonstrates: AUTH-U1.
 func TestOnlyExpectedOperationsAreAnonymous(t *testing.T) {
 	spec, err := userapiSpec()
 	if err != nil {

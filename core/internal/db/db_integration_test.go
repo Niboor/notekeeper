@@ -39,6 +39,7 @@ func startPostgres(t *testing.T, image string) string {
 	return url
 }
 
+// Also demonstrates: NFR-D4.
 func TestMigrateAndReadiness(t *testing.T) {
 	for _, image := range pgImages() {
 		t.Run(image, func(t *testing.T) {

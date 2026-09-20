@@ -8,6 +8,7 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -214,6 +215,48 @@ func NewUnmigrated(t testing.TB) *DB {
 		}
 		defer func() { _ = c.Close(context.Background()) }()
 		_, _ = c.Exec(context.Background(), fmt.Sprintf(`drop database if exists %s with (force)`, name))
+	})
+	return d
+}
+
+// Restore backs up a database with pg_dump and restores it into a new one with pg_restore, the way an
+// operator would (docs/operations.md section 4), and returns the restored copy. It runs the tools
+// inside the shared PostgreSQL container.
+func Restore(t testing.TB, src *DB) *DB {
+	t.Helper()
+	ctx := context.Background()
+	name := fmt.Sprintf("nk_r%d_%d", os.Getpid(), counter.Add(1))
+	dump := "/tmp/" + name + ".dump"
+	run := func(cmd ...string) {
+		t.Helper()
+		code, out, err := container.Exec(ctx, cmd)
+		var text []byte
+		if out != nil {
+			text, _ = io.ReadAll(out)
+		}
+		if err != nil || code != 0 {
+			t.Fatalf("%v: exit %d, %v\n%s", cmd, code, err, text)
+		}
+	}
+	run("pg_dump", "-U", "nk", "-Fc", "-d", src.Name, "-f", dump)
+	run("createdb", "-U", "nk", name)
+	run("pg_restore", "-U", "nk", "-d", name, "--exit-on-error", dump)
+	d := &DB{Name: name, AdminURL: withDB(adminURL, name, "", ""), AppURL: withDB(adminURL, name, "nk_app", "nk_app_dev")}
+	var err error
+	if d.Admin, err = pgxpool.New(ctx, d.AdminURL); err != nil {
+		t.Fatal(err)
+	}
+	if d.App, err = pgxpool.New(ctx, d.AppURL); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		d.App.Close()
+		d.Admin.Close()
+		if c, err := pgx.Connect(context.Background(), adminURL); err == nil {
+			defer func() { _ = c.Close(context.Background()) }()
+			_, _ = c.Exec(context.Background(), fmt.Sprintf(`drop database if exists %s with (force)`, name))
+		}
+		_, _, _ = container.Exec(context.Background(), []string{"rm", "-f", dump})
 	})
 	return d
 }

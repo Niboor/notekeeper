@@ -63,6 +63,7 @@ func specOps(t *testing.T, get func() (*openapi3.T, error)) []string {
 // TestRoutesMatchSpecs is the CI guard of tech-stack section 3.2 item 5 and SEC-ISO-1: every
 // route a listener serves must be an operation in that API's OpenAPI document, and the other
 // way round. Hand-written routes (SSE, long-poll) must appear in the spec as stubs.
+// Also demonstrates: NFR-API1.
 func TestRoutesMatchSpecs(t *testing.T) {
 	r := testRouters(t, config.Config{}, nil)
 	for name, tc := range map[string]struct {
@@ -150,6 +151,7 @@ func TestHostChecksPerListener(t *testing.T) {
 	}
 }
 
+// Also demonstrates: NFR-O4.
 func TestOpsEndpoints(t *testing.T) {
 	ready := true
 	r := testRouters(t, config.Config{}, func(context.Context) error {

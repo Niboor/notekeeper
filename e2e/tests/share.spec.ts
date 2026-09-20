@@ -4,7 +4,7 @@ import { card, createNote, lane, openFreshBoard } from './helpers'
 
 // F11 / WEB-21 / CORE-SH1..SH5, SH8, SH10: share a note from the app, open the link as a stranger on
 // the cookie-free share origin, see it follow an edit, and end it.
-test('share a note, open it as a stranger, and revoke the link', async ({ page, browser }) => {
+test('share a note, open it as a stranger, and revoke the link @cross', async ({ page, browser }) => {
   const fx = await openFreshBoard(page)
   await createNote(page, 'packing list\n\n- [ ] passport\n- [x] tickets', fx.columns.Todo)
   await page.reload()

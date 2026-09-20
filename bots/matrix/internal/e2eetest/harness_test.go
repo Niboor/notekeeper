@@ -1,6 +1,6 @@
 //go:build integration
 
-// Package e2eetest holds integration tests that run the bot's Matrix stack against a real
+// Package e2eetest (NFR-Q2: the bot is tested against a real homeserver in CI) holds integration tests that run the bot's Matrix stack against a real
 // Synapse homeserver and PostgreSQL. This first test is the M0 spike: an encrypted direct
 // message round trip with the Olm/Megolm state kept in PostgreSQL (MX-3, MX-N1, BOT-B5).
 package e2eetest

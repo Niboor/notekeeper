@@ -55,7 +55,7 @@ Prometheus scraping is by pod annotation to `:9090`; alert rules for the events 
 
 ## 3. Configuration
 
-Environment variables; safe defaults; documented in `docs/configuration.md` when implemented (SEC-BASE-5).
+Environment variables; safe defaults; every one is documented in [configuration.md](../configuration.md), and a test fails when the documentation and the code disagree (NFR-O5, SEC-BASE-5). The table below is the summary.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -96,9 +96,13 @@ Tiers and `make` targets are fixed by NFR-Q5 and the tech-stack; this section sa
 
 Requirement states are updated (`unimplemented` → `implemented` → `fully tested`) in the same commit as the code and tests; `09-traceability.md` names the tier that verifies each requirement.
 
+## 5a. What was built
+
+Images: `deploy/docker/Dockerfile.{core,bot,web}` (Core static on distroless; the bot on Debian slim with libolm; the web app on unprivileged nginx). The web image renders two nginx server blocks from `deploy/nginx` (application host and share host) with the headers of `headers.conf`. `deploy/docker-compose.stack.yml` runs PostgreSQL, the migration, Core and the web image; `make test-e2e-stack` runs the browser tests through it, including `headers.spec.ts`, which checks the CSP, HSTS, routing and the share host. `deploy/k8s` is the Kustomize base and example overlay; `core/internal/deploycheck` tests them (pod security, placeholder secrets, NetworkPolicies, ingress routes and TLS, alerts that use real metrics, minimal non-root images, TLS to the database, no media libraries).
+
 ## 6. CI (`make check`)
 
-`golangci-lint`, `tsc`, ESLint (including the `dangerouslySetInnerHTML` ban), `make generate` drift check, all test tiers, `govulncheck`, `osv-scanner`, `trivy` on built images, `kube-linter` and `kubeconform` on the manifests, `gitleaks` (SEC-OPS-1, SEC-OPS-6), and **`make docs-check`**, which runs `docs/design/tools/traceability.py`: it fails if a requirement has no design mapping, or if a Must is only "deferred"; it then regenerates [09-traceability.md](09-traceability.md) and the target fails if that changes the committed file (`git diff --exit-code`), so the design cannot silently drift from the requirements.
+`golangci-lint`, `tsc`, ESLint, `kustomize build` with `kube-linter` and `kubeconform` on the example manifests, (including the `dangerouslySetInnerHTML` ban), `make generate` drift check, all test tiers, `govulncheck`, `osv-scanner`, `trivy` on built images, `kube-linter` and `kubeconform` on the manifests, `gitleaks` (SEC-OPS-1, SEC-OPS-6), and **`make docs-check`**, which runs `docs/design/tools/traceability.py`: it fails if a requirement has no design mapping, or if a Must is only "deferred"; it then regenerates [09-traceability.md](09-traceability.md) and the target fails if that changes the committed file (`git diff --exit-code`), so the design cannot silently drift from the requirements.
 
 ## 7. Observability
 

@@ -70,7 +70,12 @@ func newStack(t *testing.T) *stack { return newStackWith(t, nil) }
 // newStackWith builds a stack whose configuration can be adjusted first.
 func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	t.Helper()
-	d := testdb.New(t)
+	return newStackOn(t, testdb.New(t), mod)
+}
+
+// newStackOn builds a stack over an existing database (a restored backup, for instance).
+func newStackOn(t *testing.T, d *testdb.DB, mod func(*config.Config)) *stack {
+	t.Helper()
 	cfg := config.Config{
 		TokenKeys:      "k1:" + base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 		AccessTokenTTL: 15 * time.Minute, SessionIdleLifetime: 90 * 24 * time.Hour, SessionAbsoluteLifetime: 365 * 24 * time.Hour,

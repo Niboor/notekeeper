@@ -79,13 +79,13 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-AUTH-6 | Must | fully tested | Keeping access after sign-out, admin-issued password reset or account disable: all sessions and refresh tokens are revoked immediately, and access tokens live at most 15 minutes. A password change revokes all *other* sessions but keeps the current one. | AUTH-U4, AUTH-U8 |
 | SEC-AUTH-7 | Must | fully tested | Using a refresh token that was already rotated: reuse beyond a short grace window (default 60 s) revokes the whole token family (theft detection). Within the grace window a repeated refresh (second tab, retried request after a network failure) returns the same successor, so a legitimate user is never logged out by a race. | AUTH-C3, AUTH-C10 |
 | SEC-AUTH-8 | Must | fully tested | Triggering a state-changing request cross-site (CSRF), or from a cross-origin page reading authenticated responses. State-changing operations are never reachable by GET. | AUTH-C4 |
-| SEC-AUTH-9 | Must | implemented | Session fixation: a fresh session identifier is issued on every login. | AUTH-C4 |
+| SEC-AUTH-9 | Must | fully tested | Session fixation: a fresh session identifier is issued on every login. | AUTH-C4 |
 | SEC-AUTH-10 | Must | unimplemented | Intercepting or redirecting the native-client authorisation code: PKCE is mandatory, redirect URIs are matched exactly, no open redirects anywhere in login flows. | AUTH-C3 |
 | SEC-AUTH-11 | Must | fully tested | Resetting a password without the admin: no self-service reset path exists, so there is no reset-poisoning or account-recovery attack surface. | AUTH-U8 |
-| SEC-AUTH-12 | Must | implemented | Session or access tokens appearing in URLs (query strings, paths), logs or referrers. | NFR-S1 |
+| SEC-AUTH-12 | Must | fully tested | Session or access tokens appearing in URLs (query strings, paths), logs or referrers. | NFR-S1 |
 | SEC-AUTH-13 | Must | fully tested | Creating a second admin, or re-running the admin bootstrap once an admin exists (for instance by changing a config value); the bootstrap secret must not have a default value. | AUTH-U7 |
 | SEC-AUTH-14 | Should | unimplemented | Taking over the admin account with only a password: the admin has a second factor once one is available. | AUTH-C7 |
-| SEC-AUTH-15 | Must | implemented | A user being logged out unexpectedly: a session survives access-token expiry, server restarts, deployments, several tabs and concurrent or retried refreshes. Only sign-out, revocation, account disable, admin password reset, or reaching the configured session lifetime ends it. | AUTH-C9, AUTH-C10 |
+| SEC-AUTH-15 | Must | fully tested | A user being logged out unexpectedly: a session survives access-token expiry, server restarts, deployments, several tabs and concurrent or retried refreshes. Only sign-out, revocation, account disable, admin password reset, or reaching the configured session lifetime ends it. | AUTH-C9, AUTH-C10 |
 | SEC-AUTH-16 | Should | fully tested | A user who suspects a compromise being unable to cut off all access in one step: sign out everywhere and revoke all share links. | AUTH-U10, CORE-SH14 |
 
 ### 4.2 Authorisation and tenant isolation (SEC-ISO)
@@ -97,8 +97,8 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-ISO-3 | Must | fully tested | Telling whether an ID belongs to another user: foreign IDs and non-existent IDs yield identical responses (same status, body and timing class). | — |
 | SEC-ISO-4 | Must | fully tested | Referencing another user's objects in a request of one's own (moving a note into a foreign category, attaching a foreign attachment, pointing a reminder at a foreign note). Every relation is validated against the same owner. | — |
 | SEC-ISO-5 | Must | fully tested | Subscribing to another user's realtime stream or change-feed cursor, or receiving events after revocation: streams are authenticated at connect and re-validated when the token expires or is revoked. | CORE-S1, CORE-S3 |
-| SEC-ISO-6 | Must | implemented | Setting server-controlled fields from a client request (owner, admin flag, state, version, timestamps, source reference, storage backend, quota): mass assignment. | — |
-| SEC-ISO-7 | Must | implemented | Obtaining admin capability by any means other than being the bootstrapped admin: the role is never derived from data a user can influence. | AUTH-U7 |
+| SEC-ISO-6 | Must | fully tested | Setting server-controlled fields from a client request (owner, admin flag, state, version, timestamps, source reference, storage backend, quota): mass assignment. | — |
+| SEC-ISO-7 | Must | fully tested | Obtaining admin capability by any means other than being the bootstrapped admin: the role is never derived from data a user can influence. | AUTH-U7 |
 | SEC-ISO-8 | Must | fully tested | Using an idempotency key to replay or read another user's cached response; keys are scoped per user (and per bot instance). | CORE-S5 |
 | SEC-ISO-9 | Must | fully tested | Proving that another user holds a given file: content-hash deduplication is strictly per user, and a client can never obtain a blob by claiming its hash without providing the content. | CORE-A5 |
 | SEC-ISO-10 | Should | fully tested | Bypassing tenant filters through an application bug: PostgreSQL row-level security (or equivalent) acts as a second, independent barrier. | NFR-S3 |
@@ -108,8 +108,8 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-ADM-1 | Must | fully tested | The admin reading other users' notes, attachments, history or share-link content through any application feature or API. Admin endpoints return metadata only (username, status, quota use). | AUTH-U6 |
-| SEC-ADM-2 | Must | implemented | The admin logging in as a user or choosing a user's password: there is no "log in as" feature, and passwords are only ever set by the user through the activation flow. Issuing an activation link revokes the user's sessions and is audit-logged, and the user gets a security notice (AUTH-U11). | AUTH-U8 |
-| SEC-ADM-3 | Must | implemented | An admin action leaving no trace: every admin action is written to the audit log. | AUTH-B8, NFR-S6 |
+| SEC-ADM-2 | Must | fully tested | The admin logging in as a user or choosing a user's password: there is no "log in as" feature, and passwords are only ever set by the user through the activation flow. Issuing an activation link revokes the user's sessions and is audit-logged, and the user gets a security notice (AUTH-U11). | AUTH-U8 |
+| SEC-ADM-3 | Must | fully tested | An admin action leaving no trace: every admin action is written to the audit log. | AUTH-B8, NFR-S6 |
 | SEC-ADM-4 | Must | fully tested | Admin functions being reachable by a non-admin, by a bot credential, or through a share link. | SEC-ISO-1 |
 
 ### 4.4 Bots and identity linking (SEC-BOT)
@@ -150,11 +150,11 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-CNT-1 | Must | implemented | Stored XSS: note text, filenames, page/category/user names, HTML from chat (`formatted_body`), link text and error messages must never execute script in the web app or the public share page. Markdown is rendered with raw HTML disabled, and other HTML is sanitised through an allowlist. | WEB-N5 |
+| SEC-CNT-1 | Must | fully tested | Stored XSS: note text, filenames, page/category/user names, HTML from chat (`formatted_body`), link text and error messages must never execute script in the web app or the public share page. Markdown is rendered with raw HTML disabled, and other HTML is sanitised through an allowlist. | WEB-N5 |
 | SEC-CNT-2 | Must | fully tested | Dangerous URL schemes in notes: links with `javascript:`, `data:` or `vbscript:` are never rendered as active links (allowlist: `http`, `https`, `mailto`, `tel`). | WEB-N5 |
 | SEC-CNT-3 | Must | fully tested | An uploaded file executing in the browser: HTML, SVG, JS and unknown types are served as downloads (`Content-Disposition: attachment`, `application/octet-stream`); `X-Content-Type-Options: nosniff` and a restrictive `Content-Security-Policy` (`sandbox`) on every attachment response; images render only via `<img>`, never inline SVG. | WEB-N5 |
 | SEC-CNT-4 | Must | fully tested | Filename tricks: header injection (CR/LF), path traversal, or use of a filename as a storage path. Filenames are metadata only, sanitised whenever placed in a header. | CORE-A4 |
-| SEC-CNT-5 | Must | implemented | Untrusted media being parsed, decoded or transcoded by Notekeeper's own components (thumbnailers, image or PDF libraries): attachments are stored and served byte for byte, so no media parser is reachable from user uploads. Any future feature that processes media must be designed as its own sandboxed component first. | CORE-A4 |
+| SEC-CNT-5 | Must | fully tested | Untrusted media being parsed, decoded or transcoded by Notekeeper's own components (thumbnailers, image or PDF libraries): attachments are stored and served byte for byte, so no media parser is reachable from user uploads. Any future feature that processes media must be designed as its own sandboxed component first. | CORE-A4 |
 | SEC-CNT-6 | Must | fully tested | Exceeding size limits or quota through concurrent or split uploads: quota checks are atomic with the write. | CORE-A3 |
 | SEC-CNT-7 | Must | fully tested | Reminder or delivery text pinging people or triggering bot behaviour: note text is sent as inert content (no `@room`/mentions, formatted text escaped, no leading command prefix acted on). | CORE-R6 |
 | SEC-CNT-8 | Must | fully tested | Core or a bot fetching arbitrary URLs supplied by users or chat content (SSRF). Bots fetch media only from the configured homeserver via `mxc://` URIs. Any future link-preview feature must use a separate, network-restricted fetcher. | MX-3 |
@@ -166,24 +166,24 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 |---|---|---|---|---|
 | SEC-API-1 | Must | fully tested | SQL injection: all queries are parameterised; full-text search input is treated as data and cannot express expensive or unsafe query constructs. | CORE-N13 |
 | SEC-API-2 | Must | fully tested | Reaching a non-public endpoint without authentication: default-deny, with every route declaring its actors explicitly. | SEC-ISO-1 |
-| SEC-API-3 | Must | implemented | Unbounded input: request size, JSON depth, note length, parts per note, pages/categories/notes per user, page sizes and search complexity are all capped. | NFR-S4 |
+| SEC-API-3 | Must | fully tested | Unbounded input: request size, JSON depth, note length, parts per note, pages/categories/notes per user, page sizes and search complexity are all capped. | NFR-S4 |
 | SEC-API-4 | Must | fully tested | One user or client degrading the service for others: per-user and per-IP rate limits, capped concurrent realtime connections and uploads, database statement timeouts, slow-client timeouts. | NFR-S4 |
-| SEC-API-5 | Must | implemented | Internal details in responses: stack traces, SQL, hostnames, library versions. Errors are generic externally and detailed only in logs. | NFR-API3 |
+| SEC-API-5 | Must | fully tested | Internal details in responses: stack traces, SQL, hostnames, library versions. Errors are generic externally and detailed only in logs. | NFR-API3 |
 | SEC-API-6 | Must | fully tested | Cross-origin access from foreign sites: CORS allows only the web app's own origin, never a wildcard together with credentials; framing of the app is denied (`frame-ancestors 'none'`). | — |
 | SEC-API-7 | Must | fully tested | Race conditions breaking invariants: single-use pairing/activation codes, the one-admin rule, storage quota and note version checks are enforced atomically in the database. | AUTH-U7, CORE-A3 |
-| SEC-API-8 | Must | unimplemented | Web pages missing baseline security headers: HSTS, `X-Content-Type-Options`, a strict Content-Security-Policy without `unsafe-inline` scripts, `Referrer-Policy`. | WEB-N5 |
+| SEC-API-8 | Must | fully tested | Web pages missing baseline security headers: HSTS, `X-Content-Type-Options`, a strict Content-Security-Policy without `unsafe-inline` scripts, `Referrer-Policy`. | WEB-N5 |
 
 ### 4.8 Data protection and privacy (SEC-DATA)
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-DATA-1 | Must | fully tested | Note content, filenames, tokens, passwords, credentials or Matrix keys appearing in logs, metrics labels, traces, crash reports or URL query strings. | NFR-S7, NFR-O1 |
-| SEC-DATA-2 | Must | implemented | Secrets stored recoverably where hashing suffices: passwords (argon2id), activation, pairing, refresh and share tokens, and bot secrets are stored only as hashes. Secrets that must be recoverable (Matrix device keys, bot account credentials) are encrypted at rest with a key from a Kubernetes Secret. | AUTH-C1, MX-N1 |
-| SEC-DATA-3 | Must | unimplemented | Client-to-Core traffic over plain HTTP. | NFR-S1 |
-| SEC-DATA-4 | Should | unimplemented | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
-| SEC-DATA-5 | Must | implemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
+| SEC-DATA-2 | Must | fully tested | Secrets stored recoverably where hashing suffices: passwords (argon2id), activation, pairing, refresh and share tokens, and bot secrets are stored only as hashes. Secrets that must be recoverable (Matrix device keys, bot account credentials) are encrypted at rest with a key from a Kubernetes Secret. | AUTH-C1, MX-N1 |
+| SEC-DATA-3 | Must | fully tested | Client-to-Core traffic over plain HTTP. | NFR-S1 |
+| SEC-DATA-4 | Should | fully tested | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
+| SEC-DATA-5 | Must | fully tested | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
 | SEC-DATA-6 | Must | fully tested | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
-| SEC-DATA-7 | Should | unimplemented | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
+| SEC-DATA-7 | Should | fully tested | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
 | SEC-DATA-8 | Must | fully tested | A data export containing anything but the requesting user's own data. | AUTH-U5 |
 
 ### 4.9 Matrix bot (SEC-MX)
@@ -192,31 +192,31 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 |---|---|---|---|---|
 | SEC-MX-1 | Must | fully tested | The bot reading or ingesting messages from group rooms, or from a DM after a third member joined. | MX-1, MX-2 |
 | SEC-MX-2 | Must | fully tested | Reminder or delivery content being posted into a room that no longer consists solely of the bot and the linked user. The bot re-checks room membership immediately before sending. | MX-12, BOT-12 |
-| SEC-MX-3 | Must | implemented | Decrypted message content or device keys leaking through logs, crash dumps or unencrypted storage. | MX-N1, SEC-DATA-1 |
+| SEC-MX-3 | Must | fully tested | Decrypted message content or device keys leaking through logs, crash dumps or unencrypted storage. | MX-N1, SEC-DATA-1 |
 | SEC-MX-4 | Must | fully tested | Two bot instances sharing one Matrix device identity (split-brain, key theft surface). | MX-N2 |
-| SEC-MX-5 | Must | implemented | The bot's Matrix credentials being stored in the database in plaintext or being visible to Core. | SEC-DATA-2 |
+| SEC-MX-5 | Must | fully tested | The bot's Matrix credentials being stored in the database in plaintext or being visible to Core. | SEC-DATA-2 |
 | SEC-MX-6 | Should | unimplemented | An impostor device silently being trusted for the linked user without any trace: new devices for a linked identity are logged, and the trust model (trust on first use) is documented for users. | MX-3 |
 
 ### 4.10 Deployment and operations (SEC-OPS)
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-OPS-1 | Must | implemented | Secrets in container images, git or ConfigMaps. The example manifests use Secret references only, and startup fails if a placeholder secret is unchanged. | NFR-S1, NFR-D6 |
-| SEC-OPS-2 | Must | unimplemented | Containers running as root, privileged, with writable root filesystems, extra capabilities or privilege escalation: the example manifests set `runAsNonRoot`, `readOnlyRootFilesystem`, drop all capabilities and use the runtime default seccomp profile. | NFR-D6 |
-| SEC-OPS-3 | Must | unimplemented | Unnecessary network paths: only Core and the bots reach PostgreSQL; bots reach only their chat platform and Core. Example NetworkPolicies demonstrate this. | NFR-S2 |
-| SEC-OPS-4 | Must | unimplemented | Metrics, health, debug or profiling endpoints being reachable from the internet: they are served on a separate internal port and not routed by the ingress. | NFR-O2, NFR-O4 |
+| SEC-OPS-1 | Must | fully tested | Secrets in container images, git or ConfigMaps. The example manifests use Secret references only, and startup fails if a placeholder secret is unchanged. | NFR-S1, NFR-D6 |
+| SEC-OPS-2 | Must | fully tested | Containers running as root, privileged, with writable root filesystems, extra capabilities or privilege escalation: the example manifests set `runAsNonRoot`, `readOnlyRootFilesystem`, drop all capabilities and use the runtime default seccomp profile. | NFR-D6 |
+| SEC-OPS-3 | Must | fully tested | Unnecessary network paths: only Core and the bots reach PostgreSQL; bots reach only their chat platform and Core. Example NetworkPolicies demonstrate this. | NFR-S2 |
+| SEC-OPS-4 | Must | fully tested | Metrics, health, debug or profiling endpoints being reachable from the internet: they are served on a separate internal port and not routed by the ingress. | NFR-O2, NFR-O4 |
 | SEC-OPS-5 | Must | fully tested | The application's runtime database role altering the schema or reading other components' private tables (bot crypto state): migrations use a separate, more privileged role; each component has its own least-privilege role. | NFR-D4, NFR-S2 |
-| SEC-OPS-6 | Must | unimplemented | Known-vulnerable dependencies or images shipping unnoticed: CI scans dependencies and images, versions are pinned, base images are minimal. | NFR-S6 |
-| SEC-OPS-7 | Must | unimplemented | Shipping any default credential (default admin password, sample bot secret, example token). | SEC-AUTH-13 |
-| SEC-OPS-8 | Should | unimplemented | TLS being weak or absent at the ingress: the example ingress enforces TLS with modern settings and HSTS. | SEC-DATA-3 |
+| SEC-OPS-6 | Must | fully tested | Known-vulnerable dependencies or images shipping unnoticed: CI scans dependencies and images, versions are pinned, base images are minimal. | NFR-S6 |
+| SEC-OPS-7 | Must | fully tested | Shipping any default credential (default admin password, sample bot secret, example token). | SEC-AUTH-13 |
+| SEC-OPS-8 | Should | fully tested | TLS being weak or absent at the ingress: the example ingress enforces TLS with modern settings and HSTS. | SEC-DATA-3 |
 
 ### 4.11 Auditing and detection (SEC-AUD)
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-AUD-1 | Must | implemented | Security-relevant events going unrecorded: failed and successful logins, activation, password changes, session revocation, link/unlink, bot credential creation/rotation/disabling, admin actions, share-link creation/revocation, and rejected bot requests. | AUTH-B8, NFR-S6 |
+| SEC-AUD-1 | Must | fully tested | Security-relevant events going unrecorded: failed and successful logins, activation, password changes, session revocation, link/unlink, bot credential creation/rotation/disabling, admin actions, share-link creation/revocation, and rejected bot requests. | AUTH-B8, NFR-S6 |
 | SEC-AUD-2 | Must | fully tested | The audit log containing note content or secrets, or being modifiable through the application: it is append-only from the application's point of view. | SEC-DATA-1 |
-| SEC-AUD-3 | Should | unimplemented | An attack pattern going unnoticed: metrics and example alerts for spikes in failed logins, rejected bot requests, share-link 404s and rate-limit hits. | NFR-O2 |
+| SEC-AUD-3 | Should | fully tested | An attack pattern going unnoticed: metrics and example alerts for spikes in failed logins, rejected bot requests, share-link 404s and rate-limit hits. | NFR-O2 |
 | SEC-AUD-4 | Should | fully tested | Sensitive account events happening without the user being told: new sign-ins, password changes or activation links, chat link changes and share-link creation produce a security notice in chat and in the app. | AUTH-U11 |
 
 ## 5. Accepted risks (explicitly not prevented)
@@ -236,11 +236,11 @@ These are known limits. They are stated so that nobody assumes otherwise.
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| SEC-BASE-1 | Must | implemented | Password hashing uses argon2id with parameters documented and tunable, and re-hashing on login when parameters are raised. |
-| SEC-BASE-2 | Must | implemented | All random secrets (tokens, codes, session identifiers) come from a cryptographically secure random source; pairing codes are at least 40 bits of entropy, all other tokens at least 128. |
-| SEC-BASE-3 | Must | unimplemented | TLS 1.2 or higher only, for all client-facing traffic. |
-| SEC-BASE-4 | Should | unimplemented | Every secret (bot credentials, database passwords, encryption key for Matrix state) can be rotated without data loss; the procedure is documented. |
-| SEC-BASE-5 | Must | implemented | Security-relevant limits are configuration, not code: token and session lifetimes (idle and absolute), rate limits, share-link maximum lifetime, size limits. Defaults are the safe ones. |
+| SEC-BASE-1 | Must | fully tested | Password hashing uses argon2id with parameters documented and tunable, and re-hashing on login when parameters are raised. |
+| SEC-BASE-2 | Must | fully tested | All random secrets (tokens, codes, session identifiers) come from a cryptographically secure random source; pairing codes are at least 40 bits of entropy, all other tokens at least 128. |
+| SEC-BASE-3 | Must | fully tested | TLS 1.2 or higher only, for all client-facing traffic. |
+| SEC-BASE-4 | Should | fully tested | Every secret (bot credentials, database passwords, encryption key for Matrix state) can be rotated without data loss; the procedure is documented. |
+| SEC-BASE-5 | Must | fully tested | Security-relevant limits are configuration, not code: token and session lifetimes (idle and absolute), rate limits, share-link maximum lifetime, size limits. Defaults are the safe ones. |
 
 ## 7. Relationship to other requirements
 

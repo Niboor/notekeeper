@@ -3,7 +3,7 @@ import { api, botSend, card, createNote, dragTo, lane, openFreshBoard } from './
 
 // F2 / WEB-11: a message arriving through the bot API shows up in the Inbox within seconds,
 // without a reload.
-test('a chat message appears live in the Inbox', async ({ page }) => {
+test('a chat message appears live in the Inbox @cross', async ({ page }) => {
   await openFreshBoard(page)
   await botSend('buy oat milk (live)')
   await expect(card(lane(page, 'Inbox'), 'buy oat milk (live)')).toBeVisible({ timeout: 10_000 })
@@ -100,7 +100,7 @@ test('hold a note over a page tab to move it to another page', async ({ page }) 
 })
 
 // WEB-6, CORE-N8, WEB-7: dismiss with one click, undo, and the Trash.
-test('dismiss with undo, then restore or delete for good from the Trash', async ({ page }) => {
+test('dismiss with undo, then restore or delete for good from the Trash @cross', async ({ page }) => {
   const fx = await openFreshBoard(page)
   await createNote(page, 'to dismiss', fx.columns.Todo)
   await createNote(page, 'to delete', fx.columns.Todo)
@@ -125,7 +125,7 @@ test('dismiss with undo, then restore or delete for good from the Trash', async 
 })
 
 // CORE-N5, CORE-N17, WEB-20: editing text, and toggling a checklist box without entering edit mode.
-test('edit a note and tick a checklist item', async ({ page }) => {
+test('edit a note and tick a checklist item @cross', async ({ page }) => {
   const fx = await openFreshBoard(page)
   await createNote(page, 'plan\n\n- [ ] one\n- [ ] two', fx.columns.Todo)
   await page.reload()
@@ -144,7 +144,7 @@ test('edit a note and tick a checklist item', async ({ page }) => {
 })
 
 // WEB-14, CORE-N13: global search across pages and the Trash.
-test('search finds notes anywhere and jumps to them', async ({ page }) => {
+test('search finds notes anywhere and jumps to them @cross', async ({ page }) => {
   const fx = await openFreshBoard(page)
   await createNote(page, 'Extraordinary concert tickets', fx.columns.Todo)
   await createNote(page, 'unrelated shopping list')
@@ -161,7 +161,8 @@ test('search finds notes anywhere and jumps to them', async ({ page }) => {
 })
 
 // CORE-A1, CORE-A6: attach a file in the composer; it is stored, shown and downloadable.
-test('attach a file to a new note and download it again', async ({ page }) => {
+// WEB-8: attachments show on the card and download again.
+test('attach a file to a new note and download it again @cross', async ({ page }) => {
   const fx = await openFreshBoard(page)
   const todo = lane(page, 'Todo')
   await todo.getByRole('button', { name: 'Add a note' }).click()
@@ -268,4 +269,15 @@ test('the app opens quickly and reacts instantly', async ({ page }) => {
     return gone
   })
   expect(took).toBeLessThan(100)
+})
+
+// WEB-16: the keyboard reaches the common actions: "/" searches, "n" writes a note, Escape leaves.
+test('keyboard shortcuts open search and the composer', async ({ page }) => {
+  await openFreshBoard(page)
+  await page.keyboard.press('/')
+  await expect(page.getByRole('searchbox')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await page.locator('body').click({ position: { x: 5, y: 300 } })
+  await page.keyboard.press('n')
+  await expect(page.getByRole('textbox').first()).toBeFocused()
 })
