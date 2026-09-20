@@ -22,7 +22,7 @@ const shared = {
 // WEB-21, CORE-SH10, SEC-SHR-7: the token comes from the fragment and goes only into a header, with no credentials.
 describe('SharePage', () => {
   it('shows the not-endorsed notice (SEC-SHR-10) and reads the token from the fragment and sends it only as a header, without credentials', async () => {
-    window.location.hash = '#tok-EN_1234567890abcdefghijklmnop'
+    window.location.hash = '#example-fake-token-for-tests-0000'
     let seen: { token: string | null; credentials: string; url: string } | undefined
     const f = fakeFetch([
       {
@@ -36,8 +36,8 @@ describe('SharePage', () => {
     vi.stubGlobal('fetch', f)
     render(<SharePage />)
     expect(await screen.findByText('pack the bags')).toBeInTheDocument()
-    expect(seen).toMatchObject({ token: 'tok-EN_1234567890abcdefghijklmnop', credentials: 'omit' })
-    expect(seen!.url).not.toContain('tok-EN')
+    expect(seen).toMatchObject({ token: 'example-fake-token-for-tests-0000', credentials: 'omit' })
+    expect(seen!.url).not.toContain('example-fake')
     expect(screen.getByText(/shared by a Notekeeper user/)).toBeInTheDocument()
     // The content goes through the same safe renderer as in the app: HTML stays text, checkboxes are read-only.
     expect(document.querySelector('script')).toBeNull()
