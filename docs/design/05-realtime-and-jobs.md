@@ -35,7 +35,6 @@ River (a Postgres-backed queue built on `SKIP LOCKED`) runs inside Core. Jobs ar
 | `PurgeShareLinks` | hourly | Delete links expired more than 7 days ago |
 | `PurgeSessions` | daily | Delete sessions expired or revoked more than 30 days ago; old `auth_throttle`, `idempotency_keys`, `ingest_events`, `changes`, `unlinked_senders`, read notifications (retention table in [01](01-data-model.md) §13) |
 | `DeleteUser` | on request | Complete user deletion ([03](03-auth.md) §4.3) |
-| `RebalancePositions` | on demand | Rewrite degenerate position keys in a category ([01](01-data-model.md) §7) |
 
 Each job is idempotent and bounded (batches), and exports Prometheus metrics for duration, failures and lag (NFR-O2).
 

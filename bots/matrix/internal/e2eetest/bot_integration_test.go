@@ -331,7 +331,7 @@ func TestBotForwardsEncryptedMessagesAndShowsFeedback(t *testing.T) {
 	}
 }
 
-// TestBotOnlyJoinsDirectMessagesOfTwo covers MX-1 and MX-2: invites to group rooms are declined,
+// TestBotOnlyJoinsDirectMessagesOfTwo covers MX-1, MX-2 and SEC-MX-1: invites to group rooms are declined,
 // and a direct message that gains a third member is ignored, with one explanation.
 func TestBotOnlyJoinsDirectMessagesOfTwo(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -376,7 +376,7 @@ func TestBotOnlyJoinsDirectMessagesOfTwo(t *testing.T) {
 	}
 }
 
-// TestCoreOutageStallsInsteadOfLosingMessages covers NFR-R1 / BOT-B2 with the real bot: while
+// TestCoreOutageStallsInsteadOfLosingMessages covers NFR-R1, BOT-B2 and MX-9 (catch-up from the stored token) with the real bot: while
 // Core is down the bot keeps retrying, and a bot killed during the outage replays the message
 // after restart (deduplicated by Core on the event id).
 func TestCoreOutageStallsInsteadOfLosingMessages(t *testing.T) {

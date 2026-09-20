@@ -60,7 +60,7 @@ flowchart LR
 | Public share API | 8082 | `/api/public/v1/*` | Ingress, **share hostname only** | Share token in a request header |
 | Ops | 9090 | `/healthz`, `/readyz`, `/metrics` | Cluster-internal, never routed by ingress (SEC-OPS-4) | None (network-restricted) |
 
-Each listener has its own router containing only its own routes, and a middleware that rejects a request whose `Host` is not one of that listener's configured hostnames. A route can therefore not be reached through the wrong listener even if ingress is misconfigured (CORE-SH10, SEC-API-2).
+Each listener has its own router containing only its own routes. Authentication runs as a route-group middleware after routing but before the generated code parses parameters and bodies (decision 50). Each listener also has a middleware that rejects a request whose `Host` is not one of that listener's configured hostnames. A route can therefore not be reached through the wrong listener even if ingress is misconfigured (CORE-SH10, SEC-API-2).
 
 **Modes.** `core serve` runs the listeners and workers; `core migrate` applies migrations (used by the migration Job); `core admin …` are operator commands (bootstrap, link, transfer; see [03-auth.md](03-auth.md)). Workers can be split out with `--workers-only` without code changes.
 

@@ -182,6 +182,7 @@ func TestOpsEndpoints(t *testing.T) {
 }
 
 // Every API listener answers with the defensive headers, including for errors (SEC-API-8, SEC-DATA-6).
+// (Attachment downloads override Cache-Control with `private, no-cache`; see the attachment tests.)
 func TestAPIResponsesCarrySecurityHeaders(t *testing.T) {
 	r := testRouters(t, config.Config{}, nil)
 	for name, tc := range map[string]struct {

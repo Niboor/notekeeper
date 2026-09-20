@@ -145,6 +145,7 @@ type notePageFull struct {
 	Total      *int       `json:"total"`
 }
 
+// Pages and categories: create, rename, reorder, archive, move between pages (CORE-P1, CORE-P2, CORE-P3, CORE-S5).
 func TestPagesAndCategories(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -208,6 +209,8 @@ func TestPagesAndCategories(t *testing.T) {
 	}
 }
 
+// Notes go where they are put and stay there: creation into columns, dragging between and within
+// them, back to the Inbox (CORE-N3, CORE-N4, WEB-9).
 func TestNotesInColumnsAndOrder(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -269,6 +272,7 @@ func TestNotesInColumnsAndOrder(t *testing.T) {
 	}
 }
 
+// Deleting a category or page never destroys notes (CORE-P4, CORE-N7).
 func TestDeletingACategoryOrPageNeverLosesNotes(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -330,6 +334,8 @@ func TestDeletingACategoryOrPageNeverLosesNotes(t *testing.T) {
 	}
 }
 
+// Dismissing, undoing (from any device, since undo is a server-side restore), the Trash view and
+// permanent deletion (CORE-N6, CORE-N7, CORE-N8, CORE-N9, CORE-N10).
 func TestDismissRestoreAndTrash(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -380,6 +386,7 @@ func TestDismissRestoreAndTrash(t *testing.T) {
 	}
 }
 
+// Latest edit wins and nothing is lost (CORE-S4, EDT-3, EDT-5, CORE-N17).
 func TestEditingKeepsHistoryAndFlagsStaleEdits(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -460,6 +467,7 @@ func TestPartsCanBeAddedAndRemoved(t *testing.T) {
 	}
 }
 
+// Retried creations are safe (CORE-S5) and input is bounded (SEC-API-3).
 func TestNoteCreationIsIdempotentAndValidated(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -483,12 +491,19 @@ func TestNoteCreationIsIdempotentAndValidated(t *testing.T) {
 			t.Errorf("%s: got %d", name, res.Status)
 		}
 	}
-	// Another user's id cannot be claimed, and it looks like any other conflict (SEC-ISO-3).
+	// Client-chosen ids are unique per user: another user creating a note under the same id gets
+	// their own note, exactly as for an unused id, so the id reveals nothing (SEC-ISO-3).
 	bob := s.appUser("bob")
-	bob.post("/api/v1/notes", body, 409, nil)
+	bob.post("/api/v1/notes", body, 201, nil)
+	if len(bob.inbox()) != 1 || len(u.inbox()) != 1 {
+		t.Fatal("the same id under two users must produce two independent notes")
+	}
+	if got := u.inbox()[0].text(); got != "hello" {
+		t.Fatalf("alice's note changed: %q", got)
+	}
 }
 
-// Two devices reorder different notes at the same time: nothing conflicts and nothing is lost (CORE-S4).
+// Two devices reorder different notes at the same time: nothing conflicts and nothing is lost (CORE-S4, SEC-API-7).
 func TestConcurrentMovesNeverConflict(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -533,7 +548,7 @@ func TestConcurrentMovesNeverConflict(t *testing.T) {
 	}
 }
 
-// Other users' objects look like missing ones, in every operation that names an id (SEC-ISO-3, SEC-ISO-4).
+// Other users' objects look like missing ones, in every operation that names an id (SEC-ISO-2, SEC-ISO-3, SEC-ISO-4).
 func TestForeignObjectsAreInvisible(t *testing.T) {
 	s := newStack(t)
 	alice, bob := s.appUser("alice"), s.appUser("bob")

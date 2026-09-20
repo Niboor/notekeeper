@@ -104,10 +104,16 @@ func NewRouters(d Deps) (Routers, error) {
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
 	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, hub: d.Hub, trusted: trusted, log: d.Log}
 	user := base("user", d.Config.AppHosts, false)
-	userapi.HandlerWithOptions(
-		userapi.NewStrictHandlerWithOptions(ua, []userapi.StrictMiddlewareFunc{stashHTTPUser}, userapi.StrictHTTPServerOptions{
-			RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
-		userapi.ChiServerOptions{BaseRouter: user, Middlewares: []userapi.MiddlewareFunc{auth.wrap}, ErrorHandlerFunc: badRequest})
+	// The authentication middleware sits on a route group, so it runs after routing (it needs the
+	// route) but BEFORE the generated code parses parameters and bodies: an unauthenticated caller
+	// is refused with 401 whatever its request looks like, never with a validation error.
+	user.Group(func(g chi.Router) {
+		g.Use(auth.wrap)
+		userapi.HandlerWithOptions(
+			userapi.NewStrictHandlerWithOptions(ua, []userapi.StrictMiddlewareFunc{stashHTTPUser}, userapi.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
+			userapi.ChiServerOptions{BaseRouter: g, ErrorHandlerFunc: badRequest})
+	})
 	// Registered after the generated routes so that it replaces the generated placeholder.
 	user.Get("/api/v1/events", auth.wrap(http.HandlerFunc(ua.events)).ServeHTTP)
 
@@ -125,10 +131,13 @@ func NewRouters(d Deps) (Routers, error) {
 	bauth := &botAuth{bots: d.Bots, scopes: botScopes, log: d.Log}
 	ba := &botAPI{bots: d.Bots, ingest: d.Ingest}
 	bot := base("bot", nil, true)
-	botapi.HandlerWithOptions(
-		botapi.NewStrictHandlerWithOptions(ba, []botapi.StrictMiddlewareFunc{stashHTTPBot}, botapi.StrictHTTPServerOptions{
-			RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
-		botapi.ChiServerOptions{BaseRouter: bot, Middlewares: []botapi.MiddlewareFunc{bauth.wrap}, ErrorHandlerFunc: badRequest})
+	bot.Group(func(g chi.Router) {
+		g.Use(bauth.wrap)
+		botapi.HandlerWithOptions(
+			botapi.NewStrictHandlerWithOptions(ba, []botapi.StrictMiddlewareFunc{stashHTTPBot}, botapi.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc: badRequest, ResponseErrorHandlerFunc: errorHandler(d.Log)}),
+			botapi.ChiServerOptions{BaseRouter: g, ErrorHandlerFunc: badRequest})
+	})
 
 	// ---- public share API ---- (placeholder until milestone M4)
 	public := base("public", d.Config.ShareHosts, false)

@@ -90,6 +90,7 @@ func (u *appUser) attachNote(attachmentID string) noteJSON {
 	return n
 }
 
+// Attachments are stored by Core and served only to their owner, exactly as uploaded (CORE-A1, CORE-A4, CORE-A6).
 func TestUploadLinkAndDownload(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -208,6 +209,7 @@ func TestDangerousFilesAreDownloadsAndNamesAreCleaned(t *testing.T) {
 	}
 }
 
+// The maximum attachment size is enforced before the body is read, with clear errors (CORE-A3).
 func TestUploadLimitsAndBadRequests(t *testing.T) {
 	s := newStackWith(t, func(c *config.Config) { c.MaxAttachmentBytes = 1 << 20 })
 	u := s.appUser("alice")
@@ -310,7 +312,7 @@ func TestQuotaCannotBeExceededByParallelUploads(t *testing.T) {
 }
 
 // Identical content is stored once per user and never shared between users (CORE-A5, SEC-ISO-9);
-// deleting the last reference frees the space (CORE-A8).
+// deleting the last reference frees the space (CORE-A8, SEC-DATA-5).
 func TestDeduplicationAndCleanup(t *testing.T) {
 	s := newStack(t)
 	alice, bob := s.appUser("alice"), s.appUser("bob")

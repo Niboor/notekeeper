@@ -94,7 +94,7 @@ func (q *Queries) CommitReservation(ctx context.Context, arg CommitReservationPa
 }
 
 const completeBlob = `-- name: CompleteBlob :exec
-update blobs set complete = true, size_bytes = $3, sha256 = $4, reserved_bytes = 0 where id = $1 and user_id = $2
+update blobs set complete = true, size_bytes = $3, sha256 = $4, reserved_bytes = 0, upload_id = null where id = $1 and user_id = $2
 `
 
 type CompleteBlobParams struct {
@@ -239,7 +239,7 @@ func (q *Queries) GetAttachmentWithBlob(ctx context.Context, arg GetAttachmentWi
 }
 
 const getBlob = `-- name: GetBlob :one
-select id, user_id, backend, size_bytes, chunk_size, sha256, complete, reserved_bytes, created_at from blobs where id = $1 and user_id = $2
+select id, user_id, backend, size_bytes, chunk_size, sha256, complete, reserved_bytes, created_at, upload_id from blobs where id = $1 and user_id = $2
 `
 
 type GetBlobParams struct {
@@ -260,6 +260,7 @@ func (q *Queries) GetBlob(ctx context.Context, arg GetBlobParams) (Blob, error) 
 		&i.Complete,
 		&i.ReservedBytes,
 		&i.CreatedAt,
+		&i.UploadID,
 	)
 	return i, err
 }
@@ -313,7 +314,7 @@ func (q *Queries) InsertAttachment(ctx context.Context, arg InsertAttachmentPara
 }
 
 const insertBlob = `-- name: InsertBlob :exec
-insert into blobs (id, user_id, size_bytes, chunk_size, reserved_bytes) values ($1, $2, $3, $4, $3)
+insert into blobs (id, user_id, size_bytes, chunk_size, reserved_bytes, upload_id) values ($1, $2, $3, $4, $3, $5)
 `
 
 type InsertBlobParams struct {
@@ -321,6 +322,7 @@ type InsertBlobParams struct {
 	UserID    uuid.UUID
 	SizeBytes int64
 	ChunkSize int32
+	UploadID  uuid.NullUUID
 }
 
 func (q *Queries) InsertBlob(ctx context.Context, arg InsertBlobParams) error {
@@ -329,6 +331,7 @@ func (q *Queries) InsertBlob(ctx context.Context, arg InsertBlobParams) error {
 		arg.UserID,
 		arg.SizeBytes,
 		arg.ChunkSize,
+		arg.UploadID,
 	)
 	return err
 }
@@ -523,4 +526,20 @@ func (q *Queries) UnlinkedAttachments(ctx context.Context, arg UnlinkedAttachmen
 		return nil, err
 	}
 	return items, nil
+}
+
+const uploadInProgress = `-- name: UploadInProgress :one
+select exists(select 1 from blobs where user_id = $1 and upload_id = $2 and not complete)
+`
+
+type UploadInProgressParams struct {
+	UserID   uuid.UUID
+	UploadID uuid.NullUUID
+}
+
+func (q *Queries) UploadInProgress(ctx context.Context, arg UploadInProgressParams) (bool, error) {
+	row := q.db.QueryRow(ctx, uploadInProgress, arg.UserID, arg.UploadID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

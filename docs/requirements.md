@@ -133,47 +133,47 @@ flowchart LR
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| CORE-N1 | Must | unimplemented | Notes are created with text and/or attachments. A note always has at least one part. |
+| CORE-N1 | Must | implemented | Notes are created with text and/or attachments. A note always has at least one part. |
 | CORE-N2 | Must | fully tested | New notes created via a bot are placed in the Inbox of the linked user. The Inbox is ordered by created time (CORE-N18). |
-| CORE-N3 | Must | unimplemented | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
-| CORE-N4 | Must | unimplemented | Note order within a category is user-controlled and persistent. The Inbox is not manually ordered: it is sorted by created time, newest first (CORE-N18); manual ordering starts when a note is moved into a category. |
-| CORE-N5 | Must | unimplemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
-| CORE-N6 | Must | unimplemented | Deleting ("dismissing") a note is a **soft delete**: state becomes `deleted`, `deleted_at` is set, and the note remembers its previous location. |
-| CORE-N7 | Must | unimplemented | A deleted note can be **restored** to its previous location; if that category no longer exists, it is restored to the Inbox. |
-| CORE-N8 | Must | unimplemented | Undo of a dismissal is a server-side restore, so it works from any device and from the Trash view, not just as a transient client-side action. |
-| CORE-N9 | Must | unimplemented | Deleted notes can be listed (Trash), newest-deleted first, with their previous page/category shown. |
-| CORE-N10 | Must | unimplemented | Permanently deleting a note (and its attachments) from the Trash on explicit user action. Required because Trash content counts toward the user's storage quota (CORE-A3). |
-| CORE-N11 | Must | unimplemented | Trash retention is unlimited: dismissed notes are kept until the user permanently deletes them. There is no automatic purge. |
-| CORE-N13 | Must | unimplemented | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English** (inflections and plurals, e.g. "ticket"/"tickets"). Further languages, Dutch first, can be added later without changing the API; language is not a per-note setting the user has to maintain. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
+| CORE-N3 | Must | fully tested | A note can be moved to any category of any of the user's pages, at a chosen position, or back to the Inbox. |
+| CORE-N4 | Must | fully tested | Note order within a category is user-controlled and persistent. The Inbox is not manually ordered: it is sorted by created time, newest first (CORE-N18); manual ordering starts when a note is moved into a category. |
+| CORE-N5 | Must | implemented | Note text can be edited in the app. Text supports lightweight formatting (Markdown subset) and auto-linked URLs. Markdown task lists are supported (CORE-N17). |
+| CORE-N6 | Must | fully tested | Deleting ("dismissing") a note is a **soft delete**: state becomes `deleted`, `deleted_at` is set, and the note remembers its previous location. |
+| CORE-N7 | Must | fully tested | A deleted note can be **restored** to its previous location; if that category no longer exists, it is restored to the Inbox. |
+| CORE-N8 | Must | fully tested | Undo of a dismissal is a server-side restore, so it works from any device and from the Trash view, not just as a transient client-side action. |
+| CORE-N9 | Must | fully tested | Deleted notes can be listed (Trash), newest-deleted first, with their previous page/category shown. |
+| CORE-N10 | Must | fully tested | Permanently deleting a note (and its attachments) from the Trash on explicit user action. Required because Trash content counts toward the user's storage quota (CORE-A3). |
+| CORE-N11 | Must | implemented | Trash retention is unlimited: dismissed notes are kept until the user permanently deletes them. There is no automatic purge. |
+| CORE-N13 | Must | fully tested | **Global full-text search** over all of a user's notes across every page, category and the Inbox (Trash on request): note text and attachment filenames. Case- and diacritic-insensitive, prefix matching, and correct for **English** (inflections and plurals, e.g. "ticket"/"tickets"). Further languages, Dutch first, can be added later without changing the API; language is not a per-note setting the user has to maintain. Typo tolerance is a Should. Ranked by relevance, recency as tie-breaker. The index lives in PostgreSQL (NFR-D2) and is updated transactionally with the note, so a note that just arrived from chat or was just edited is immediately searchable. |
 | CORE-N14 | Should | unimplemented | Manually **merge** two notes and **split** a part out of a note, to correct wrong automatic grouping (see §6.3). |
 | CORE-N15 | Could | unimplemented | Bulk operations (dismiss/move multiple notes). |
-| CORE-N17 | Should | unimplemented | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
+| CORE-N17 | Should | implemented | **Checklists.** Markdown task-list items (`- [ ] item`, `- [x] item`) in note text render as checkboxes, and toggling one updates the note text, which stays plain Markdown so chat, search and history work unchanged. Cards with a checklist show progress (e.g. 2/5). Rapid successive toggles are coalesced into one history version. |
 | CORE-N18 | Must | fully tested | **Timestamps.** A note's and part's created time is the **platform event timestamp** of the message, not the time Core received it; the receive time is stored separately. The Inbox is sorted by created time, so a backlog caught up after downtime appears in true chronological order instead of as brand-new notes at the top. A platform timestamp more than a few minutes in the future is clamped to the receive time (clock skew). |
 
 ### 4.3 Pages and categories — functional requirements
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| CORE-P1 | Must | unimplemented | Users can create, rename, reorder and delete pages. |
-| CORE-P2 | Must | unimplemented | Users can create, rename, reorder and delete categories within a page. |
-| CORE-P3 | Must | unimplemented | Categories can be moved to another page. |
-| CORE-P4 | Must | unimplemented | Deleting a category never destroys notes: its notes are moved to the Inbox (and the user is told how many). Deleting a page does the same for all its categories. |
-| CORE-P5 | Must | unimplemented | A new account starts with an empty Inbox and no pages; the UI guides the user to create the first page. |
-| CORE-P6 | Could | unimplemented | Archive a page (hidden from the main navigation, not deleted). |
+| CORE-P1 | Must | fully tested | Users can create, rename, reorder and delete pages. |
+| CORE-P2 | Must | fully tested | Users can create, rename, reorder and delete categories within a page. |
+| CORE-P3 | Must | fully tested | Categories can be moved to another page. |
+| CORE-P4 | Must | fully tested | Deleting a category never destroys notes: its notes are moved to the Inbox (and the user is told how many). Deleting a page does the same for all its categories. |
+| CORE-P5 | Must | implemented | A new account starts with an empty Inbox and no pages; the UI guides the user to create the first page. |
+| CORE-P6 | Could | implemented | Archive a page (hidden from the main navigation, not deleted). |
 | CORE-P7 | Could | unimplemented | Per-category colour/icon. |
 
 ### 4.4 Attachments
 
 | ID | Pri | State | Requirement |
 |---|---|---|---|
-| CORE-A1 | Must | unimplemented | Attachments are stored by Core and served only to the owning user (authenticated, authorised requests; no public or guessable URLs). |
-| CORE-A2 | Must | unimplemented | Attachment storage sits behind a storage-backend interface (write stream, read stream with byte ranges, delete, size). v1 has exactly one backend: **PostgreSQL** (no object storage is available). The backend is recorded per attachment, so a second backend (e.g. S3-compatible) can be added later, and existing blobs moved, without changes to the API or note data model. |
-| CORE-A3 | Must | unimplemented | Configurable maximum attachment size (default: 25 MiB) and per-user storage quota (deployment default, adjustable per user by the admin; Trash counts toward it). Violations produce a clear error that the bot can relay to the user. |
-| CORE-A4 | Must | unimplemented | Attachments keep filename and media type. Core does no server-side image or document processing: no thumbnails, previews or transcoding. Originals are served exactly as stored, and clients scale them. |
-| CORE-A5 | Should | unimplemented | Deduplicate identical blobs per user (content hash). |
-| CORE-A6 | Should | unimplemented | Uploads and downloads are streamed/chunk-friendly so large files do not need to be fully buffered in memory. |
+| CORE-A1 | Must | fully tested | Attachments are stored by Core and served only to the owning user (authenticated, authorised requests; no public or guessable URLs). |
+| CORE-A2 | Must | implemented | Attachment storage sits behind a storage-backend interface (write stream, read stream with byte ranges, delete, size). v1 has exactly one backend: **PostgreSQL** (no object storage is available). The backend is recorded per attachment, so a second backend (e.g. S3-compatible) can be added later, and existing blobs moved, without changes to the API or note data model. |
+| CORE-A3 | Must | fully tested | Configurable maximum attachment size (default: 25 MiB) and per-user storage quota (deployment default, adjustable per user by the admin; Trash counts toward it). Violations produce a clear error that the bot can relay to the user. |
+| CORE-A4 | Must | implemented | Attachments keep filename and media type. Core does no server-side image or document processing: no thumbnails, previews or transcoding. Originals are served exactly as stored, and clients scale them. |
+| CORE-A5 | Should | fully tested | Deduplicate identical blobs per user (content hash). |
+| CORE-A6 | Should | fully tested | Uploads and downloads are streamed/chunk-friendly so large files do not need to be fully buffered in memory. |
 | CORE-A7 | Should | unimplemented | An operator tool moves blobs between storage backends online, without downtime or API changes. |
-| CORE-A8 | Must | unimplemented | The PostgreSQL backend must: stream uploads and downloads with memory bounded independently of file size; support random access for range requests; tie blob lifetime transactionally to its attachment (no orphaned blobs after deletion or a failed upload); be covered by standard PostgreSQL backup/restore (dump, PITR, replication); and work behind a connection pooler and on managed PostgreSQL. *Design note, to confirm at design time:* chunked rows in an ordinary table are preferred over PostgreSQL Large Objects (cascading delete, no orphan cleanup, logical-replication and pooler friendly); Large Objects are acceptable only if every requirement above demonstrably holds. |
+| CORE-A8 | Must | fully tested | The PostgreSQL backend must: stream uploads and downloads with memory bounded independently of file size; support random access for range requests; tie blob lifetime transactionally to its attachment (no orphaned blobs after deletion or a failed upload); be covered by standard PostgreSQL backup/restore (dump, PITR, replication); and work behind a connection pooler and on managed PostgreSQL. *Design note, to confirm at design time:* chunked rows in an ordinary table are preferred over PostgreSQL Large Objects (cascading delete, no orphan cleanup, logical-replication and pooler friendly); Large Objects are acceptable only if every requirement above demonstrably holds. |
 | CORE-A9 | Must | unimplemented | **Failed attachments never drop content.** If an attachment cannot be stored (too large, quota exceeded, blocked type, storage error), the accompanying message is not dropped: its text is always captured, and the attachment is recorded as a **failed part** (filename, size, reason) visible on the note. A message consisting only of a failed attachment still produces a note holding the failed part, so nothing is silently lost (NFR-R1). The bot is told the reason and relays it (CORE-A3). |
 
 ### 4.5 Realtime and sync
@@ -183,8 +183,8 @@ flowchart LR
 | CORE-S1 | Must | fully tested | Clients see changes made elsewhere (new note from a bot, edit, move on another device) without manual reload (push channel such as SSE or WebSocket). |
 | CORE-S2 | Must | fully tested | Realtime delivery works with multiple Core replicas (no in-process-only pub/sub). |
 | CORE-S3 | Must | fully tested | A **change feed** endpoint returns all changes (including deletions/tombstones) since an opaque cursor, so clients can (re)sync incrementally after being offline or reconnecting. |
-| CORE-S4 | Must | unimplemented | Mutations carry the version the client based them on. For content (note text) **the latest edit wins**: nothing is lost because every overwritten text version is kept in the note's history (EDT-3), and a client whose base version was stale is told, so it can show that the note changed. Structural operations (move, reorder, dismiss, restore) are applied so that two devices working on different notes never conflict. |
-| CORE-S5 | Must | unimplemented | Mutating requests accept an idempotency key or client-generated ID so retries are safe. |
+| CORE-S4 | Must | fully tested | Mutations carry the version the client based them on. For content (note text) **the latest edit wins**: nothing is lost because every overwritten text version is kept in the note's history (EDT-3), and a client whose base version was stale is told, so it can show that the note changed. Structural operations (move, reorder, dismiss, restore) are applied so that two devices working on different notes never conflict. |
+| CORE-S5 | Must | fully tested | Mutating requests accept an idempotency key or client-generated ID so retries are safe. |
 
 ### 4.6 Reminders (Should)
 
@@ -341,7 +341,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 |---|---|---|---|
 | EDT-1 | Must | unimplemented | Every note part created from a chat message stores its source reference, so later events can find it. |
 | EDT-2 | Must | unimplemented | When the chat message is **edited**, the corresponding note part is updated in place; the note's modification time changes and clients are notified (CORE-S1). For text parts, the new text replaces the old text. |
-| EDT-3 | Must | unimplemented | Every version of a part's text is retained with timestamp and origin (chat or app), for chat edits and app edits alike, so that under latest-wins nothing is irrecoverably lost. History is viewable and restorable in the app (WEB-13). |
+| EDT-3 | Must | implemented | Every version of a part's text is retained with timestamp and origin (chat or app), for chat edits and app edits alike, so that under latest-wins nothing is irrecoverably lost. History is viewable and restorable in the app (WEB-13). |
 | EDT-4 | Must | unimplemented | When the chat message is **deleted/redacted** on the platform, the part is removed from the note. If it was the last part, the note is moved to the Trash (not permanently deleted). |
 | EDT-5 | Must | unimplemented | **The latest edit wins**, regardless of origin: a chat edit replaces the part's text even if it was edited in the app before, and vice versa. "Latest" is when the edit was *made* (platform event timestamp for chat edits, server time for app edits), not when it arrives: a chat edit delivered late (e.g. after bot downtime) that is older than the part's last app edit goes into history only and does not overwrite. Clocks are assumed reasonably synchronised. |
 | EDT-6 | Must | unimplemented | Edits/deletes of messages that Core does not know (sent before linking, ignored, unsupported) are ignored without error. |
@@ -605,6 +605,10 @@ Answers given after the first draft, and where they are reflected.
 | 44 | Authorisation source of truth | Who may call an operation is declared once, in its OpenAPI `security` (anonymous, user, or the `admin` scope); the router enforces it fail-closed, and the authorisation matrix test is generated from the same declarations. A route not in the document is not served | SEC-ISO-1, SEC-API-2, design/02, design/08 §5 |
 | 45 | Event stream start | A fresh event stream begins with `event: hello` carrying the current change number; the client refetches its views on it, which closes the gap between its initial fetch and the subscription. Reconnects resume from `Last-Event-ID` | CORE-S1, design/05 §2 |
 | 46 | Page limits | A `limit` above the maximum (200) is capped, not refused | SEC-API-3, design/README §3 |
+| 47 | Rebalancing | A category, page or column whose position keys grow past 48 characters is rebalanced inline, under the user lock, in the transaction that triggered it, instead of by a queued job: it is rare, bounded by the size of one list, and inline needs no second mechanism to reason about. Clients get change entries for every rewritten key | design/01 §7, design/05 §3 |
+| 48 | Per-user ids | Ids that clients may choose (pages, categories, notes, attachments) are unique per user (composite primary key), so creating something under an id that belongs to someone else behaves exactly like an unused id and reveals nothing (SEC-ISO-3). Blobs get server-generated ids and an upload is found by the client's attachment id | SEC-ISO-3, design/01 §1, §6 |
+| 49 | Upload headers | The upload body is `application/octet-stream` (the only type the generated server hands through raw); the file's name and media type travel in `X-Filename` and `X-Media-Type` | design/02 §1.3 |
+| 50 | Authentication order | Authentication runs before the generated code parses parameters and bodies (a route-group middleware), so an unauthenticated caller always gets 401, never a validation error | SEC-API-2, design/README §2 |
 
 ## 14. Open questions
 

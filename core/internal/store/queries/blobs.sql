@@ -16,7 +16,10 @@ where user_id = @user_id;
 update user_storage set used_bytes = greatest(used_bytes - @n::bigint, 0) where user_id = @user_id;
 
 -- name: InsertBlob :exec
-insert into blobs (id, user_id, size_bytes, chunk_size, reserved_bytes) values ($1, $2, $3, $4, $3);
+insert into blobs (id, user_id, size_bytes, chunk_size, reserved_bytes, upload_id) values ($1, $2, $3, $4, $3, $5);
+
+-- name: UploadInProgress :one
+select exists(select 1 from blobs where user_id = $1 and upload_id = $2 and not complete);
 
 -- name: InsertChunk :exec
 insert into blob_chunks (user_id, blob_id, idx, data) values ($1, $2, $3, $4);
@@ -28,7 +31,7 @@ select data from blob_chunks where blob_id = $1 and idx = $2;
 select * from blobs where id = $1 and user_id = $2;
 
 -- name: CompleteBlob :exec
-update blobs set complete = true, size_bytes = $3, sha256 = $4, reserved_bytes = 0 where id = $1 and user_id = $2;
+update blobs set complete = true, size_bytes = $3, sha256 = $4, reserved_bytes = 0, upload_id = null where id = $1 and user_id = $2;
 
 -- name: DeleteBlob :execrows
 delete from blobs where id = $1 and user_id = $2;

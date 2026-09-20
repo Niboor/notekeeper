@@ -118,6 +118,7 @@ func TestBootstrapCreatesExactlyOneAdmin(t *testing.T) {
 	}
 }
 
+// Activation links are single use and set the password without the admin choosing it (AUTH-U8, SEC-AUTH-4).
 func TestActivation(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -169,6 +170,7 @@ func TestActivationTokenExpires(t *testing.T) {
 	}
 }
 
+// Password login and per-request authentication (AUTH-C1, SEC-AUTH-1).
 func TestLoginAndAuthenticate(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -193,6 +195,7 @@ func TestLoginAndAuthenticate(t *testing.T) {
 	}
 }
 
+// Login is rate limited and brute-force resistant (AUTH-C6).
 func TestLoginFailuresAreIndistinguishableAndThrottled(t *testing.T) {
 	e := newEnv(t)
 	e.activeUser(t, "alice")
@@ -345,6 +348,7 @@ func TestConcurrentRefreshRace(t *testing.T) {
 	}
 }
 
+// Persistent, sliding and absolute session lifetimes, and the shared-computer option (AUTH-C9, AUTH-C11).
 func TestSessionLifetimes(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -391,6 +395,7 @@ func TestSessionLifetimes(t *testing.T) {
 	}
 }
 
+// Every security event that must end access does so at once (SEC-AUTH-6, AUTH-U4).
 func TestSecurityEventsRevokeSessions(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -448,6 +453,7 @@ func TestSecurityEventsRevokeSessions(t *testing.T) {
 	}
 }
 
+// Listing and revoking sessions, and "sign out everywhere" (AUTH-U10, SEC-AUTH-16).
 func TestSessionListAndRevocation(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()

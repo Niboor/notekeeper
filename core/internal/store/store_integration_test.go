@@ -56,6 +56,7 @@ func TestAppRoleCannotBypassRowSecurity(t *testing.T) {
 	}
 }
 
+// Row-level security confines every query to the acting user (SEC-ISO-10).
 func TestRowSecurityScopesToTheUser(t *testing.T) {
 	ctx := context.Background()
 	d := testdb.New(t)

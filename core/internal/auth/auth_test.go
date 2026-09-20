@@ -23,6 +23,7 @@ func testKeyring(t *testing.T, ids ...string) *Keyring {
 	return k
 }
 
+// The password policy: length and the common-password list (SEC-AUTH-5).
 func TestPasswordPolicy(t *testing.T) {
 	cases := []struct {
 		pw string

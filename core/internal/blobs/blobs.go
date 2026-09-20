@@ -122,14 +122,23 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 	}
 	filename, mediaType = CleanFilename(filename), CleanMediaType(mediaType)
 
+	// The blob has its own id; the attachment keeps the client's id, which is unique per user only,
+	// so an id that belongs to someone else behaves exactly like an unused one (SEC-ISO-3).
+	blobID, err := uuid.NewV7()
+	if err != nil {
+		return Attachment{}, err
+	}
+
 	// Step 1 (locked): idempotency check, quota reservation, blob row.
 	var existing *Attachment
-	err := s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
+	err = s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
 		if a, err := tx.Q.GetAttachmentWithBlob(ctx, dbq.GetAttachmentWithBlobParams{ID: id, UserID: user}); err == nil {
 			existing = &Attachment{ID: a.ID, Filename: a.Filename, MediaType: a.MediaType, Size: a.SizeBytes, SHA256: a.Sha256}
 			return nil
 		}
-		if _, err := tx.Q.GetBlob(ctx, dbq.GetBlobParams{ID: id, UserID: user}); err == nil {
+		if running, err := tx.Q.UploadInProgress(ctx, dbq.UploadInProgressParams{UserID: user, UploadID: uuid.NullUUID{UUID: id, Valid: true}}); err != nil {
+			return err
+		} else if running {
 			return ErrUploadRunning // an earlier attempt is still being cleaned up or is in flight
 		}
 		if err := tx.Q.EnsureStorageRow(ctx, user); err != nil {
@@ -142,7 +151,8 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 		if n == 0 {
 			return ErrQuota
 		}
-		if err := tx.Q.InsertBlob(ctx, dbq.InsertBlobParams{ID: id, UserID: user, SizeBytes: declared, ChunkSize: int32(s.Cfg.ChunkSize)}); err != nil {
+		if err := tx.Q.InsertBlob(ctx, dbq.InsertBlobParams{ID: blobID, UserID: user, SizeBytes: declared, ChunkSize: int32(s.Cfg.ChunkSize),
+			UploadID: uuid.NullUUID{UUID: id, Valid: true}}); err != nil {
 			if store.IsUniqueViolation(err, "") {
 				return ErrUploadRunning
 			}
@@ -167,15 +177,15 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 		if n > 0 {
 			total += int64(n)
 			if total > declared {
-				s.abort(user, id, declared)
+				s.abort(user, blobID, declared)
 				return Attachment{}, ErrLength
 			}
 			sum.Write(buf[:n])
 			chunk := buf[:n]
 			if err := s.St.InUserScoped(ctx, user, func(q *dbq.Queries) error {
-				return q.InsertChunk(ctx, dbq.InsertChunkParams{UserID: user, BlobID: id, Idx: idx, Data: chunk})
+				return q.InsertChunk(ctx, dbq.InsertChunkParams{UserID: user, BlobID: blobID, Idx: idx, Data: chunk})
 			}); err != nil {
-				s.abort(user, id, declared)
+				s.abort(user, blobID, declared)
 				return Attachment{}, err
 			}
 		}
@@ -183,12 +193,12 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 			break
 		}
 		if rerr != nil {
-			s.abort(user, id, declared)
+			s.abort(user, blobID, declared)
 			return Attachment{}, rerr
 		}
 	}
 	if total != declared {
-		s.abort(user, id, declared)
+		s.abort(user, blobID, declared)
 		return Attachment{}, ErrLength
 	}
 
@@ -196,15 +206,15 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 	digest := sum.Sum(nil)
 	var out Attachment
 	err = s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
-		blob := id
+		blob := blobID
 		stored := declared
-		if dup, err := tx.Q.FindDuplicateBlob(ctx, dbq.FindDuplicateBlobParams{UserID: user, Sha256: digest, SizeBytes: declared, ID: id}); err == nil {
-			if _, err := tx.Q.DeleteBlob(ctx, dbq.DeleteBlobParams{ID: id, UserID: user}); err != nil { // its chunks cascade
+		if dup, err := tx.Q.FindDuplicateBlob(ctx, dbq.FindDuplicateBlobParams{UserID: user, Sha256: digest, SizeBytes: declared, ID: blobID}); err == nil {
+			if _, err := tx.Q.DeleteBlob(ctx, dbq.DeleteBlobParams{ID: blobID, UserID: user}); err != nil { // its chunks cascade
 				return err
 			}
 			blob, stored = dup, 0
 		} else if errors.Is(err, pgx.ErrNoRows) {
-			if err := tx.Q.CompleteBlob(ctx, dbq.CompleteBlobParams{ID: id, UserID: user, SizeBytes: declared, Sha256: digest}); err != nil {
+			if err := tx.Q.CompleteBlob(ctx, dbq.CompleteBlobParams{ID: blobID, UserID: user, SizeBytes: declared, Sha256: digest}); err != nil {
 				return err
 			}
 		} else {
@@ -221,7 +231,7 @@ func (s *Service) Upload(ctx context.Context, user, id uuid.UUID, filename, medi
 		return nil
 	})
 	if err != nil {
-		s.abort(user, id, declared)
+		s.abort(user, blobID, declared)
 		return Attachment{}, err
 	}
 	return out, nil

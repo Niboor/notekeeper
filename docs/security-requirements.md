@@ -93,14 +93,14 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-ISO-1 | Must | fully tested | Any actor performing an action outside the access matrix (§3). Authorisation tests are generated from the OpenAPI description: every endpoint × every actor, asserting the expected result. New endpoints without a declared actor set fail CI. | AUTH-U1, NFR-S3 |
-| SEC-ISO-2 | Must | implemented | Reading, modifying, listing, counting or enumerating another user's notes, pages, categories, attachments, history, reminders, share links, sessions or links, through **any** path: REST, realtime channel, change feed, search (results, snippets, counts), export, error messages. | AUTH-U1, NFR-S3 |
-| SEC-ISO-3 | Must | implemented | Telling whether an ID belongs to another user: foreign IDs and non-existent IDs yield identical responses (same status, body and timing class). | — |
-| SEC-ISO-4 | Must | implemented | Referencing another user's objects in a request of one's own (moving a note into a foreign category, attaching a foreign attachment, pointing a reminder at a foreign note). Every relation is validated against the same owner. | — |
+| SEC-ISO-2 | Must | fully tested | Reading, modifying, listing, counting or enumerating another user's notes, pages, categories, attachments, history, reminders, share links, sessions or links, through **any** path: REST, realtime channel, change feed, search (results, snippets, counts), export, error messages. | AUTH-U1, NFR-S3 |
+| SEC-ISO-3 | Must | fully tested | Telling whether an ID belongs to another user: foreign IDs and non-existent IDs yield identical responses (same status, body and timing class). | — |
+| SEC-ISO-4 | Must | fully tested | Referencing another user's objects in a request of one's own (moving a note into a foreign category, attaching a foreign attachment, pointing a reminder at a foreign note). Every relation is validated against the same owner. | — |
 | SEC-ISO-5 | Must | fully tested | Subscribing to another user's realtime stream or change-feed cursor, or receiving events after revocation: streams are authenticated at connect and re-validated when the token expires or is revoked. | CORE-S1, CORE-S3 |
 | SEC-ISO-6 | Must | implemented | Setting server-controlled fields from a client request (owner, admin flag, state, version, timestamps, source reference, storage backend, quota): mass assignment. | — |
 | SEC-ISO-7 | Must | implemented | Obtaining admin capability by any means other than being the bootstrapped admin: the role is never derived from data a user can influence. | AUTH-U7 |
 | SEC-ISO-8 | Must | unimplemented | Using an idempotency key to replay or read another user's cached response; keys are scoped per user (and per bot instance). | CORE-S5 |
-| SEC-ISO-9 | Must | unimplemented | Proving that another user holds a given file: content-hash deduplication is strictly per user, and a client can never obtain a blob by claiming its hash without providing the content. | CORE-A5 |
+| SEC-ISO-9 | Must | fully tested | Proving that another user holds a given file: content-hash deduplication is strictly per user, and a client can never obtain a blob by claiming its hash without providing the content. | CORE-A5 |
 | SEC-ISO-10 | Should | fully tested | Bypassing tenant filters through an application bug: PostgreSQL row-level security (or equivalent) acts as a second, independent barrier. | NFR-S3 |
 
 ### 4.3 Admin boundary (SEC-ADM)
@@ -152,10 +152,10 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 |---|---|---|---|---|
 | SEC-CNT-1 | Must | unimplemented | Stored XSS: note text, filenames, page/category/user names, HTML from chat (`formatted_body`), link text and error messages must never execute script in the web app or the public share page. Markdown is rendered with raw HTML disabled, and other HTML is sanitised through an allowlist. | WEB-N5 |
 | SEC-CNT-2 | Must | unimplemented | Dangerous URL schemes in notes: links with `javascript:`, `data:` or `vbscript:` are never rendered as active links (allowlist: `http`, `https`, `mailto`, `tel`). | WEB-N5 |
-| SEC-CNT-3 | Must | unimplemented | An uploaded file executing in the browser: HTML, SVG, JS and unknown types are served as downloads (`Content-Disposition: attachment`, `application/octet-stream`); `X-Content-Type-Options: nosniff` and a restrictive `Content-Security-Policy` (`sandbox`) on every attachment response; images render only via `<img>`, never inline SVG. | WEB-N5 |
-| SEC-CNT-4 | Must | unimplemented | Filename tricks: header injection (CR/LF), path traversal, or use of a filename as a storage path. Filenames are metadata only, sanitised whenever placed in a header. | CORE-A4 |
-| SEC-CNT-5 | Must | unimplemented | Untrusted media being parsed, decoded or transcoded by Notekeeper's own components (thumbnailers, image or PDF libraries): attachments are stored and served byte for byte, so no media parser is reachable from user uploads. Any future feature that processes media must be designed as its own sandboxed component first. | CORE-A4 |
-| SEC-CNT-6 | Must | unimplemented | Exceeding size limits or quota through concurrent or split uploads: quota checks are atomic with the write. | CORE-A3 |
+| SEC-CNT-3 | Must | fully tested | An uploaded file executing in the browser: HTML, SVG, JS and unknown types are served as downloads (`Content-Disposition: attachment`, `application/octet-stream`); `X-Content-Type-Options: nosniff` and a restrictive `Content-Security-Policy` (`sandbox`) on every attachment response; images render only via `<img>`, never inline SVG. | WEB-N5 |
+| SEC-CNT-4 | Must | fully tested | Filename tricks: header injection (CR/LF), path traversal, or use of a filename as a storage path. Filenames are metadata only, sanitised whenever placed in a header. | CORE-A4 |
+| SEC-CNT-5 | Must | implemented | Untrusted media being parsed, decoded or transcoded by Notekeeper's own components (thumbnailers, image or PDF libraries): attachments are stored and served byte for byte, so no media parser is reachable from user uploads. Any future feature that processes media must be designed as its own sandboxed component first. | CORE-A4 |
+| SEC-CNT-6 | Must | fully tested | Exceeding size limits or quota through concurrent or split uploads: quota checks are atomic with the write. | CORE-A3 |
 | SEC-CNT-7 | Must | unimplemented | Reminder or delivery text pinging people or triggering bot behaviour: note text is sent as inert content (no `@room`/mentions, formatted text escaped, no leading command prefix acted on). | CORE-R6 |
 | SEC-CNT-8 | Must | unimplemented | Core or a bot fetching arbitrary URLs supplied by users or chat content (SSRF). Bots fetch media only from the configured homeserver via `mxc://` URIs. Any future link-preview feature must use a separate, network-restricted fetcher. | MX-3 |
 | SEC-CNT-9 | Should | unimplemented | Malware in attachments going unnoticed: optional antivirus scanning hook for uploads and share-link downloads. | — |
@@ -164,13 +164,13 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-API-1 | Must | unimplemented | SQL injection: all queries are parameterised; full-text search input is treated as data and cannot express expensive or unsafe query constructs. | CORE-N13 |
+| SEC-API-1 | Must | fully tested | SQL injection: all queries are parameterised; full-text search input is treated as data and cannot express expensive or unsafe query constructs. | CORE-N13 |
 | SEC-API-2 | Must | fully tested | Reaching a non-public endpoint without authentication: default-deny, with every route declaring its actors explicitly. | SEC-ISO-1 |
-| SEC-API-3 | Must | unimplemented | Unbounded input: request size, JSON depth, note length, parts per note, pages/categories/notes per user, page sizes and search complexity are all capped. | NFR-S4 |
+| SEC-API-3 | Must | implemented | Unbounded input: request size, JSON depth, note length, parts per note, pages/categories/notes per user, page sizes and search complexity are all capped. | NFR-S4 |
 | SEC-API-4 | Must | unimplemented | One user or client degrading the service for others: per-user and per-IP rate limits, capped concurrent realtime connections and uploads, database statement timeouts, slow-client timeouts. | NFR-S4 |
 | SEC-API-5 | Must | implemented | Internal details in responses: stack traces, SQL, hostnames, library versions. Errors are generic externally and detailed only in logs. | NFR-API3 |
 | SEC-API-6 | Must | unimplemented | Cross-origin access from foreign sites: CORS allows only the web app's own origin, never a wildcard together with credentials; framing of the app is denied (`frame-ancestors 'none'`). | — |
-| SEC-API-7 | Must | implemented | Race conditions breaking invariants: single-use pairing/activation codes, the one-admin rule, storage quota and note version checks are enforced atomically in the database. | AUTH-U7, CORE-A3 |
+| SEC-API-7 | Must | fully tested | Race conditions breaking invariants: single-use pairing/activation codes, the one-admin rule, storage quota and note version checks are enforced atomically in the database. | AUTH-U7, CORE-A3 |
 | SEC-API-8 | Must | unimplemented | Web pages missing baseline security headers: HSTS, `X-Content-Type-Options`, a strict Content-Security-Policy without `unsafe-inline` scripts, `Referrer-Policy`. | WEB-N5 |
 
 ### 4.8 Data protection and privacy (SEC-DATA)
@@ -181,8 +181,8 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-DATA-2 | Must | implemented | Secrets stored recoverably where hashing suffices: passwords (argon2id), activation, pairing, refresh and share tokens, and bot secrets are stored only as hashes. Secrets that must be recoverable (Matrix device keys, bot account credentials) are encrypted at rest with a key from a Kubernetes Secret. | AUTH-C1, MX-N1 |
 | SEC-DATA-3 | Must | unimplemented | Client-to-Core traffic over plain HTTP. | NFR-S1 |
 | SEC-DATA-4 | Should | unimplemented | Component-to-component and database traffic inside the cluster over unencrypted connections, where the cluster's network cannot be assumed trusted (TLS to PostgreSQL at least). | NFR-S2 |
-| SEC-DATA-5 | Must | unimplemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
-| SEC-DATA-6 | Must | implemented | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
+| SEC-DATA-5 | Must | implemented | Data surviving deletion: after deleting a note, attachment or user, blobs, search-index entries, history, caches and queued deliveries are gone (verified by tests). | AUTH-U9, CORE-N10 |
+| SEC-DATA-6 | Must | fully tested | Authenticated responses being stored by shared caches or proxies (`Cache-Control: private, no-store` on API responses; `private, no-cache` with an `ETag` on attachments, so clients can revalidate but shared caches never store them; the ingress example does not cache). | — |
 | SEC-DATA-7 | Should | unimplemented | Backups being readable by unintended parties: backups are encrypted and access-controlled, with documented retention (which bounds how long deleted data persists). | NFR-R4, AUTH-U9 |
 | SEC-DATA-8 | Must | unimplemented | A data export containing anything but the requesting user's own data. | AUTH-U5 |
 

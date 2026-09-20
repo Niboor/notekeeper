@@ -56,6 +56,7 @@ func TestNoticesAndEmptyMessagesAreIgnored(t *testing.T) {
 	}
 }
 
+// Chat text is a command only at the very start and only with a known name (SEC-BOT-12, MX-8).
 func TestCommands(t *testing.T) {
 	cases := []struct {
 		body, name, args string

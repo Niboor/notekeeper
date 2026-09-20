@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -488,5 +489,41 @@ func TestBotInstancesAreScopedToTheirOwnLinks(t *testing.T) {
 	c.do("GET", "/api/v1/inbox/notes", nil).JSON(t, &page)
 	if len(page.Items) != 1 {
 		t.Fatalf("notes: %d", len(page.Items))
+	}
+}
+
+// A pairing code redeemed by many chats at the same moment links exactly one of them (SEC-BOT-4, SEC-API-7).
+func TestPairingCodeIsSingleUseUnderRace(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	alice := s.makeUser("alice", false)
+	key := s.makeBot("m", "example.org")
+	insts, _ := s.svc.Bots.ListInstances(ctx)
+	pc, err := s.svc.Bots.CreatePairingCode(ctx, alice, "", &insts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	var linked atomic.Int32
+	for i := range 12 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var r struct {
+				Ok bool `json:"ok"`
+			}
+			s.botDo(key, "POST", "/bot/v1/commands", map[string]any{"command": "link", "args": pc.Code,
+				"sender": fmt.Sprintf("@user%d:example.org", i), "conversation": "!r"}).JSON(t, &r)
+			if r.Ok {
+				linked.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if linked.Load() != 1 {
+		t.Fatalf("%d chats linked with one code", linked.Load())
+	}
+	if n := s.count(`select count(*) from external_identities`); n != 1 {
+		t.Fatalf("%d identities exist", n)
 	}
 }

@@ -48,6 +48,7 @@ type Blob struct {
 	Complete      bool
 	ReservedBytes int64
 	CreatedAt     time.Time
+	UploadID      uuid.NullUUID
 }
 
 type BlobChunk struct {

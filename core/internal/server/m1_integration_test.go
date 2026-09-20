@@ -312,7 +312,7 @@ func TestChatToInbox(t *testing.T) {
 		t.Fatalf("replay created a second note: %d", len(page.Items))
 	}
 
-	// An event dated before linking is ignored (MX-10); one from the far future is clamped (CORE-N18).
+	// An event dated before linking is ignored (MX-10); one from the far future is clamped (CORE-N18, SEC-BOT-9).
 	old := ev("$old", "@alice:example.org", "ancient")
 	old["timestamp"] = time.Now().Add(-48 * time.Hour).UTC().Format(time.RFC3339Nano)
 	s.botDo(key, "POST", "/bot/v1/events", old).JSON(t, &out)
@@ -330,7 +330,7 @@ func TestChatToInbox(t *testing.T) {
 		t.Fatalf("created_at not clamped: %v %v", created, err)
 	}
 
-	// Unlinking from the app stops ingestion at once (SEC-BOT-7) and queues a lifecycle item (BOT-16).
+	// Unlinking from the app stops ingestion at once (AUTH-B5, SEC-BOT-7) and queues a lifecycle item (BOT-16).
 	var ids struct{ Items []struct{ ID string } }
 	c.do("GET", "/api/v1/me/identities", nil).JSON(t, &ids)
 	if len(ids.Items) != 1 {
@@ -350,6 +350,7 @@ func TestChatToInbox(t *testing.T) {
 	}
 }
 
+// Bot credentials are per instance, rotatable and disabled at once (AUTH-B1, SEC-BOT-2, SEC-BOT-8).
 func TestBotAPIRejectsOtherCredentials(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("alice", false)

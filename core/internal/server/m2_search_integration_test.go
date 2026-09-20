@@ -38,6 +38,7 @@ func (r searchJSON) texts() string {
 	return strings.Join(out, " | ")
 }
 
+// Global full-text search (CORE-N13, WEB-14).
 func TestSearchFindsWordsPrefixesAccentsAndStems(t *testing.T) {
 	s := newStack(t)
 	u := s.appUser("alice")
@@ -66,7 +67,7 @@ func TestSearchFindsWordsPrefixesAccentsAndStems(t *testing.T) {
 	}
 	// Matches are marked with private-use characters, never with markup.
 	snip := u.search("concert").Items[0].Snippet
-	if !strings.Contains(snip, "Concert") || strings.ContainsAny(snip, "<>") {
+	if !strings.Contains(snip, "\uE000Concert\uE001") || strings.ContainsAny(snip, "<>") {
 		t.Errorf("snippet %q", snip)
 	}
 	// Nothing matches an empty or symbol-only query, and that is not an error.

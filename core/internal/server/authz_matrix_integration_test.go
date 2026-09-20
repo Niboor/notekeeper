@@ -31,6 +31,8 @@ type actor struct {
 
 func denied(r response) bool { return r.Status == 401 || r.Status == 403 }
 
+// Admin routes are unreachable for users and bots (SEC-ADM-4) and every route is default-deny with
+// its callers declared (SEC-API-2, SEC-ISO-1).
 func TestUserAPIAuthorisationMatrix(t *testing.T) {
 	s := newStack(t)
 	s.makeUser("root", true)
@@ -165,7 +167,7 @@ var _ = fmt.Sprintf
 // nobody can tell them apart. Bodies are valid, so the lookup is what decides the outcome.
 func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 	s := newStack(t)
-	victim, attacker := s.appUser("victim"), s.appUser("attacker")
+	victim, attacker, prober := s.appUser("victim"), s.appUser("attacker"), s.appUser("prober")
 	page := victim.page("P")
 	cat := victim.category(page, "C")
 	note := victim.note(cat, "secret", nil)
@@ -178,9 +180,12 @@ func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 	s.botDo(key, "POST", "/bot/v1/commands", map[string]any{"command": "link", "args": pc.Code, "sender": "@victim:example.org", "conversation": "!r"})
 	var idents struct{ Items []struct{ ID string } }
 	victim.get("/api/v1/me/identities", &idents)
+	attachment := uuid.NewString()
+	victim.upload(attachment, "secret.pdf", "application/pdf", []byte("%PDF-1.4 secret"))
+	victim.attachNote(attachment)
 
 	// Which kind of object each path parameter names, by the collection it follows.
-	real := map[string]string{"notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID}
+	real := map[string]string{"attachments": attachment, "notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID}
 	bodies := map[string]any{
 		"updatePage": map[string]any{"name": "x"}, "updateCategory": map[string]any{"name": "x"},
 		"moveNote": map[string]any{"category_id": nil}, "addNotePart": map[string]any{"type": "text", "text": "x"},
@@ -213,6 +218,18 @@ func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 				}
 				realPath = strings.Replace(realPath, seg, id, 1)
 				missingPath = strings.Replace(missingPath, seg, uuid.NewString(), 1)
+			}
+			if strings.EqualFold(op.OperationID, "uploadAttachment") {
+				// A foreign id is just a new id: the upload creates the caller's own attachment, exactly as
+				// for an unused id (ids are unique per user). Nothing of the victim's file is touched.
+				// (A third user does it, so the attacker's later GET probes still meet an id that is not theirs.)
+				res := prober.upload(strings.TrimPrefix(realPath, "/api/v1/attachments/"), "mine.bin", "application/octet-stream", []byte("x"))
+				other := prober.upload(uuid.NewString(), "mine.bin", "application/octet-stream", []byte("x"))
+				probes++
+				if res.Status != other.Status {
+					t.Errorf("%s %s: a foreign id answers %d but an unused one %d", method, path, res.Status, other.Status)
+				}
+				continue
 			}
 			body := bodies[strings.ToLower(op.OperationID[:1])+op.OperationID[1:]]
 			if body == nil && (method == "POST" || method == "PATCH") {
