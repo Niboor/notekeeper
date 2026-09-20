@@ -125,7 +125,6 @@ func (h *Hub) Shutdown() {
 	}
 }
 
-
 // WaitOutbox returns a channel that receives when an outbox item for the bot instance is queued,
 // and a function to stop waiting. It backs the bot's long poll; a periodic re-check covers a
 // missed notification.

@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-
 	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/notes"
