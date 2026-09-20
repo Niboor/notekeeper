@@ -69,7 +69,7 @@ spec:
           labels: {severity: warning}
           annotations: {summary: "Background jobs are failing"}
         - alert: NotekeeperDatabasePoolSaturated
-          expr: max(nk_db_pool_connections) >= max(nk_db_pool_max_connections)
+          expr: max(nk_db_pool_connections - nk_db_pool_idle_connections) >= max(nk_db_pool_max_connections)
           for: 10m
           labels: {severity: warning}
-          annotations: {summary: "The database connection pool is full"}
+          annotations: {summary: "Every connection of the database pool is in use, so requests wait for one"}
