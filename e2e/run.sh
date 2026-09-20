@@ -45,7 +45,7 @@ export NK_APP_URL="$SCHEME://localhost:$WEB"
 # so the app's cookies do not exist there (CORE-SH8, SEC-SHR-5).
 export NK_SHARE_URL="$SCHEME://share.localhost:$WEB"
 export NK_USER_ADDR=":$CORE_USER" NK_BOT_ADDR=":$CORE_BOT" NK_PUBLIC_ADDR=":$CORE_PUBLIC" NK_OPS_ADDR=":$CORE_OPS"
-export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL=warn
+export NK_ARGON2_MEMORY_KIB=8192 NK_LOG_LEVEL="${NK_LOG_LEVEL:-warn}"
 # One browser hammers the API from one address, much faster than a person does: raise the limits, do not disable them.
 export NK_RATE_IP_PER_MIN=60000 NK_RATE_USER_PER_MIN=30000
 
@@ -70,4 +70,12 @@ for _ in $(seq 1 60); do curl -fsk "$SCHEME://localhost:$WEB/" >/dev/null && bre
 
 cd e2e
 if [ -n "${E2E_HOLD:-}" ]; then echo "stack is up on $E2E_BASE_URL (admin alice, activate at $E2E_BASE_URL/activate#$E2E_ACTIVATION_TOKEN); Ctrl-C to stop"; sleep "${E2E_HOLD}"; exit 0; fi
-npx playwright test "$@"
+if [ -n "${E2E_PLAYWRIGHT_IMAGE:-}" ]; then
+  # The browsers run in Playwright's own image, which has every system library (WebKit needs some that a
+  # workstation may lack). It shares the host's network, so it reaches the stack on localhost.
+  docker run --rm --network host --ipc=host -u "$(id -u):$(id -g)" -e HOME=/tmp \
+    -e E2E_ACTIVATION_TOKEN -e E2E_BOT_KEY -e E2E_BOT_URL -e E2E_BASE_URL -e E2E_BROWSERS \
+    -v "$ROOT/e2e:/work" -w /work "$E2E_PLAYWRIGHT_IMAGE" npx playwright test "$@"
+else
+  npx playwright test "$@"
+fi
