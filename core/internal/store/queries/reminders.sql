@@ -49,11 +49,15 @@ returning id, user_id;
 -- name: GetDueReminder :one
 select * from reminders where id = $1 and user_id = $2 and state = 'pending' and due_at <= $3;
 
--- name: MarkReminderFired :exec
-update reminders set state = 'fired', last_fired_at = $2, claimed_until = null, version = version + 1 where id = $1;
+-- name: MarkReminderFired :one
+update reminders set state = 'fired', last_fired_at = $2, claimed_until = null, version = version + 1 where id = $1 returning *;
 
--- name: AdvanceReminder :exec
-update reminders set due_at = $2, last_fired_at = $3, claimed_until = null, version = version + 1 where id = $1;
+-- name: AdvanceReminder :one
+update reminders set due_at = $2, last_fired_at = $3, claimed_until = null, version = version + 1 where id = $1 returning *;
+
+-- A reminder whose firing keeps failing is set aside for a while so it cannot starve the ones behind it (CR-020).
+-- name: DeferReminder :exec
+update reminders set claimed_until = @until::timestamptz where id = @id;
 
 -- name: SuspendNoteReminders :many
 update reminders set state = 'suspended', claimed_until = null, version = version + 1

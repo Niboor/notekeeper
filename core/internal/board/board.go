@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -494,6 +496,9 @@ func cleanName(name string) (string, error) {
 	n := []rune(trim(name))
 	if len(n) == 0 || len(n) > 100 {
 		return "", invalid("name must be 1 to 100 characters")
+	}
+	if !utf8.ValidString(name) || strings.ContainsRune(name, 0) {
+		return "", invalid("name contains invalid characters")
 	}
 	return string(n), nil
 }

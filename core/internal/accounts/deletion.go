@@ -16,7 +16,11 @@ import (
 // ErrProtected is returned when the account may not be deleted (the admin's).
 var ErrProtected = errors.New("the admin account cannot be deleted")
 
-const chunkBatch = 200
+const (
+	chunkBatch = 200  // attachment chunks per transaction
+	noteBatch  = 200  // notes per transaction (each takes its parts, history and reminders)
+	rowBatch   = 5000 // change-feed and ingest rows per transaction
+)
 
 // RequestDeletion starts the complete deletion of an account (AUTH-U4, AUTH-U9). From this moment the
 // account cannot sign in, ingest, fire reminders or serve share links, because all of those check the
@@ -104,11 +108,37 @@ func (s *Service) ProcessDeletions(ctx context.Context) (int, error) {
 				break
 			}
 		}
-		// The user's context is set even now: the cascade removes note parts, and the search index trigger
+		// Notes (with their parts, history, reminders and search rows), then the change feed and the
+		// ingest records, each in bounded batches; only then the files and the account row, which takes
+		// what is left (sessions, tokens, identities, share links, notifications, outbox items) with it.
+		// The user's context is set even now: deleting parts fires the search index trigger, which
 		// insists on knowing whose parts they are (migration 0005).
+		for _, step := range []struct {
+			name string
+			run  func(q *dbq.Queries) (int64, error)
+		}{
+			{"notes", func(q *dbq.Queries) (int64, error) {
+				return q.DeleteUserNotesBatch(ctx, dbq.DeleteUserNotesBatchParams{UserID: id, MaxRows: noteBatch})
+			}},
+			{"change feed", func(q *dbq.Queries) (int64, error) {
+				return q.DeleteUserChangesBatch(ctx, dbq.DeleteUserChangesBatchParams{UserID: id, MaxRows: rowBatch})
+			}},
+			{"ingest records", func(q *dbq.Queries) (int64, error) {
+				return q.DeleteUserIngestEventsBatch(ctx, dbq.DeleteUserIngestEventsBatchParams{UserID: id, MaxRows: rowBatch})
+			}},
+		} {
+			for {
+				var n int64
+				if err := s.St.InUserScoped(ctx, id, func(q *dbq.Queries) (err error) { n, err = step.run(q); return err }); err != nil {
+					return done, fmt.Errorf("delete %s: %w", step.name, err)
+				}
+				if n == 0 {
+					break
+				}
+			}
+		}
 		err := s.St.InUserScoped(ctx, id, func(q *dbq.Queries) error {
-			// Parts, then the files they used, then the rest: a file cannot go while a part points at it.
-			if _, err := q.DeleteUserNoteParts(ctx, id); err != nil {
+			if _, err := q.DeleteUserNoteParts(ctx, id); err != nil { // none left, unless a note came in meanwhile
 				return err
 			}
 			if _, err := q.DeleteUserAttachments(ctx, id); err != nil {

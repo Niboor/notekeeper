@@ -10,7 +10,8 @@ import (
 func (s *stack) noticeTexts() []string {
 	var out []string
 	for _, it := range s.outboxItems("notice") {
-		out = append(out, it["text"].(string))
+		text, _ := it["text"].(string) // an item that was cancelled or delivered has no text any more (CR-021)
+		out = append(out, text)
 	}
 	return out
 }

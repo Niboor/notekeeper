@@ -85,3 +85,16 @@ func badRequest(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func isErr(err, target error) bool { return errors.Is(err, target) }
+
+// clampParam keeps a numeric query parameter within 1..maximum, using def for anything below 1. The
+// generated handlers do not enforce the OpenAPI minimum and maximum, so every numeric parameter goes
+// through here (CR-038).
+func clampParam(v, def, maximum int) int {
+	switch {
+	case v < 1:
+		return def
+	case v > maximum:
+		return maximum
+	}
+	return v
+}

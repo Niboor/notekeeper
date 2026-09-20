@@ -60,6 +60,7 @@ missing here, or documented here but read by nothing.
 | `NK_SHARE_ENABLED` | `true` | `false` switches sharing off; existing links stop working (CORE-SH11) |
 | `NK_SHARE_MAX_LIFETIME` | `720h` (30 days) | The longest a share link may live (CORE-SH2) |
 | `NK_SHARE_MAX_ACTIVE` | `200` | Links one user may hold at once (SEC-SHR-11) |
+| `NK_SHARE_CREATED_PER_HOUR` | `30` | Links one user may create per hour (SEC-SHR-11) |
 | `NK_RATE_USER_PER_MIN` | `1800` | Requests per minute per signed-in user on the user API |
 | `NK_RATE_IP_PER_MIN` | `3000` | Requests per minute per client address on the user API |
 | `NK_RATE_BOT_PER_MIN` | `6000` | Requests per minute per bot instance |

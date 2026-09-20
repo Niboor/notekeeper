@@ -191,14 +191,17 @@ func uuidPtr(id *uuid.UUID) uuid.NullUUID {
 }
 
 // InUserRead runs fn in a read-only transaction scoped to the user through row-level security.
-// It takes no lock and records no changes, so reads never queue behind writers.
+// It takes no lock and records no changes, so reads never queue behind writers. The transaction is
+// REPEATABLE READ: every statement of one request sees the same snapshot, so a list and the rows,
+// counts or parts loaded for it always agree (CR-030). Read-only snapshot transactions cannot fail
+// with serialisation errors.
 func (s *Store) InUserRead(ctx context.Context, userID uuid.UUID, fn func(q *dbq.Queries) error) error {
 	return s.InUserReadTx(ctx, userID, func(_ pgx.Tx, q *dbq.Queries) error { return fn(q) })
 }
 
 // InUserReadTx is InUserRead for callers that also need the raw transaction (dynamic queries).
 func (s *Store) InUserReadTx(ctx context.Context, userID uuid.UUID, fn func(tx pgx.Tx, q *dbq.Queries) error) error {
-	pgtx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	pgtx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return err
 	}

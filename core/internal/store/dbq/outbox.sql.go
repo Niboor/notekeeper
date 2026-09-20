@@ -12,6 +12,74 @@ import (
 	"github.com/google/uuid"
 )
 
+const cancelOutboxForConversation = `-- name: CancelOutboxForConversation :execrows
+update bot_outbox set state = 'expired', finished_at = $1::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where user_id = $2 and bot_instance_id = $3 and conversation_id = $4
+  and kind = any($5::text[]) and state in ('queued', 'claimed')
+`
+
+type CancelOutboxForConversationParams struct {
+	Now          time.Time
+	UserID       uuid.NullUUID
+	Instance     uuid.UUID
+	Conversation string
+	Kinds        []string
+}
+
+// Text and file names of a message are kept only while it is waiting to be sent (CR-021).
+func (q *Queries) CancelOutboxForConversation(ctx context.Context, arg CancelOutboxForConversationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOutboxForConversation,
+		arg.Now,
+		arg.UserID,
+		arg.Instance,
+		arg.Conversation,
+		arg.Kinds,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const cancelOutboxForNote = `-- name: CancelOutboxForNote :execrows
+update bot_outbox b set state = 'expired', finished_at = $1::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where b.user_id = $2 and b.state in ('queued', 'claimed')
+  and b.reminder_id in (select r.id from reminders r where r.user_id = $2 and r.note_id = $3)
+`
+
+type CancelOutboxForNoteParams struct {
+	Now    time.Time
+	UserID uuid.NullUUID
+	NoteID uuid.UUID
+}
+
+func (q *Queries) CancelOutboxForNote(ctx context.Context, arg CancelOutboxForNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOutboxForNote, arg.Now, arg.UserID, arg.NoteID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const cancelOutboxForReminder = `-- name: CancelOutboxForReminder :execrows
+update bot_outbox set state = 'expired', finished_at = $1::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where user_id = $2 and reminder_id = $3 and state in ('queued', 'claimed')
+`
+
+type CancelOutboxForReminderParams struct {
+	Now        time.Time
+	UserID     uuid.NullUUID
+	ReminderID uuid.NullUUID
+}
+
+func (q *Queries) CancelOutboxForReminder(ctx context.Context, arg CancelOutboxForReminderParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOutboxForReminder, arg.Now, arg.UserID, arg.ReminderID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimOutbox = `-- name: ClaimOutbox :many
 update bot_outbox set state = 'claimed', lease_expires_at = $1::timestamptz
 where id in (
@@ -77,7 +145,7 @@ func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]Bot
 }
 
 const expireOutboxItem = `-- name: ExpireOutboxItem :execrows
-update bot_outbox set state = 'expired', finished_at = $2, lease_expires_at = null, failure_reason = 'expired'
+update bot_outbox set state = 'expired', finished_at = $2, lease_expires_at = null, failure_reason = 'expired', payload = '{}'::jsonb
 where id = $1 and state in ('queued', 'claimed')
 `
 
@@ -95,7 +163,7 @@ func (q *Queries) ExpireOutboxItem(ctx context.Context, arg ExpireOutboxItemPara
 }
 
 const failOutbox = `-- name: FailOutbox :execrows
-update bot_outbox set state = 'failed', finished_at = $3, lease_expires_at = null, failure_reason = $4
+update bot_outbox set state = 'failed', finished_at = $3, lease_expires_at = null, failure_reason = $4, payload = '{}'::jsonb
 where id = $1 and bot_instance_id = $2 and state = 'claimed'
 `
 
@@ -196,7 +264,7 @@ func (q *Queries) InsertOutboxMessage(ctx context.Context, arg InsertOutboxMessa
 }
 
 const markOutboxDelivered = `-- name: MarkOutboxDelivered :execrows
-update bot_outbox set state = 'delivered', finished_at = $3, lease_expires_at = null
+update bot_outbox set state = 'delivered', finished_at = $3, lease_expires_at = null, payload = '{}'::jsonb
 where id = $1 and bot_instance_id = $2 and state = 'claimed'
 `
 
@@ -242,6 +310,19 @@ func (q *Queries) OutboxDepth(ctx context.Context) ([]OutboxDepthRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const purgeOutbox = `-- name: PurgeOutbox :execrows
+delete from bot_outbox where id in (
+  select o.id from bot_outbox o where o.state in ('delivered', 'failed', 'expired') and o.finished_at < $1 limit 5000)
+`
+
+func (q *Queries) PurgeOutbox(ctx context.Context, finishedAt *time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeOutbox, finishedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const requeueOutbox = `-- name: RequeueOutbox :execrows

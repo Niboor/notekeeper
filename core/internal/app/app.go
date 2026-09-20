@@ -63,6 +63,6 @@ func NewServices(cfg config.Config, st *store.Store, log *slog.Logger) (*Service
 		Outbox:    outbox.New(st),
 		Reminders: rem,
 		Export:    export.New(st, bl),
-		Shares:    shares.New(st, n, bl, shares.Config{Enabled: cfg.ShareEnabled, MaxLifetime: cfg.ShareMaxLifetime, MaxActive: cfg.ShareMaxActive}),
+		Shares:    shares.New(st, n, bl, shares.Config{Enabled: cfg.ShareEnabled, MaxLifetime: cfg.ShareMaxLifetime, MaxActive: cfg.ShareMaxActive, CreatedPerHour: cfg.ShareCreatedPerHour}),
 	}, nil
 }

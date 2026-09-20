@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-const advanceReminder = `-- name: AdvanceReminder :exec
-update reminders set due_at = $2, last_fired_at = $3, claimed_until = null, version = version + 1 where id = $1
+const advanceReminder = `-- name: AdvanceReminder :one
+update reminders set due_at = $2, last_fired_at = $3, claimed_until = null, version = version + 1 where id = $1 returning id, user_id, note_id, due_at, rrule, tz, state, last_fired_at, claimed_until, created_at, version
 `
 
 type AdvanceReminderParams struct {
@@ -22,9 +22,23 @@ type AdvanceReminderParams struct {
 	LastFiredAt *time.Time
 }
 
-func (q *Queries) AdvanceReminder(ctx context.Context, arg AdvanceReminderParams) error {
-	_, err := q.db.Exec(ctx, advanceReminder, arg.ID, arg.DueAt, arg.LastFiredAt)
-	return err
+func (q *Queries) AdvanceReminder(ctx context.Context, arg AdvanceReminderParams) (Reminder, error) {
+	row := q.db.QueryRow(ctx, advanceReminder, arg.ID, arg.DueAt, arg.LastFiredAt)
+	var i Reminder
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.NoteID,
+		&i.DueAt,
+		&i.Rrule,
+		&i.Tz,
+		&i.State,
+		&i.LastFiredAt,
+		&i.ClaimedUntil,
+		&i.CreatedAt,
+		&i.Version,
+	)
+	return i, err
 }
 
 const claimDueReminders = `-- name: ClaimDueReminders :many
@@ -105,6 +119,21 @@ func (q *Queries) CountUserReminders(ctx context.Context, userID uuid.UUID) (int
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deferReminder = `-- name: DeferReminder :exec
+update reminders set claimed_until = $1::timestamptz where id = $2
+`
+
+type DeferReminderParams struct {
+	Until time.Time
+	ID    uuid.UUID
+}
+
+// A reminder whose firing keeps failing is set aside for a while so it cannot starve the ones behind it (CR-020).
+func (q *Queries) DeferReminder(ctx context.Context, arg DeferReminderParams) error {
+	_, err := q.db.Exec(ctx, deferReminder, arg.Until, arg.ID)
+	return err
 }
 
 const deleteReminder = `-- name: DeleteReminder :one
@@ -440,8 +469,8 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 	return items, nil
 }
 
-const markReminderFired = `-- name: MarkReminderFired :exec
-update reminders set state = 'fired', last_fired_at = $2, claimed_until = null, version = version + 1 where id = $1
+const markReminderFired = `-- name: MarkReminderFired :one
+update reminders set state = 'fired', last_fired_at = $2, claimed_until = null, version = version + 1 where id = $1 returning id, user_id, note_id, due_at, rrule, tz, state, last_fired_at, claimed_until, created_at, version
 `
 
 type MarkReminderFiredParams struct {
@@ -449,9 +478,23 @@ type MarkReminderFiredParams struct {
 	LastFiredAt *time.Time
 }
 
-func (q *Queries) MarkReminderFired(ctx context.Context, arg MarkReminderFiredParams) error {
-	_, err := q.db.Exec(ctx, markReminderFired, arg.ID, arg.LastFiredAt)
-	return err
+func (q *Queries) MarkReminderFired(ctx context.Context, arg MarkReminderFiredParams) (Reminder, error) {
+	row := q.db.QueryRow(ctx, markReminderFired, arg.ID, arg.LastFiredAt)
+	var i Reminder
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.NoteID,
+		&i.DueAt,
+		&i.Rrule,
+		&i.Tz,
+		&i.State,
+		&i.LastFiredAt,
+		&i.ClaimedUntil,
+		&i.CreatedAt,
+		&i.Version,
+	)
+	return i, err
 }
 
 const noteAttachmentInfo = `-- name: NoteAttachmentInfo :many

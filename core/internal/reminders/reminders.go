@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -39,6 +40,8 @@ const (
 	LateAfter = 5 * time.Minute
 	// Lease is how long a claimed reminder is reserved for the firing transaction (docs/design/05 5.1).
 	Lease = 60 * time.Second
+	// FailureBackoff is how long a reminder whose firing failed is set aside before the next try.
+	FailureBackoff = 10 * time.Minute
 )
 
 // Config holds what the service needs to build messages.
@@ -181,6 +184,14 @@ func (s *Service) Update(ctx context.Context, user, id uuid.UUID, due *time.Time
 	return out, err
 }
 
+// cancelQueued drops the chat message of a reminder that has not been sent yet: a reminder the user
+// deleted or finished must not arrive afterwards (CR-012).
+func (s *Service) cancelQueued(ctx context.Context, tx *store.UserTx, id uuid.UUID) error {
+	_, err := tx.Q.CancelOutboxForReminder(ctx, dbq.CancelOutboxForReminderParams{Now: s.Now(), UserID: uuid.NullUUID{UUID: tx.UserID, Valid: true},
+		ReminderID: uuid.NullUUID{UUID: id, Valid: true}})
+	return err
+}
+
 // Delete clears a reminder; for a recurring one this ends it (CORE-R1, CORE-R10).
 func (s *Service) Delete(ctx context.Context, user, id uuid.UUID) error {
 	return s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
@@ -189,6 +200,9 @@ func (s *Service) Delete(ctx context.Context, user, id uuid.UUID) error {
 			return ErrNotFound
 		}
 		if err != nil {
+			return err
+		}
+		if err := s.cancelQueued(ctx, tx, id); err != nil {
 			return err
 		}
 		if err := tx.Change(ctx, "reminder", id, "delete", nil); err != nil {
@@ -243,6 +257,9 @@ func (s *Service) DoneIn(ctx context.Context, tx *store.UserTx, id uuid.UUID) (d
 		return dbq.Reminder{}, ErrNotFound
 	}
 	if err != nil {
+		return dbq.Reminder{}, err
+	}
+	if err := s.cancelQueued(ctx, tx, id); err != nil {
 		return dbq.Reminder{}, err
 	}
 	if cur.Rrule != nil && (cur.State == "pending" || cur.State == "fired") {
@@ -357,16 +374,25 @@ func (s *Service) FireDue(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	fired := 0
+	var errs []error
 	for _, c := range claimed {
 		ok, err := s.fireOne(ctx, c.UserID, c.ID)
 		if err != nil {
-			return fired, err
+			// The others are still fired. This one is set aside for a while instead of being claimed first
+			// in every cycle, and the failure is reported when the batch is done (CR-020).
+			errs = append(errs, fmt.Errorf("reminder %s: %w", c.ID, err))
+			if derr := s.St.InSchedulerTx(ctx, func(q *dbq.Queries) error {
+				return q.DeferReminder(ctx, dbq.DeferReminderParams{ID: c.ID, Until: now.Add(FailureBackoff)})
+			}); derr != nil {
+				errs = append(errs, derr)
+			}
+			continue
 		}
 		if ok {
 			fired++
 		}
 	}
-	return fired, nil
+	return fired, errors.Join(errs...)
 }
 
 // fireOne fires one claimed reminder in a transaction that first locks the owner and then re-reads
@@ -453,19 +479,21 @@ func (s *Service) fireOne(ctx context.Context, user, id uuid.UUID) (bool, error)
 		if r.Rrule != nil {
 			if rule, err := timeparse.ParseRule(*r.Rrule); err == nil {
 				if next := rule.Next(r.DueAt, now, loc); !next.IsZero() {
-					if err := tx.Q.AdvanceReminder(ctx, dbq.AdvanceReminderParams{ID: r.ID, DueAt: next, LastFiredAt: &now}); err != nil {
+					adv, err := tx.Q.AdvanceReminder(ctx, dbq.AdvanceReminderParams{ID: r.ID, DueAt: next, LastFiredAt: &now})
+					if err != nil {
 						return err
 					}
 					fired = true
-					return s.changed(ctx, tx, r)
+					return s.changed(ctx, tx, adv)
 				}
 			}
 		}
-		if err := tx.Q.MarkReminderFired(ctx, dbq.MarkReminderFiredParams{ID: r.ID, LastFiredAt: &now}); err != nil {
+		done, err := tx.Q.MarkReminderFired(ctx, dbq.MarkReminderFiredParams{ID: r.ID, LastFiredAt: &now})
+		if err != nil {
 			return err
 		}
 		fired = true
-		return s.changed(ctx, tx, r)
+		return s.changed(ctx, tx, done)
 	})
 	return fired, err
 }

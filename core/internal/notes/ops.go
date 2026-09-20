@@ -498,6 +498,10 @@ func (s *Service) DeletePermanently(ctx context.Context, user, id uuid.UUID) err
 		if err != nil {
 			return err
 		}
+		// A reminder of the note that is waiting to be sent to a chat carries its text; it goes with the note (CR-012).
+		if _, err := tx.Q.CancelOutboxForNote(ctx, dbq.CancelOutboxForNoteParams{Now: s.now(), UserID: uuid.NullUUID{UUID: user, Valid: true}, NoteID: id}); err != nil {
+			return err
+		}
 		if _, err := tx.Q.DeleteNote(ctx, dbq.DeleteNoteParams{ID: id, UserID: user}); err != nil { // parts cascade
 			return err
 		}

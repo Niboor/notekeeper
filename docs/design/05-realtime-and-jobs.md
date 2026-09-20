@@ -17,6 +17,8 @@ Each replica runs one **listener goroutine** on a dedicated `pgx.Conn`, outside 
 - **Events:** `event: change`, `id: <seq>`, `data: {"entity_type","entity_id","op","version"}`. The client applies or refetches by entity (see [07](07-web-app.md) §4).
 - **Catch-up:** a client connects with `Last-Event-ID` (the browser sends it on automatic reconnect). The server replays `changes` after that seq. If the id is older than retention it sends `event: resync` and the client refetches its views.
 - **Heartbeat:** a comment line every 25 seconds keeps proxies from closing the stream.
+- **Cap:** at most 10 streams per user **per Core replica**; with N replicas a user can hold up to 10N.
+- **Resync:** a client whose `Last-Event-ID` (or `cursor`) cannot be served from the change feed gets `event: resync` (HTTP 410 on the JSON endpoint): the oldest kept change is beyond it, nothing is kept although changes were made since, or it is ahead of the feed (a restored database) (CR-040).
 - **Expiry:** the stream is closed when its access token expires (15 minutes); `EventSource` reconnects automatically with the refreshed cookie, so this is invisible (SEC-ISO-5). It is closed immediately when `nk_sessions` announces the session's revocation, and on server shutdown after sending `event: reconnect`.
 - **Limits:** at most 10 concurrent streams per user (SEC-API-4).
 - Because the stream only carries change *notifications* for one user's own rows, subscribing to another user's data is structurally impossible (SEC-ISO-5).
@@ -102,7 +104,7 @@ where id in (
   select r.id from reminders r
   where r.state = 'pending' and r.due_at <= now()
     and (r.claimed_until is null or r.claimed_until < now())
-    and exists (select 1 from notes n where n.id = r.note_id and n.state = 'active')
+    and exists (select 1 from users u where u.id = r.user_id and u.status = 'active')
   order by r.due_at limit 100
   for update skip locked)
 returning id, user_id;
@@ -110,15 +112,19 @@ returning id, user_id;
 
 Two replicas can never claim the same reminder (CORE-R5). This transaction commits immediately. It runs through `Store.InSchedulerTx`, which sets `app.scheduler`; migration 0007 adds a narrow row-level-security policy that lets exactly that setting see the `reminders` table across users (every other table stays invisible without a user context, decision 55). The note's state is therefore not part of the claim; it is checked in step 2 under the owner's context.
 
+A failing reminder does not hold the others back: `FireDue` carries on with the rest of the claimed batch, sets the failing one aside (`claimed_until` pushed ten minutes ahead, so it is not claimed first in every cycle) and returns the collected errors, which count as a failed job run for the alerts (CR-020).
+
 **Step 2: fire each claimed reminder in its own transaction**, which first locks the owner's user row (`FOR UPDATE`, taking the next `change_seq`), then **re-reads the reminder** (`where id = $1 and state = 'pending' and due_at <= now()`); if the user edited, snoozed, dismissed or deleted it in the meantime, the row no longer qualifies and nothing is sent. Then:
 
 1. Build the delivery content once: note text excerpt (first 300 characters), note link, attachment list, `late = now() − due_at > 5 minutes`.
 2. For each **reminder-target identity** (CORE-R3) insert a `reminder` outbox item; insert an in-app notification; if there is no target identity, only the notification.
-3. One-off: set `state = 'fired'` and `last_fired_at = now()` (it stays visible on the note as "reminded …", CORE-R8; the user may snooze or mark it done). Recurring: compute the next occurrence **after now** from `rrule` in the reminder's `tz` (missed occurrences collapse into this one late delivery, CORE-R10), set `due_at` to it, keep `pending`, set `last_fired_at`.
+3. One-off: set `state = 'fired'` and `last_fired_at = now()` (it stays visible on the note as "reminded …", CORE-R8; the user may snooze or mark it done). Recurring: compute the next occurrence **after now** from `rrule` in the user's profile time zone (the reminder's `tz` records the zone it was created in and is informational; a recurring reminder follows the profile, decision 63) (missed occurrences collapse into this one late delivery, CORE-R10), set `due_at` to it, keep `pending`, set `last_fired_at`.
 
 ### 5.2 Dismissal and restore (CORE-R7)
 
-Dismissing a note sets its `pending` reminders to `suspended`. Restoring re-arms those whose `due_at` is in the future (recurring: next occurrence after now); reminders that came due while dismissed are marked `cancelled` without sending. The `FireDueReminders` join on `notes.state = 'active'` is a second guard.
+Dismissing a note sets its `pending` reminders to `suspended`. Restoring re-arms those whose `due_at` is in the future (recurring: next occurrence after now); reminders that came due while dismissed are marked `cancelled` without sending. There is no join on the note in the claim; step 2 of firing checks the note's state under the owner's context, which is the guard.
+
+Reminders that are waiting in the outbox are dropped with what they belong to: deleting a reminder, marking it done, deleting its note for good, unlinking the chat or switching reminders off for that chat cancels the queued items of that reminder or chat (`failure_reason = 'cancelled'`), so text and file names of something the user removed are not sent afterwards (CR-012).
 
 ### 5.3 Reminder content and attachments
 

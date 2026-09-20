@@ -6,12 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 
 	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/notes"
-	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 	"github.com/Niboor/notekeeper/core/internal/version"
 )
@@ -199,7 +197,7 @@ func (u *userAPI) ListChanges(ctx context.Context, req userapi.ListChangesReques
 	}
 	limit := 100
 	if req.Params.Limit != nil {
-		limit = min(*req.Params.Limit, 200)
+		limit = clampParam(*req.Params.Limit, limit, 200)
 	}
 	var out userapi.ListChanges200JSONResponse
 	out.Items = []userapi.Change{}
@@ -220,7 +218,7 @@ func (u *userAPI) ListChanges(ctx context.Context, req userapi.ListChangesReques
 		if err != nil {
 			return err
 		}
-		if after > current || (oldest > 0 && oldest > after+1) {
+		if changesLost(after, oldest, current) {
 			return httpx.NewError(410, "cursor_expired")
 		}
 		rows, err := q.ListChanges(ctx, dbq.ListChangesParams{UserID: p.UserID, Seq: after, Limit: int32(limit)})
@@ -242,9 +240,6 @@ func (u *userAPI) ListChanges(ctx context.Context, req userapi.ListChangesReques
 	})
 	return out, err
 }
-
-var _ = uuid.Nil
-var _ = store.ErrNotFound
 
 func (u *userAPI) SearchNotes(ctx context.Context, req userapi.SearchNotesRequestObject) (userapi.SearchNotesResponseObject, error) {
 	p, err := mustPrincipal(ctx)

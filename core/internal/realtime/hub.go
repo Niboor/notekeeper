@@ -125,16 +125,6 @@ func (h *Hub) Shutdown() {
 	}
 }
 
-// Count returns the number of open streams (metrics).
-func (h *Hub) Count() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	n := 0
-	for _, set := range h.streams {
-		n += len(set)
-	}
-	return n
-}
 
 // WaitOutbox returns a channel that receives when an outbox item for the bot instance is queued,
 // and a function to stop waiting. It backs the bot's long poll; a periodic re-check covers a

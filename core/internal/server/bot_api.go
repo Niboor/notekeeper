@@ -259,10 +259,10 @@ func (b *botAPI) ClaimOutbox(ctx context.Context, req botapi.ClaimOutboxRequestO
 	}
 	wait, limit := 0, 10
 	if req.Params.Wait != nil {
-		wait = min(*req.Params.Wait, 25)
+		wait = max(0, min(*req.Params.Wait, 25))
 	}
 	if req.Params.Limit != nil {
-		limit = *req.Params.Limit
+		limit = clampParam(*req.Params.Limit, limit, 50) // the spec says 1 to 50; the generated code does not check
 	}
 	wake, stop := b.hub.WaitOutbox(bot.InstanceID)
 	defer stop()

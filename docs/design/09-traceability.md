@@ -105,7 +105,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | AUTH-U6 | Must | fully tested | 02 §1.6; 03 §4 | Integration, E2E | 3 |
 | AUTH-U7 | Must | fully tested | 03 §4.1; 01 §2 | Integration | 2 |
 | AUTH-U8 | Must | fully tested | 03 §4.2 | Integration, E2E | 1 |
-| AUTH-U9 | Must | fully tested | 03 §4.3 | Integration | 1 |
+| AUTH-U9 | Must | fully tested | 03 §4.3 | Integration | 2 |
 | AUTH-U10 | Should | fully tested | 03 §2.5; 02 §1.1 | Integration, E2E | 1 |
 | AUTH-U11 | Should | fully tested | 03 §7 | Integration, E2E | 2 |
 
@@ -119,7 +119,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-4 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-5 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-6 | Must | fully tested | 02 §2; 01 §6.2 | Integration | 3 |
-| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 5 |
+| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 6 |
 | BOT-8 | Must | fully tested | 02 §2 (feedback object) | Integration | 1 |
 | BOT-9 | Must | fully tested | 04 §2; README §3 (user lock) | Integration | 1 |
 | BOT-10 | Should | fully tested | 02 §2 (`/conversations/{id}/cursor`); 01 §4.2 (index) | Integration | 1 |
@@ -169,7 +169,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | MX-7 | Must | fully tested | 06 §6 | E2E | 2 |
 | MX-8 | Must | fully tested | 06 §6 | E2E | 3 |
 | MX-9 | Must | fully tested | 06 §3 | E2E | 1 |
-| MX-10 | Must | fully tested | 01 §3; 04 §2 | Integration | 1 |
+| MX-10 | Must | fully tested | 01 §3; 04 §2 | Integration | 2 |
 | MX-11 | Could | unimplemented | deferred (Could) | - | 0 |
 | MX-12 | Should | fully tested | 06 §7; 05 §5.3 | E2E | 1 |
 | MX-13 | Should | fully tested | 06 §7 | E2E | 1 |
@@ -278,7 +278,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-ADM-4 | Must | fully tested | 02 §1.6; 03 §1 | Authz matrix | 1 |
 | SEC-API-1 | Must | fully tested | 01 §8 (query builder); sqlc | Integration | 1 |
 | SEC-API-2 | Must | fully tested | README §2; 08 §5 | Authz matrix | 1 |
-| SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 3 |
+| SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 4 |
 | SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 2 |
 | SEC-API-5 | Must | fully tested | README §3 | Integration | 1 |
 | SEC-API-6 | Must | fully tested | 03 §2.4 | Integration | 1 |
@@ -335,7 +335,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-DATA-2 | Must | fully tested | 03 §1; 06 §8 | Integration | 2 |
 | SEC-DATA-3 | Must | fully tested | 08 §1 | CI check | 2 |
 | SEC-DATA-4 | Should | fully tested | 08 §1 | CI check | 1 |
-| SEC-DATA-5 | Must | fully tested | 03 §4.3 | Integration | 3 |
+| SEC-DATA-5 | Must | fully tested | 03 §4.3 | Integration | 4 |
 | SEC-DATA-6 | Must | fully tested | 02 §1.3; 07 §8 | Integration | 1 |
 | SEC-DATA-7 | Should | fully tested | 08 §4 | Review | 2 |
 | SEC-DATA-8 | Must | fully tested | 02 §5 | Integration | 1 |

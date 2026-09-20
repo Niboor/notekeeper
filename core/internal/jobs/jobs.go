@@ -7,6 +7,7 @@ package jobs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/store"
+	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
 
 // Retention periods (docs/design/01-data-model.md section 13).
@@ -30,7 +32,11 @@ const (
 	retainIngestEvents  = 90 * 24 * time.Hour
 	retainIdempotency   = 24 * time.Hour
 	retainSessions      = 30 * 24 * time.Hour
-	retainNotifications = 90 * 24 * time.Hour
+	retainNotifications = 90 * 24 * time.Hour // read ones
+	retainAnyNotice     = 365 * 24 * time.Hour
+	// Finished outbox items are kept long enough to answer "!snooze" or "!done" on an old reminder
+	// message; their text is blanked when they finish (CR-021).
+	retainOutbox        = 30 * 24 * time.Hour
 	retainUnlinkedNotes = 24 * time.Hour
 	retainThrottle      = time.Hour
 )
@@ -99,24 +105,38 @@ func Purge(ctx context.Context, d Deps) error {
 	if _, err := q.PurgeUnlinkedSenders(ctx, now.Add(-retainUnlinkedNotes)); err != nil {
 		return err
 	}
+	for { // in bounded batches
+		cut := now.Add(-retainOutbox)
+		n, err := q.PurgeOutbox(ctx, &cut)
+		if err != nil {
+			return err
+		}
+		if n < 5000 {
+			break
+		}
+	}
 	// Content tables are under row-level security, so they are purged one user at a time.
 	users, err := q.ListUserIDs(ctx)
 	if err != nil {
 		return err
 	}
-	for _, u := range users {
+	var errs []error
+	for _, u := range users { // one failing account must not stop the sweep for everybody (CR-024)
 		err := d.Store.InUserTx(ctx, u, func(tx *store.UserTx) error {
 			if _, err := tx.Q.PurgeChanges(ctx, dbqPurgeChanges(u, now.Add(-retainChanges))); err != nil {
+				return err
+			}
+			if _, err := tx.Q.PurgeOldNotifications(ctx, dbq.PurgeOldNotificationsParams{UserID: u, CreatedAt: now.Add(-retainAnyNotice)}); err != nil {
 				return err
 			}
 			_, err := tx.Q.PurgeReadNotifications(ctx, dbqPurgeNotifications(u, now.Add(-retainNotifications)))
 			return err
 		})
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return err
+			errs = append(errs, fmt.Errorf("user %s: %w", u, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // ReleaseStaleUploadsArgs is the janitor for uploads: it frees the quota held by uploads that
@@ -146,12 +166,13 @@ func ReleaseStaleUploads(ctx context.Context, d Deps) error {
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, u := range users {
 		if err := d.Blobs.ReleaseStale(ctx, u, StaleUploadAge); err != nil && !errors.Is(err, store.ErrNotFound) {
-			return err
+			errs = append(errs, fmt.Errorf("user %s: %w", u, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // ExpireOutboxArgs gives up on outbox items that waited too long and tells their users.

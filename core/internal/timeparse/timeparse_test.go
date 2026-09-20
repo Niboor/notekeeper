@@ -227,3 +227,26 @@ func TestRuleParsing(t *testing.T) {
 		t.Fatalf("%+v %v", r, err)
 	}
 }
+
+// "in a day" and "in a week" are calendar days: across a change of clocks the time of day stays the
+// same, and float spellings that are not numbers are refused (CORE-R2, CR-025).
+func TestRelativeDaysFollowTheCalendar(t *testing.T) {
+	loc := brussels(t)
+	before := time.Date(2026, 3, 28, 9, 0, 0, 0, loc) // the clocks go forward on 29 March
+	for in, want := range map[string]time.Time{
+		"in 1 day":    time.Date(2026, 3, 29, 9, 0, 0, 0, loc),
+		"in 2 days":   time.Date(2026, 3, 30, 9, 0, 0, 0, loc),
+		"in a week":   time.Date(2026, 4, 4, 9, 0, 0, 0, loc),
+		"in 36 hours": before.Add(36 * time.Hour), // hours stay elapsed time
+	} {
+		got, err := Parse(in, before, loc)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("%q = %v (%v), want %v", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"in nan hours", "in inf days", "in NaN minutes", "in 0x10 hours"} {
+		if _, err := Parse(in, before, loc); err == nil {
+			t.Errorf("%q was accepted", in)
+		}
+	}
+}

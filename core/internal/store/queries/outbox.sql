@@ -16,7 +16,7 @@ returning *;
 select * from bot_outbox where id = $1 and bot_instance_id = $2 and state = 'claimed';
 
 -- name: MarkOutboxDelivered :execrows
-update bot_outbox set state = 'delivered', finished_at = $3, lease_expires_at = null
+update bot_outbox set state = 'delivered', finished_at = $3, lease_expires_at = null, payload = '{}'::jsonb
 where id = $1 and bot_instance_id = $2 and state = 'claimed';
 
 -- name: RequeueOutbox :execrows
@@ -24,7 +24,7 @@ update bot_outbox set state = 'queued', attempts = attempts + 1, next_attempt_at
 where id = $1 and bot_instance_id = $2 and state = 'claimed';
 
 -- name: FailOutbox :execrows
-update bot_outbox set state = 'failed', finished_at = $3, lease_expires_at = null, failure_reason = $4
+update bot_outbox set state = 'failed', finished_at = $3, lease_expires_at = null, failure_reason = $4, payload = '{}'::jsonb
 where id = $1 and bot_instance_id = $2 and state = 'claimed';
 
 -- name: InsertOutboxMessage :exec
@@ -37,8 +37,27 @@ where state in ('queued', 'claimed') and created_at < $1
 order by created_at limit 200;
 
 -- name: ExpireOutboxItem :execrows
-update bot_outbox set state = 'expired', finished_at = $2, lease_expires_at = null, failure_reason = 'expired'
+update bot_outbox set state = 'expired', finished_at = $2, lease_expires_at = null, failure_reason = 'expired', payload = '{}'::jsonb
 where id = $1 and state in ('queued', 'claimed');
+
+-- Text and file names of a message are kept only while it is waiting to be sent (CR-021).
+-- name: CancelOutboxForConversation :execrows
+update bot_outbox set state = 'expired', finished_at = @now::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where user_id = @user_id and bot_instance_id = @instance and conversation_id = @conversation
+  and kind = any(@kinds::text[]) and state in ('queued', 'claimed');
+
+-- name: CancelOutboxForReminder :execrows
+update bot_outbox set state = 'expired', finished_at = @now::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where user_id = @user_id and reminder_id = @reminder_id and state in ('queued', 'claimed');
+
+-- name: CancelOutboxForNote :execrows
+update bot_outbox b set state = 'expired', finished_at = @now::timestamptz, lease_expires_at = null, failure_reason = 'cancelled', payload = '{}'::jsonb
+where b.user_id = @user_id and b.state in ('queued', 'claimed')
+  and b.reminder_id in (select r.id from reminders r where r.user_id = @user_id and r.note_id = @note_id);
+
+-- name: PurgeOutbox :execrows
+delete from bot_outbox where id in (
+  select o.id from bot_outbox o where o.state in ('delivered', 'failed', 'expired') and o.finished_at < $1 limit 5000);
 
 -- name: InsertNotification :exec
 insert into notifications (id, user_id, kind, payload) values ($1, $2, $3, $4);

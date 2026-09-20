@@ -179,6 +179,23 @@ func (q *Queries) PurgeIngestEvents(ctx context.Context, receivedAt time.Time) (
 	return result.RowsAffected(), nil
 }
 
+const purgeOldNotifications = `-- name: PurgeOldNotifications :execrows
+delete from notifications where user_id = $1 and created_at < $2
+`
+
+type PurgeOldNotificationsParams struct {
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) PurgeOldNotifications(ctx context.Context, arg PurgeOldNotificationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeOldNotifications, arg.UserID, arg.CreatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const purgeReadNotifications = `-- name: PurgeReadNotifications :execrows
 delete from notifications where user_id = $1 and read_at is not null and read_at < $2
 `

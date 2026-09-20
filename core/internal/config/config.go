@@ -58,6 +58,8 @@ type Config struct {
 	ShareEnabled     bool
 	ShareMaxLifetime time.Duration
 	ShareMaxActive   int
+	// ShareCreatedPerHour is how many links one user may create per hour (SEC-SHR-11, SEC-BASE-5).
+	ShareCreatedPerHour int
 
 	// Rate limits per minute (SEC-API-4, SEC-BOT-10, NFR-S4): per address and per signed-in user on the
 	// user API, per bot instance and per linked person on the bot API, and the uploads one user may run at once.
@@ -167,6 +169,11 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.ShareMaxActive = int(shareMax)
+	shareRate, err := number(getenv, "NK_SHARE_CREATED_PER_HOUR", 30)
+	if err != nil {
+		return Config{}, err
+	}
+	c.ShareCreatedPerHour = int(shareRate)
 	c.Argon2MemoryKiB, c.Argon2Iterations, c.Argon2Parallelism, c.Argon2Concurrency = uint32(mem), uint32(iter), uint8(par), int(conc)
 	return c, nil
 }

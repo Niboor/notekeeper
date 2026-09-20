@@ -55,7 +55,6 @@ func (u *userAPI) events(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	var last int64
-	resync := false
 	if id, ok := realtime.ParseSeq(r.Header.Get("Last-Event-ID")); ok {
 		last = id
 	} else {
@@ -69,7 +68,6 @@ func (u *userAPI) events(w http.ResponseWriter, r *http.Request) {
 		writeEvent(w, "", "hello", fmt.Sprintf(`{"seq":%d}`, cur))
 		fl.Flush()
 	}
-	_ = resync
 
 	// The stream ends when the access token that opened it expires; EventSource reconnects with
 	// the renewed cookie, so this is invisible to the user (SEC-ISO-5).
@@ -83,10 +81,13 @@ func (u *userAPI) events(w http.ResponseWriter, r *http.Request) {
 	drain := func() bool {
 		for {
 			var rows []dbq.ListChangesRow
-			var oldest int64
+			var oldest, cur int64
 			err := u.st.InUserRead(ctx, p.UserID, func(q *dbq.Queries) error {
 				var err error
 				if oldest, err = q.OldestChangeSeq(ctx, p.UserID); err != nil {
+					return err
+				}
+				if cur, err = q.CurrentChangeSeq(ctx, p.UserID); err != nil {
 					return err
 				}
 				rows, err = q.ListChanges(ctx, dbq.ListChangesParams{UserID: p.UserID, Seq: last, Limit: sseBatch})
@@ -95,13 +96,9 @@ func (u *userAPI) events(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return false
 			}
-			if oldest > 0 && oldest > last+1 {
-				writeEvent(w, "", "resync", "{}") // retention passed us by: refetch everything
+			if changesLost(last, oldest, cur) {
+				writeEvent(w, "", "resync", "{}") // retention passed us by, or the client is ahead of us: refetch everything
 				fl.Flush()
-				cur, err := u.st.Q().CurrentChangeSeq(ctx, p.UserID)
-				if err != nil {
-					return false
-				}
 				last = cur
 				return true
 			}
@@ -151,4 +148,12 @@ func writeEvent(w http.ResponseWriter, id, event, data string) {
 		_, _ = fmt.Fprintf(w, "id: %s\n", id)
 	}
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+}
+
+// changesLost reports that a client that has seen the change feed up to last cannot be brought up to
+// date from it: what it missed was purged (the oldest kept change is beyond last+1, or nothing is kept
+// although changes were made since), or it is ahead of the feed (a restored database). It must
+// refetch its views instead (CR-040).
+func changesLost(last, oldest, cur int64) bool {
+	return last > cur || (last < cur && (oldest == 0 || oldest > last+1))
 }

@@ -90,7 +90,7 @@ func (s *Service) link(ctx context.Context, bot *bots.Principal, cmd Command) (C
 	if strings.TrimSpace(cmd.Args) == "" {
 		return reply(false, "Send the code like this: `!link ABCD-1234`. You can create one in the app under Settings → Chats."), nil
 	}
-	outcome, _, err := s.Bots.Link(ctx, bot, cmd.Sender, cmd.Conversation, cmd.Args)
+	outcome, _, err := s.Bots.Link(ctx, bot, cmd.Sender, cmd.Conversation, cmd.Args, cmd.Timestamp)
 	if err != nil {
 		return CommandOutcome{}, err
 	}

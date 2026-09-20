@@ -139,12 +139,65 @@ func (q *Queries) DeleteUserAttachments(ctx context.Context, userID uuid.UUID) (
 	return result.RowsAffected(), nil
 }
 
+const deleteUserChangesBatch = `-- name: DeleteUserChangesBatch :execrows
+delete from changes where ctid in (select c.ctid from changes c where c.user_id = $1 limit $2)
+`
+
+type DeleteUserChangesBatchParams struct {
+	UserID  uuid.UUID
+	MaxRows int32
+}
+
+func (q *Queries) DeleteUserChangesBatch(ctx context.Context, arg DeleteUserChangesBatchParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserChangesBatch, arg.UserID, arg.MaxRows)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteUserIngestEventsBatch = `-- name: DeleteUserIngestEventsBatch :execrows
+delete from ingest_events where ctid in (select e.ctid from ingest_events e where e.user_id = $1 limit $2)
+`
+
+type DeleteUserIngestEventsBatchParams struct {
+	UserID  uuid.UUID
+	MaxRows int32
+}
+
+func (q *Queries) DeleteUserIngestEventsBatch(ctx context.Context, arg DeleteUserIngestEventsBatchParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserIngestEventsBatch, arg.UserID, arg.MaxRows)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteUserNoteParts = `-- name: DeleteUserNoteParts :execrows
 delete from note_parts where user_id = $1
 `
 
 func (q *Queries) DeleteUserNoteParts(ctx context.Context, userID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteUserNoteParts, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteUserNotesBatch = `-- name: DeleteUserNotesBatch :execrows
+delete from notes where ctid in (select n.ctid from notes n where n.user_id = $1 limit $2)
+`
+
+type DeleteUserNotesBatchParams struct {
+	UserID  uuid.UUID
+	MaxRows int32
+}
+
+// The batch deletes below let a large account go in many short transactions instead of one long
+// one (CR-031). Deleting a note takes its parts, history, reminders, search row and share links.
+func (q *Queries) DeleteUserNotesBatch(ctx context.Context, arg DeleteUserNotesBatchParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserNotesBatch, arg.UserID, arg.MaxRows)
 	if err != nil {
 		return 0, err
 	}

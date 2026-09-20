@@ -6,6 +6,7 @@ package timeparse
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -57,7 +58,7 @@ func Parse(input string, now time.Time, loc *time.Location) (time.Time, error) {
 		return time.Time{}, ErrUnrecognised
 	}
 	local := now.In(loc)
-	if t, ok, err := parseRelative(tok, now); ok {
+	if t, ok, err := parseRelative(tok, local); ok {
 		return t, err
 	}
 	var (
@@ -206,8 +207,17 @@ func parseRelative(tok []string, now time.Time) (time.Time, bool, error) {
 		return time.Time{}, true, ErrUnrecognised
 	}
 	d, ok := units[unit]
-	if !ok || n <= 0 || n > 10000 {
+	if !ok || math.IsNaN(n) || n <= 0 || n > 10000 { // ParseFloat also accepts "nan" and "inf"
 		return time.Time{}, true, ErrUnrecognised
+	}
+	if (d == 24*time.Hour || d == 7*24*time.Hour) && n == math.Trunc(n) {
+		// Whole days and weeks are calendar days in now's zone, so "in 1 day" at 09:00 is 09:00 tomorrow
+		// even when the clocks change in between (CORE-R2).
+		days := int(n)
+		if d != 24*time.Hour {
+			days *= 7
+		}
+		return now.AddDate(0, 0, days), true, nil
 	}
 	return now.Add(time.Duration(n * float64(d))), true, nil
 }
@@ -322,7 +332,7 @@ func SplitWhen(args string, now time.Time, loc *time.Location) (when time.Time, 
 func ParseSnooze(input string, now time.Time, loc *time.Location) (time.Time, error) {
 	tok := fields(input)
 	if len(tok) > 0 && tok[0] != "in" {
-		if t, ok, err := parseRelative(append([]string{"in"}, tok...), now); ok && err == nil {
+		if t, ok, err := parseRelative(append([]string{"in"}, tok...), now.In(loc)); ok && err == nil {
 			return t, nil
 		}
 	}

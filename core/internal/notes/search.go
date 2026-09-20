@@ -140,8 +140,14 @@ func (s *Service) Search(ctx context.Context, user uuid.UUID, in SearchInput) (S
 		if err := attachLocations(ctx, q, user, notes); err != nil {
 			return err
 		}
-		for i, r := range rows {
-			page.Hits = append(page.Hits, SearchHit{Note: notes[i], Snippet: r.snippet})
+		byID := make(map[uuid.UUID]Note, len(notes))
+		for _, n := range notes {
+			byID[n.Note.ID] = n
+		}
+		for _, r := range rows { // matched by id: a hit whose note is gone is dropped, never mispaired
+			if n, ok := byID[r.id]; ok {
+				page.Hits = append(page.Hits, SearchHit{Note: n, Snippet: r.snippet})
+			}
 		}
 		if more {
 			page.NextCursor = encodeCursorRaw("o:" + strconv.Itoa(offset+limit))

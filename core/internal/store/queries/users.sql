@@ -81,6 +81,17 @@ delete from users where id = $1 and status = 'deleting';
 -- name: IdentitiesForDeletion :many
 select bot_instance_id, external_user_id, conversation_id from external_identities where user_id = $1 and conversation_id is not null;
 
+-- The batch deletes below let a large account go in many short transactions instead of one long
+-- one (CR-031). Deleting a note takes its parts, history, reminders, search row and share links.
+-- name: DeleteUserNotesBatch :execrows
+delete from notes where ctid in (select n.ctid from notes n where n.user_id = @user_id limit @max_rows);
+
+-- name: DeleteUserChangesBatch :execrows
+delete from changes where ctid in (select c.ctid from changes c where c.user_id = @user_id limit @max_rows);
+
+-- name: DeleteUserIngestEventsBatch :execrows
+delete from ingest_events where ctid in (select e.ctid from ingest_events e where e.user_id = @user_id limit @max_rows);
+
 -- name: DeleteUserNoteParts :execrows
 delete from note_parts where user_id = $1;
 

@@ -84,8 +84,11 @@ const (
 // Link redeems a pairing code for a chat identity taken from the platform's verified event
 // metadata (SEC-BOT-5). The identity must belong to the instance's domain, attempts are
 // throttled per (instance, identity), and the code is consumed atomically. An identity that is
-// already linked, to anyone, is refused rather than moved (AUTH-B4, SEC-BOT-6).
-func (s *Service) Link(ctx context.Context, bot *Principal, externalUser, conversation, rawCode string) (LinkOutcome, uuid.UUID, error) {
+// already linked, to anyone, is refused rather than moved (AUTH-B4, SEC-BOT-6). Chat history from
+// before linking is never imported (MX-10): "before" is judged on the platform's clock, by the time
+// the `!link` message was sent (sent, when the bot gave one), so a homeserver clock that runs behind
+// Core's cannot make the first notes after linking look like history (CR-011).
+func (s *Service) Link(ctx context.Context, bot *Principal, externalUser, conversation, rawCode string, sent time.Time) (LinkOutcome, uuid.UUID, error) {
 	key := "pair:" + bot.InstanceID.String() + ":" + strings.ToLower(externalUser)
 	if wait, err := s.throttle.Blocked(ctx, key); err != nil {
 		return "", uuid.Nil, err
@@ -120,6 +123,10 @@ func (s *Service) Link(ctx context.Context, bot *Principal, externalUser, conver
 		return "", uuid.Nil, err
 	}
 
+	linkedAt := now
+	if !sent.IsZero() && sent.Before(now) {
+		linkedAt = sent // the earlier of the two clocks: nothing sent after the command can look older
+	}
 	var identity uuid.UUID
 	outcome := Linked
 	err = s.St.InUserTx(ctx, pc.UserID, func(tx *store.UserTx) error {
@@ -144,7 +151,7 @@ func (s *Service) Link(ctx context.Context, bot *Principal, externalUser, conver
 			conv = nil
 		}
 		_, err = tx.Q.InsertIdentity(ctx, dbq.InsertIdentityParams{ID: identity, UserID: tx.UserID, BotInstanceID: bot.InstanceID,
-			BotType: bot.Type, ExternalUserID: externalUser, ConversationID: conv, ReminderTarget: existing == 0, LinkedAt: now})
+			BotType: bot.Type, ExternalUserID: externalUser, ConversationID: conv, ReminderTarget: existing == 0, LinkedAt: linkedAt})
 		if store.IsUniqueViolation(err, "identities_unique") {
 			outcome = LinkAlready
 			return errAbort
@@ -245,6 +252,12 @@ func (s *Service) Unlink(ctx context.Context, actor Actor, user, identity uuid.U
 			return err
 		}
 		if row.ConversationID != nil {
+			// What was still waiting to be said in this chat, reminders with their text and files included,
+			// must not go out after the link was revoked, not even ahead of the goodbye (CR-012).
+			if _, err := tx.Q.CancelOutboxForConversation(ctx, dbq.CancelOutboxForConversationParams{Now: s.Now(), UserID: uuid.NullUUID{UUID: user, Valid: true},
+				Instance: row.BotInstanceID, Conversation: *row.ConversationID, Kinds: []string{"reminder", "notice"}}); err != nil {
+				return err
+			}
 			payload, _ := json.Marshal(map[string]string{"reason": "unlinked"})
 			oid, _ := uuid.NewV7()
 			// A lifecycle item names no user: it must outlive the account (AUTH-U9).
@@ -281,6 +294,18 @@ func (s *Service) SetReminderTarget(ctx context.Context, user, identity uuid.UUI
 		}
 		if n == 0 {
 			return store.ErrNotFound
+		}
+		if !on { // reminders already queued for this chat are dropped with the setting (CR-012)
+			row, err := tx.Q.GetIdentity(ctx, identity)
+			if err != nil {
+				return err
+			}
+			if row.ConversationID != nil {
+				if _, err := tx.Q.CancelOutboxForConversation(ctx, dbq.CancelOutboxForConversationParams{Now: s.Now(), UserID: uuid.NullUUID{UUID: user, Valid: true},
+					Instance: row.BotInstanceID, Conversation: *row.ConversationID, Kinds: []string{"reminder"}}); err != nil {
+					return err
+				}
+			}
 		}
 		return tx.Change(ctx, "identity", identity, "upsert", nil)
 	})

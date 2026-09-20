@@ -95,16 +95,19 @@ func (s *Service) Report(ctx context.Context, instance, id uuid.UUID, r Result) 
 	obs.OutboxResults.WithLabelValues(item.Kind, r.State).Inc()
 	switch r.State {
 	case "delivered":
-		if n, err := s.St.Q().MarkOutboxDelivered(ctx, dbq.MarkOutboxDeliveredParams{ID: id, BotInstanceID: instance, FinishedAt: &now}); err != nil || n == 0 {
-			return orNotFound(err)
-		}
-		for _, m := range r.MessageIDs {
-			// Remember which chat messages were ours, so "!snooze" and "!done" as replies can find their reminder (BOT-13).
-			if err := s.St.Q().InsertOutboxMessage(ctx, dbq.InsertOutboxMessageParams{BotInstanceID: instance, ConversationID: item.ConversationID, MessageID: m, OutboxID: id}); err != nil {
-				return err
+		// One transaction: an item is never "delivered" without the chat messages that let "!snooze" and
+		// "!done" as replies find their reminder (BOT-13, CR-006).
+		return s.St.InTx(ctx, func(q *dbq.Queries) error {
+			if n, err := q.MarkOutboxDelivered(ctx, dbq.MarkOutboxDeliveredParams{ID: id, BotInstanceID: instance, FinishedAt: &now}); err != nil || n == 0 {
+				return orNotFound(err)
 			}
-		}
-		return nil
+			for _, m := range r.MessageIDs {
+				if err := q.InsertOutboxMessage(ctx, dbq.InsertOutboxMessageParams{BotInstanceID: instance, ConversationID: item.ConversationID, MessageID: m, OutboxID: id}); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	case "failed_transient":
 		next := now.Add(retryDelay(item.Attempts))
 		n, err := s.St.Q().RequeueOutbox(ctx, dbq.RequeueOutboxParams{ID: id, BotInstanceID: instance, NextAttemptAt: next, FailureReason: &reason})

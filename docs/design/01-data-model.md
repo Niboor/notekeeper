@@ -463,6 +463,7 @@ Migrations are forward-only and backwards-compatible across one release (add col
 | Idempotency keys | 24 hours |
 | Expired share links | 7 days after expiry |
 | Expired and revoked sessions | 30 days (for the session list and audit) |
-| Notifications | 90 days after being read |
+| Notifications | 90 days after being read, any notification after 365 days |
+| Chat outbox items (`bot_outbox`, and with them `outbox_messages`) | The text and file names in the payload are blanked as soon as an item is delivered, failed, expired or cancelled; the row is kept 30 days after that (long enough to answer `!snooze` or `!done` on an old reminder message) and then deleted, in batches |
 | Audit log | Indefinite in v1 (small, content-free) |
 | Trash | Until permanently deleted (CORE-N11) |

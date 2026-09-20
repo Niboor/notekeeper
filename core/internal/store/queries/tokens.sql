@@ -49,5 +49,8 @@ delete from unlinked_senders where last_notice_at < $1;
 -- name: PurgeChanges :execrows
 delete from changes where user_id = $1 and created_at < $2;
 
+-- name: PurgeOldNotifications :execrows
+delete from notifications where user_id = $1 and created_at < $2;
+
 -- name: PurgeReadNotifications :execrows
 delete from notifications where user_id = $1 and read_at is not null and read_at < $2;
