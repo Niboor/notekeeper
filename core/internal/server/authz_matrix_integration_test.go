@@ -158,3 +158,83 @@ func fillPath(path string, op *openapi3.Operation) string {
 }
 
 var _ = fmt.Sprintf
+
+// The "other user" actor of the matrix (SEC-ISO-2, SEC-ISO-3): every operation that names an
+// object is called by a signed-in user with the REAL identifiers of another user's objects, and
+// the answer must be identical to the answer for identifiers that do not exist at all, so
+// nobody can tell them apart. Bodies are valid, so the lookup is what decides the outcome.
+func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
+	s := newStack(t)
+	victim, attacker := s.appUser("victim"), s.appUser("attacker")
+	page := victim.page("P")
+	cat := victim.category(page, "C")
+	note := victim.note(cat, "secret", nil)
+	var sessions struct{ Items []struct{ ID string } }
+	victim.get("/api/v1/me/sessions", &sessions)
+	key := s.makeBot("m", "example.org")
+	insts, _ := s.svc.Bots.ListInstances(t.Context())
+	vid := s.lookupUser("victim")
+	pc, _ := s.svc.Bots.CreatePairingCode(t.Context(), vid, "", &insts[0].ID)
+	s.botDo(key, "POST", "/bot/v1/commands", map[string]any{"command": "link", "args": pc.Code, "sender": "@victim:example.org", "conversation": "!r"})
+	var idents struct{ Items []struct{ ID string } }
+	victim.get("/api/v1/me/identities", &idents)
+
+	// Which kind of object each path parameter names, by the collection it follows.
+	real := map[string]string{"notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID}
+	bodies := map[string]any{
+		"updatePage": map[string]any{"name": "x"}, "updateCategory": map[string]any{"name": "x"},
+		"moveNote": map[string]any{"category_id": nil}, "addNotePart": map[string]any{"type": "text", "text": "x"},
+		"editNotePart": map[string]any{"text": "x"},
+	}
+
+	spec, _ := userapiSpec()
+	probes := 0
+	for path, item := range spec.Paths.Map() {
+		if strings.Contains(path, "/admin/") || !strings.Contains(path, "{") {
+			continue
+		}
+		for method, op := range item.Operations() {
+			if strings.EqualFold(op.OperationID, "streamEvents") {
+				continue
+			}
+			realPath, missingPath := path, path
+			segments := strings.Split(path, "/")
+			for i, seg := range segments {
+				if !strings.HasPrefix(seg, "{") {
+					continue
+				}
+				kind := segments[i-1]
+				id, ok := real[kind]
+				if seg == "{partId}" {
+					id, ok = note.Parts[0].ID, true
+				}
+				if !ok {
+					t.Fatalf("%s %s: no fixture for %q; extend the matrix", method, path, kind)
+				}
+				realPath = strings.Replace(realPath, seg, id, 1)
+				missingPath = strings.Replace(missingPath, seg, uuid.NewString(), 1)
+			}
+			body := bodies[strings.ToLower(op.OperationID[:1])+op.OperationID[1:]]
+			if body == nil && (method == "POST" || method == "PATCH") {
+				body = map[string]any{}
+			}
+			foreign := attacker.c.do(method, realPath, body)
+			missing := attacker.c.do(method, missingPath, body)
+			probes++
+			if foreign.Status != missing.Status || foreign.Code() != missing.Code() {
+				t.Errorf("%s %s: a foreign id answers %d %q but a missing one %d %q", method, path,
+					foreign.Status, foreign.Code(), missing.Status, missing.Code())
+			}
+			if foreign.Status != 404 {
+				t.Errorf("%s %s: foreign id answered %d, want 404 (%s)", method, path, foreign.Status, foreign.Body)
+			}
+		}
+	}
+	if probes < 15 {
+		t.Fatalf("only %d probes ran", probes)
+	}
+	// The victim's data is untouched.
+	if got := texts(victim.column(page, 0)); got != "secret" {
+		t.Fatalf("victim's column: %s", got)
+	}
+}

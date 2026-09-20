@@ -26,7 +26,10 @@ const (
 )
 
 // Service is the notes service.
-type Service struct{ St *store.Store }
+type Service struct {
+	St  *store.Store
+	Now func() time.Time
+}
 
 // New creates the service.
 func New(st *store.Store) *Service { return &Service{St: st} }
@@ -37,10 +40,20 @@ type Part struct {
 	SourceBotType *string
 }
 
+// Location says where a dismissed note came from (the Trash view).
+type Location struct {
+	CategoryID   uuid.UUID
+	CategoryName string
+	PageID       uuid.UUID
+	PageName     string
+}
+
 // Note is a note with its parts.
 type Note struct {
 	Note  dbq.Note
 	Parts []Part
+	// Location is set for dismissed notes that were in a category.
+	Location *Location
 }
 
 // Page is one page of a listing.
@@ -51,16 +64,26 @@ type Page struct {
 	Total *int64
 }
 
+func encodeCursorRaw(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
+
+func decodeCursorRaw(c string) (string, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(c)
+	if err != nil {
+		return "", ErrInvalidCursor
+	}
+	return string(raw), nil
+}
+
 func encodeCursor(t time.Time, id uuid.UUID) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(t.UTC().Format(time.RFC3339Nano) + "|" + id.String()))
+	return encodeCursorRaw(t.UTC().Format(time.RFC3339Nano) + "|" + id.String())
 }
 
 func decodeCursor(c string) (time.Time, uuid.UUID, error) {
-	raw, err := base64.RawURLEncoding.DecodeString(c)
+	raw, err := decodeCursorRaw(c)
 	if err != nil {
-		return time.Time{}, uuid.Nil, ErrInvalidCursor
+		return time.Time{}, uuid.Nil, err
 	}
-	ts, idStr, ok := strings.Cut(string(raw), "|")
+	ts, idStr, ok := strings.Cut(raw, "|")
 	if !ok {
 		return time.Time{}, uuid.Nil, ErrInvalidCursor
 	}

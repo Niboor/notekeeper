@@ -95,6 +95,10 @@ func noteOf(n notes.Note) userapi.Note {
 	out := userapi.Note{Id: n.Note.ID, State: userapi.NoteState(n.Note.State), CreatedAt: n.Note.CreatedAt,
 		UpdatedAt: n.Note.UpdatedAt, DeletedAt: n.Note.DeletedAt, Version: int(n.Note.Version),
 		Parts: make([]userapi.NotePart, len(n.Parts))}
+	if n.Location != nil {
+		out.PreviousLocation = &userapi.PreviousLocation{CategoryId: &n.Location.CategoryID, CategoryName: &n.Location.CategoryName,
+			PageId: &n.Location.PageID, PageName: &n.Location.PageName}
+	}
 	if n.Note.CategoryID.Valid {
 		id := n.Note.CategoryID.UUID
 		out.CategoryId = &id

@@ -102,6 +102,42 @@ func (e LoginRequestClientKind) Valid() bool {
 	}
 }
 
+// Defines values for NewPartType.
+const (
+	NewPartTypeAttachment NewPartType = "attachment"
+	NewPartTypeText       NewPartType = "text"
+)
+
+// Valid indicates whether the value is a known member of the NewPartType enum.
+func (e NewPartType) Valid() bool {
+	switch e {
+	case NewPartTypeAttachment:
+		return true
+	case NewPartTypeText:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NewPartInputType.
+const (
+	NewPartInputTypeAttachment NewPartInputType = "attachment"
+	NewPartInputTypeText       NewPartInputType = "text"
+)
+
+// Valid indicates whether the value is a known member of the NewPartInputType enum.
+func (e NewPartInputType) Valid() bool {
+	switch e {
+	case NewPartInputTypeAttachment:
+		return true
+	case NewPartInputTypeText:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NoteState.
 const (
 	NoteStateActive  NoteState = "active"
@@ -122,25 +158,25 @@ func (e NoteState) Valid() bool {
 
 // Defines values for NotePartAttachReason.
 const (
-	App            NotePartAttachReason = "app"
-	First          NotePartAttachReason = "first"
-	MediaAdjacency NotePartAttachReason = "media-adjacency"
-	Reply          NotePartAttachReason = "reply"
-	Thread         NotePartAttachReason = "thread"
+	NotePartAttachReasonApp            NotePartAttachReason = "app"
+	NotePartAttachReasonFirst          NotePartAttachReason = "first"
+	NotePartAttachReasonMediaAdjacency NotePartAttachReason = "media-adjacency"
+	NotePartAttachReasonReply          NotePartAttachReason = "reply"
+	NotePartAttachReasonThread         NotePartAttachReason = "thread"
 )
 
 // Valid indicates whether the value is a known member of the NotePartAttachReason enum.
 func (e NotePartAttachReason) Valid() bool {
 	switch e {
-	case App:
+	case NotePartAttachReasonApp:
 		return true
-	case First:
+	case NotePartAttachReasonFirst:
 		return true
-	case MediaAdjacency:
+	case NotePartAttachReasonMediaAdjacency:
 		return true
-	case Reply:
+	case NotePartAttachReasonReply:
 		return true
-	case Thread:
+	case NotePartAttachReasonThread:
 		return true
 	default:
 		return false
@@ -165,6 +201,24 @@ func (e NotePartKind) Valid() bool {
 	case NotePartKindText:
 		return true
 	case NotePartKindUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PartVersionOrigin.
+const (
+	PartVersionOriginApp  PartVersionOrigin = "app"
+	PartVersionOriginChat PartVersionOrigin = "chat"
+)
+
+// Valid indicates whether the value is a known member of the PartVersionOrigin enum.
+func (e PartVersionOrigin) Valid() bool {
+	switch e {
+	case PartVersionOriginApp:
+		return true
+	case PartVersionOriginChat:
 		return true
 	default:
 		return false
@@ -284,6 +338,21 @@ type AuthResult struct {
 	User         Me      `json:"user"`
 }
 
+// Board defines model for Board.
+type Board struct {
+	Categories []BoardCategory `json:"categories"`
+	InboxTotal int64           `json:"inbox_total"`
+	Page       Page            `json:"page"`
+}
+
+// BoardCategory defines model for BoardCategory.
+type BoardCategory struct {
+	Category   Category `json:"category"`
+	NextCursor *string  `json:"next_cursor,omitempty"`
+	Notes      []Note   `json:"notes"`
+	Total      int64    `json:"total"`
+}
+
 // BotCredential defines model for BotCredential.
 type BotCredential struct {
 	// Bearer The value the bot sends in Authorization; shown once
@@ -307,6 +376,14 @@ type BotInstanceSummary struct {
 	Name   string             `json:"name"`
 	Online bool               `json:"online"`
 	Type   string             `json:"type"`
+}
+
+// Category defines model for Category.
+type Category struct {
+	Id      openapi_types.UUID `json:"id"`
+	Name    string             `json:"name"`
+	PageId  openapi_types.UUID `json:"page_id"`
+	Version int                `json:"version"`
 }
 
 // Change defines model for Change.
@@ -341,12 +418,64 @@ type CreateBotInstance struct {
 	Type           string  `json:"type"`
 }
 
+// CreateCategory defines model for CreateCategory.
+type CreateCategory struct {
+	AfterId *openapi_types.UUID `json:"after_id,omitempty"`
+	Id      *openapi_types.UUID `json:"id,omitempty"`
+	Name    string              `json:"name"`
+	PageId  openapi_types.UUID  `json:"page_id"`
+}
+
+// CreateNote defines model for CreateNote.
+type CreateNote struct {
+	AfterId  *openapi_types.UUID `json:"after_id,omitempty"`
+	BeforeId *openapi_types.UUID `json:"before_id,omitempty"`
+
+	// CategoryId null puts the note in the Inbox
+	CategoryId *openapi_types.UUID `json:"category_id,omitempty"`
+
+	// Id Client-generated id; repeating it with the same content returns the note
+	Id    *openapi_types.UUID `json:"id,omitempty"`
+	Parts []NewPartInput      `json:"parts"`
+}
+
+// CreatePage defines model for CreatePage.
+type CreatePage struct {
+	// AfterId Place after this page; default is the end
+	AfterId *openapi_types.UUID `json:"after_id,omitempty"`
+
+	// Id Client-generated id; repeating it returns the existing page
+	Id   *openapi_types.UUID `json:"id,omitempty"`
+	Name string              `json:"name"`
+}
+
 // CreateUser defines model for CreateUser.
 type CreateUser struct {
 	DisplayName *string `json:"display_name,omitempty"`
 	Email       *string `json:"email,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	Username    string  `json:"username"`
+}
+
+// Deleted defines model for Deleted.
+type Deleted struct {
+	// MovedNotes Notes that returned to the Inbox
+	MovedNotes int `json:"moved_notes"`
+}
+
+// EditPart defines model for EditPart.
+type EditPart struct {
+	// BaseVersion The note version the edit is based on
+	BaseVersion *int   `json:"base_version,omitempty"`
+	Text        string `json:"text"`
+}
+
+// EditResult defines model for EditResult.
+type EditResult struct {
+	Note Note `json:"note"`
+
+	// Stale True when the note changed since base_version; the overwritten text stays in history
+	Stale bool `json:"stale"`
 }
 
 // FailedAttachment defines model for FailedAttachment.
@@ -387,6 +516,39 @@ type Me struct {
 	Username    string                 `json:"username"`
 }
 
+// MoveNote defines model for MoveNote.
+type MoveNote struct {
+	// AfterId The note that should come right before it
+	AfterId *openapi_types.UUID `json:"after_id,omitempty"`
+
+	// BeforeId The note that should come right after it
+	BeforeId *openapi_types.UUID `json:"before_id,omitempty"`
+
+	// CategoryId null moves the note to the Inbox
+	CategoryId *openapi_types.UUID `json:"category_id"`
+}
+
+// NewPart defines model for NewPart.
+type NewPart struct {
+	AttachmentId *openapi_types.UUID `json:"attachment_id,omitempty"`
+	Text         *string             `json:"text,omitempty"`
+	Type         NewPartType         `json:"type"`
+}
+
+// NewPartType defines model for NewPart.Type.
+type NewPartType string
+
+// NewPartInput defines model for NewPartInput.
+type NewPartInput struct {
+	// AttachmentId An attachment uploaded earlier and not yet used
+	AttachmentId *openapi_types.UUID `json:"attachment_id,omitempty"`
+	Text         *string             `json:"text,omitempty"`
+	Type         NewPartInputType    `json:"type"`
+}
+
+// NewPartInputType defines model for NewPartInput.Type.
+type NewPartInputType string
+
 // Note defines model for Note.
 type Note struct {
 	CategoryId *openapi_types.UUID `json:"category_id,omitempty"`
@@ -394,13 +556,24 @@ type Note struct {
 	DeletedAt  *time.Time          `json:"deleted_at,omitempty"`
 	Id         openapi_types.UUID  `json:"id"`
 	Parts      []NotePart          `json:"parts"`
-	State      NoteState           `json:"state"`
-	UpdatedAt  time.Time           `json:"updated_at"`
-	Version    int                 `json:"version"`
+
+	// PreviousLocation Where a dismissed note came from (Trash view)
+	PreviousLocation *PreviousLocation `json:"previous_location,omitempty"`
+	State            NoteState         `json:"state"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+	Version          int               `json:"version"`
 }
 
 // NoteState defines model for Note.State.
 type NoteState string
+
+// NoteHistory defines model for NoteHistory.
+type NoteHistory struct {
+	Parts []struct {
+		PartId   openapi_types.UUID `json:"part_id"`
+		Versions []PartVersion      `json:"versions"`
+	} `json:"parts"`
+}
 
 // NotePage defines model for NotePage.
 type NotePage struct {
@@ -430,11 +603,40 @@ type NotePartAttachReason string
 // NotePartKind defines model for NotePart.Kind.
 type NotePartKind string
 
+// Page defines model for Page.
+type Page struct {
+	Archived *bool              `json:"archived,omitempty"`
+	Id       openapi_types.UUID `json:"id"`
+	Name     string             `json:"name"`
+	Version  int                `json:"version"`
+}
+
 // PairingCode defines model for PairingCode.
 type PairingCode struct {
 	// Code Example: K7QM-2XPA
 	Code      string    `json:"code"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// PartVersion defines model for PartVersion.
+type PartVersion struct {
+	// Applied false for a late chat edit that did not overwrite a newer text
+	Applied  bool               `json:"applied"`
+	EditedAt time.Time          `json:"edited_at"`
+	Id       openapi_types.UUID `json:"id"`
+	Origin   PartVersionOrigin  `json:"origin"`
+	Text     string             `json:"text"`
+}
+
+// PartVersionOrigin defines model for PartVersion.Origin.
+type PartVersionOrigin string
+
+// PreviousLocation Where a dismissed note came from (Trash view)
+type PreviousLocation struct {
+	CategoryId   *openapi_types.UUID `json:"category_id,omitempty"`
+	CategoryName *string             `json:"category_name,omitempty"`
+	PageId       *openapi_types.UUID `json:"page_id,omitempty"`
+	PageName     *string             `json:"page_name,omitempty"`
 }
 
 // Problem RFC 9457 problem details
@@ -463,11 +665,29 @@ type Session struct {
 	LastUsedAt time.Time          `json:"last_used_at"`
 }
 
+// UpdateCategory defines model for UpdateCategory.
+type UpdateCategory struct {
+	AfterId  *openapi_types.UUID `json:"after_id,omitempty"`
+	BeforeId *openapi_types.UUID `json:"before_id,omitempty"`
+	Name     *string             `json:"name,omitempty"`
+
+	// PageId Move the category to another page
+	PageId *openapi_types.UUID `json:"page_id,omitempty"`
+}
+
 // UpdateMe defines model for UpdateMe.
 type UpdateMe struct {
 	DisplayName *string                 `json:"display_name,omitempty"`
 	Settings    *map[string]interface{} `json:"settings,omitempty"`
 	Timezone    *string                 `json:"timezone,omitempty"`
+}
+
+// UpdatePage defines model for UpdatePage.
+type UpdatePage struct {
+	AfterId  *openapi_types.UUID `json:"after_id,omitempty"`
+	Archived *bool               `json:"archived,omitempty"`
+	BeforeId *openapi_types.UUID `json:"before_id,omitempty"`
+	Name     *string             `json:"name,omitempty"`
 }
 
 // Version defines model for Version.
@@ -484,6 +704,9 @@ type Id = openapi_types.UUID
 // Limit defines model for Limit.
 type Limit = int
 
+// PartId defines model for PartId.
+type PartId = openapi_types.UUID
+
 // AdminUpdateBotInstanceJSONBody defines parameters for AdminUpdateBotInstance.
 type AdminUpdateBotInstanceJSONBody struct {
 	Status AdminUpdateBotInstanceJSONBodyStatus `json:"status"`
@@ -499,6 +722,12 @@ type AdminCreateBotCredentialJSONBody struct {
 
 // AdminCreateBotCredentialJSONBodyScopes defines parameters for AdminCreateBotCredential.
 type AdminCreateBotCredentialJSONBodyScopes string
+
+// ListCategoryNotesParams defines parameters for ListCategoryNotes.
+type ListCategoryNotesParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
 
 // ListChangesParams defines parameters for ListChanges.
 type ListChangesParams struct {
@@ -521,6 +750,17 @@ type CreatePairingCodeJSONBody struct {
 // RevokeAllSessionsJSONBody defines parameters for RevokeAllSessions.
 type RevokeAllSessionsJSONBody struct {
 	KeepCurrent *bool `json:"keep_current,omitempty"`
+}
+
+// GetBoardParams defines parameters for GetBoard.
+type GetBoardParams struct {
+	NotesPerCategory *int `form:"notes_per_category,omitempty" json:"notes_per_category,omitempty"`
+}
+
+// ListTrashParams defines parameters for ListTrash.
+type ListTrashParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // AdminCreateBotInstanceJSONRequestBody defines body for AdminCreateBotInstance for application/json ContentType.
@@ -547,6 +787,12 @@ type LoginJSONRequestBody = LoginRequest
 // RefreshSessionJSONRequestBody defines body for RefreshSession for application/json ContentType.
 type RefreshSessionJSONRequestBody = RefreshRequest
 
+// CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
+type CreateCategoryJSONRequestBody = CreateCategory
+
+// UpdateCategoryJSONRequestBody defines body for UpdateCategory for application/json ContentType.
+type UpdateCategoryJSONRequestBody = UpdateCategory
+
 // UpdateMeJSONRequestBody defines body for UpdateMe for application/json ContentType.
 type UpdateMeJSONRequestBody = UpdateMe
 
@@ -558,6 +804,24 @@ type ChangePasswordJSONRequestBody = ChangePasswordRequest
 
 // RevokeAllSessionsJSONRequestBody defines body for RevokeAllSessions for application/json ContentType.
 type RevokeAllSessionsJSONRequestBody RevokeAllSessionsJSONBody
+
+// CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
+type CreateNoteJSONRequestBody = CreateNote
+
+// MoveNoteJSONRequestBody defines body for MoveNote for application/json ContentType.
+type MoveNoteJSONRequestBody = MoveNote
+
+// AddNotePartJSONRequestBody defines body for AddNotePart for application/json ContentType.
+type AddNotePartJSONRequestBody = NewPart
+
+// EditNotePartJSONRequestBody defines body for EditNotePart for application/json ContentType.
+type EditNotePartJSONRequestBody = EditPart
+
+// CreatePageJSONRequestBody defines body for CreatePage for application/json ContentType.
+type CreatePageJSONRequestBody = CreatePage
+
+// UpdatePageJSONRequestBody defines body for UpdatePage for application/json ContentType.
+type UpdatePageJSONRequestBody = UpdatePage
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -603,6 +867,18 @@ type ServerInterface interface {
 	// ListBotInstances Bot instances the user can link to, with their online status
 	// (GET /api/v1/bot-instances)
 	ListBotInstances(w http.ResponseWriter, r *http.Request)
+	// CreateCategory Create a category on a page
+	// (POST /api/v1/categories)
+	CreateCategory(w http.ResponseWriter, r *http.Request)
+	// DeleteCategory Delete a category; its notes return to the Inbox
+	// (DELETE /api/v1/categories/{id})
+	DeleteCategory(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateCategory Rename a category, reorder it, or move it to another page
+	// (PATCH /api/v1/categories/{id})
+	UpdateCategory(w http.ResponseWriter, r *http.Request, id Id)
+	// ListCategoryNotes Notes of a category in their manual order
+	// (GET /api/v1/categories/{id}/notes)
+	ListCategoryNotes(w http.ResponseWriter, r *http.Request, id Id, params ListCategoryNotesParams)
 	// ListChanges The change feed after a cursor
 	// (GET /api/v1/changes)
 	ListChanges(w http.ResponseWriter, r *http.Request, params ListChangesParams)
@@ -639,9 +915,54 @@ type ServerInterface interface {
 	// RevokeSession Sign out one session
 	// (DELETE /api/v1/me/sessions/{id})
 	RevokeSession(w http.ResponseWriter, r *http.Request, id Id)
+	// CreateNote Create a note in the app, in the Inbox or in a category
+	// (POST /api/v1/notes)
+	CreateNote(w http.ResponseWriter, r *http.Request)
+	// DeleteNotePermanently Permanently delete a note that is in the Trash
+	// (DELETE /api/v1/notes/{id})
+	DeleteNotePermanently(w http.ResponseWriter, r *http.Request, id Id)
 	// GetNote One note with its parts
 	// (GET /api/v1/notes/{id})
 	GetNote(w http.ResponseWriter, r *http.Request, id Id)
+	// DismissNote Dismiss a note (soft delete); undo with restore
+	// (POST /api/v1/notes/{id}/dismiss)
+	DismissNote(w http.ResponseWriter, r *http.Request, id Id)
+	// GetNoteHistory Every text version of every part of a note
+	// (GET /api/v1/notes/{id}/history)
+	GetNoteHistory(w http.ResponseWriter, r *http.Request, id Id)
+	// MoveNote Move a note to a category (at a position) or back to the Inbox
+	// (POST /api/v1/notes/{id}/move)
+	MoveNote(w http.ResponseWriter, r *http.Request, id Id)
+	// AddNotePart Add a text or attachment part to a note
+	// (POST /api/v1/notes/{id}/parts)
+	AddNotePart(w http.ResponseWriter, r *http.Request, id Id)
+	// DeleteNotePart Remove a part (a note always keeps at least one)
+	// (DELETE /api/v1/notes/{id}/parts/{partId})
+	DeleteNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId)
+	// EditNotePart Edit the text of a part (the latest edit wins; nothing is lost)
+	// (PATCH /api/v1/notes/{id}/parts/{partId})
+	EditNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId)
+	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
+	// (POST /api/v1/notes/{id}/restore)
+	RestoreNote(w http.ResponseWriter, r *http.Request, id Id)
+	// ListPages The user's pages in order
+	// (GET /api/v1/pages)
+	ListPages(w http.ResponseWriter, r *http.Request)
+	// CreatePage Create a page
+	// (POST /api/v1/pages)
+	CreatePage(w http.ResponseWriter, r *http.Request)
+	// DeletePage Delete a page; its notes return to the Inbox
+	// (DELETE /api/v1/pages/{id})
+	DeletePage(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdatePage Rename, reorder or archive a page
+	// (PATCH /api/v1/pages/{id})
+	UpdatePage(w http.ResponseWriter, r *http.Request, id Id)
+	// GetBoard A page's categories with their first notes and counts, in one call
+	// (GET /api/v1/pages/{id}/board)
+	GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams)
+	// ListTrash Dismissed notes, newest first
+	// (GET /api/v1/trash/notes)
+	ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams)
 	// GetVersion Build information
 	// (GET /api/v1/version)
 	GetVersion(w http.ResponseWriter, r *http.Request)
@@ -735,6 +1056,30 @@ func (_ Unimplemented) ListBotInstances(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// CreateCategory Create a category on a page
+// (POST /api/v1/categories)
+func (_ Unimplemented) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteCategory Delete a category; its notes return to the Inbox
+// (DELETE /api/v1/categories/{id})
+func (_ Unimplemented) DeleteCategory(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateCategory Rename a category, reorder it, or move it to another page
+// (PATCH /api/v1/categories/{id})
+func (_ Unimplemented) UpdateCategory(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListCategoryNotes Notes of a category in their manual order
+// (GET /api/v1/categories/{id}/notes)
+func (_ Unimplemented) ListCategoryNotes(w http.ResponseWriter, r *http.Request, id Id, params ListCategoryNotesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListChanges The change feed after a cursor
 // (GET /api/v1/changes)
 func (_ Unimplemented) ListChanges(w http.ResponseWriter, r *http.Request, params ListChangesParams) {
@@ -807,9 +1152,99 @@ func (_ Unimplemented) RevokeSession(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// CreateNote Create a note in the app, in the Inbox or in a category
+// (POST /api/v1/notes)
+func (_ Unimplemented) CreateNote(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNotePermanently Permanently delete a note that is in the Trash
+// (DELETE /api/v1/notes/{id})
+func (_ Unimplemented) DeleteNotePermanently(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetNote One note with its parts
 // (GET /api/v1/notes/{id})
 func (_ Unimplemented) GetNote(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DismissNote Dismiss a note (soft delete); undo with restore
+// (POST /api/v1/notes/{id}/dismiss)
+func (_ Unimplemented) DismissNote(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNoteHistory Every text version of every part of a note
+// (GET /api/v1/notes/{id}/history)
+func (_ Unimplemented) GetNoteHistory(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// MoveNote Move a note to a category (at a position) or back to the Inbox
+// (POST /api/v1/notes/{id}/move)
+func (_ Unimplemented) MoveNote(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AddNotePart Add a text or attachment part to a note
+// (POST /api/v1/notes/{id}/parts)
+func (_ Unimplemented) AddNotePart(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNotePart Remove a part (a note always keeps at least one)
+// (DELETE /api/v1/notes/{id}/parts/{partId})
+func (_ Unimplemented) DeleteNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// EditNotePart Edit the text of a part (the latest edit wins; nothing is lost)
+// (PATCH /api/v1/notes/{id}/parts/{partId})
+func (_ Unimplemented) EditNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RestoreNote Restore a dismissed note to where it was (or the Inbox)
+// (POST /api/v1/notes/{id}/restore)
+func (_ Unimplemented) RestoreNote(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListPages The user's pages in order
+// (GET /api/v1/pages)
+func (_ Unimplemented) ListPages(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreatePage Create a page
+// (POST /api/v1/pages)
+func (_ Unimplemented) CreatePage(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeletePage Delete a page; its notes return to the Inbox
+// (DELETE /api/v1/pages/{id})
+func (_ Unimplemented) DeletePage(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdatePage Rename, reorder or archive a page
+// (PATCH /api/v1/pages/{id})
+func (_ Unimplemented) UpdatePage(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetBoard A page's categories with their first notes and counts, in one call
+// (GET /api/v1/pages/{id}/board)
+func (_ Unimplemented) GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListTrash Dismissed notes, newest first
+// (GET /api/v1/trash/notes)
+func (_ Unimplemented) ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1093,6 +1528,127 @@ func (siw *ServerInterfaceWrapper) ListBotInstances(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// CreateCategory operation middleware
+func (siw *ServerInterfaceWrapper) CreateCategory(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCategory(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCategory operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCategory(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCategory operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCategory(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCategoryNotes operation middleware
+func (siw *ServerInterfaceWrapper) ListCategoryNotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCategoryNotesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCategoryNotes(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListChanges operation middleware
 func (siw *ServerInterfaceWrapper) ListChanges(w http.ResponseWriter, r *http.Request) {
 
@@ -1349,6 +1905,46 @@ func (siw *ServerInterfaceWrapper) RevokeSession(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// CreateNote operation middleware
+func (siw *ServerInterfaceWrapper) CreateNote(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNote(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNotePermanently operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotePermanently(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNotePermanently(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetNote operation middleware
 func (siw *ServerInterfaceWrapper) GetNote(w http.ResponseWriter, r *http.Request) {
 
@@ -1366,6 +1962,374 @@ func (siw *ServerInterfaceWrapper) GetNote(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissNote operation middleware
+func (siw *ServerInterfaceWrapper) DismissNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNoteHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetNoteHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNoteHistory(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MoveNote operation middleware
+func (siw *ServerInterfaceWrapper) MoveNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MoveNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddNotePart operation middleware
+func (siw *ServerInterfaceWrapper) AddNotePart(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddNotePart(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNotePart operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotePart(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "partId" -------------
+	var partId PartId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "partId", chi.URLParam(r, "partId"), &partId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "partId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNotePart(w, r, id, partId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EditNotePart operation middleware
+func (siw *ServerInterfaceWrapper) EditNotePart(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "partId" -------------
+	var partId PartId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "partId", chi.URLParam(r, "partId"), &partId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "partId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EditNotePart(w, r, id, partId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RestoreNote operation middleware
+func (siw *ServerInterfaceWrapper) RestoreNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RestoreNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPages operation middleware
+func (siw *ServerInterfaceWrapper) ListPages(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPages(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePage operation middleware
+func (siw *ServerInterfaceWrapper) CreatePage(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePage(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePage operation middleware
+func (siw *ServerInterfaceWrapper) DeletePage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePage operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBoard operation middleware
+func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBoardParams
+
+	// ------------- Optional query parameter "notes_per_category" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "notes_per_category", r.URL.Query(), &params.NotesPerCategory, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "notes_per_category"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "notes_per_category", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBoard(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTrash operation middleware
+func (siw *ServerInterfaceWrapper) ListTrash(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTrashParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTrash(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1551,7 +2515,64 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/inbox/notes", wrapper.ListInbox)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/notes/{id}", wrapper.DeleteNotePermanently)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/notes/{id}", wrapper.GetNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/pages", wrapper.ListPages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/pages", wrapper.CreatePage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/pages/{id}", wrapper.DeletePage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/pages/{id}", wrapper.UpdatePage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/pages/{id}/board", wrapper.GetBoard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/categories", wrapper.CreateCategory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/categories/{id}", wrapper.DeleteCategory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/categories/{id}", wrapper.UpdateCategory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/categories/{id}/notes", wrapper.ListCategoryNotes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes", wrapper.CreateNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/move", wrapper.MoveNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/dismiss", wrapper.DismissNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/restore", wrapper.RestoreNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/parts", wrapper.AddNotePart)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/notes/{id}/parts/{partId}", wrapper.DeleteNotePart)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/notes/{id}/parts/{partId}", wrapper.EditNotePart)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notes/{id}/history", wrapper.GetNoteHistory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/trash/notes", wrapper.ListTrash)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/events", wrapper.StreamEvents)
@@ -2120,6 +3141,164 @@ func (response ListBotInstancesdefaultApplicationProblemPlusJSONResponse) VisitL
 	return err
 }
 
+type CreateCategoryRequestObject struct {
+	Body *CreateCategoryJSONRequestBody
+}
+
+type CreateCategoryResponseObject interface {
+	VisitCreateCategoryResponse(w http.ResponseWriter) error
+}
+
+type CreateCategory201JSONResponse Category
+
+func (response CreateCategory201JSONResponse) VisitCreateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCategorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateCategorydefaultApplicationProblemPlusJSONResponse) VisitCreateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCategoryRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteCategoryResponseObject interface {
+	VisitDeleteCategoryResponse(w http.ResponseWriter) error
+}
+
+type DeleteCategory200JSONResponse Deleted
+
+func (response DeleteCategory200JSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCategorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteCategorydefaultApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategoryRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateCategoryJSONRequestBody
+}
+
+type UpdateCategoryResponseObject interface {
+	VisitUpdateCategoryResponse(w http.ResponseWriter) error
+}
+
+type UpdateCategory200JSONResponse Category
+
+func (response UpdateCategory200JSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateCategorydefaultApplicationProblemPlusJSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCategoryNotesRequestObject struct {
+	Id     Id `json:"id"`
+	Params ListCategoryNotesParams
+}
+
+type ListCategoryNotesResponseObject interface {
+	VisitListCategoryNotesResponse(w http.ResponseWriter) error
+}
+
+type ListCategoryNotes200JSONResponse NotePage
+
+func (response ListCategoryNotes200JSONResponse) VisitListCategoryNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCategoryNotesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListCategoryNotesdefaultApplicationProblemPlusJSONResponse) VisitListCategoryNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListChangesRequestObject struct {
 	Params ListChangesParams
 }
@@ -2590,6 +3769,78 @@ func (response RevokeSessiondefaultApplicationProblemPlusJSONResponse) VisitRevo
 	return err
 }
 
+type CreateNoteRequestObject struct {
+	Body *CreateNoteJSONRequestBody
+}
+
+type CreateNoteResponseObject interface {
+	VisitCreateNoteResponse(w http.ResponseWriter) error
+}
+
+type CreateNote201JSONResponse Note
+
+func (response CreateNote201JSONResponse) VisitCreateNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateNotedefaultApplicationProblemPlusJSONResponse) VisitCreateNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotePermanentlyRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteNotePermanentlyResponseObject interface {
+	VisitDeleteNotePermanentlyResponse(w http.ResponseWriter) error
+}
+
+type DeleteNotePermanently204Response struct {
+}
+
+func (response DeleteNotePermanently204Response) VisitDeleteNotePermanentlyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNotePermanentlydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteNotePermanentlydefaultApplicationProblemPlusJSONResponse) VisitDeleteNotePermanentlyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNoteRequestObject struct {
 	Id Id `json:"id"`
 }
@@ -2618,6 +3869,521 @@ type GetNotedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetNotedefaultApplicationProblemPlusJSONResponse) VisitGetNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissNoteRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DismissNoteResponseObject interface {
+	VisitDismissNoteResponse(w http.ResponseWriter) error
+}
+
+type DismissNote200JSONResponse Note
+
+func (response DismissNote200JSONResponse) VisitDismissNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissNotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DismissNotedefaultApplicationProblemPlusJSONResponse) VisitDismissNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNoteHistoryRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetNoteHistoryResponseObject interface {
+	VisitGetNoteHistoryResponse(w http.ResponseWriter) error
+}
+
+type GetNoteHistory200JSONResponse NoteHistory
+
+func (response GetNoteHistory200JSONResponse) VisitGetNoteHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNoteHistorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetNoteHistorydefaultApplicationProblemPlusJSONResponse) VisitGetNoteHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveNoteRequestObject struct {
+	Id   Id `json:"id"`
+	Body *MoveNoteJSONRequestBody
+}
+
+type MoveNoteResponseObject interface {
+	VisitMoveNoteResponse(w http.ResponseWriter) error
+}
+
+type MoveNote200JSONResponse Note
+
+func (response MoveNote200JSONResponse) VisitMoveNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveNotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response MoveNotedefaultApplicationProblemPlusJSONResponse) VisitMoveNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddNotePartRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddNotePartJSONRequestBody
+}
+
+type AddNotePartResponseObject interface {
+	VisitAddNotePartResponse(w http.ResponseWriter) error
+}
+
+type AddNotePart201JSONResponse Note
+
+func (response AddNotePart201JSONResponse) VisitAddNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddNotePartdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AddNotePartdefaultApplicationProblemPlusJSONResponse) VisitAddNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotePartRequestObject struct {
+	Id     Id     `json:"id"`
+	PartId PartId `json:"partId"`
+}
+
+type DeleteNotePartResponseObject interface {
+	VisitDeleteNotePartResponse(w http.ResponseWriter) error
+}
+
+type DeleteNotePart200JSONResponse Note
+
+func (response DeleteNotePart200JSONResponse) VisitDeleteNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotePartdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteNotePartdefaultApplicationProblemPlusJSONResponse) VisitDeleteNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditNotePartRequestObject struct {
+	Id     Id     `json:"id"`
+	PartId PartId `json:"partId"`
+	Body   *EditNotePartJSONRequestBody
+}
+
+type EditNotePartResponseObject interface {
+	VisitEditNotePartResponse(w http.ResponseWriter) error
+}
+
+type EditNotePart200JSONResponse EditResult
+
+func (response EditNotePart200JSONResponse) VisitEditNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditNotePartdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response EditNotePartdefaultApplicationProblemPlusJSONResponse) VisitEditNotePartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreNoteRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type RestoreNoteResponseObject interface {
+	VisitRestoreNoteResponse(w http.ResponseWriter) error
+}
+
+type RestoreNote200JSONResponse Note
+
+func (response RestoreNote200JSONResponse) VisitRestoreNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreNotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RestoreNotedefaultApplicationProblemPlusJSONResponse) VisitRestoreNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPagesRequestObject struct {
+}
+
+type ListPagesResponseObject interface {
+	VisitListPagesResponse(w http.ResponseWriter) error
+}
+
+type ListPages200JSONResponse struct {
+	Items []Page `json:"items"`
+}
+
+func (response ListPages200JSONResponse) VisitListPagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPagesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListPagesdefaultApplicationProblemPlusJSONResponse) VisitListPagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePageRequestObject struct {
+	Body *CreatePageJSONRequestBody
+}
+
+type CreatePageResponseObject interface {
+	VisitCreatePageResponse(w http.ResponseWriter) error
+}
+
+type CreatePage201JSONResponse Page
+
+func (response CreatePage201JSONResponse) VisitCreatePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreatePagedefaultApplicationProblemPlusJSONResponse) VisitCreatePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePageRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeletePageResponseObject interface {
+	VisitDeletePageResponse(w http.ResponseWriter) error
+}
+
+type DeletePage200JSONResponse Deleted
+
+func (response DeletePage200JSONResponse) VisitDeletePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeletePagedefaultApplicationProblemPlusJSONResponse) VisitDeletePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePageRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdatePageJSONRequestBody
+}
+
+type UpdatePageResponseObject interface {
+	VisitUpdatePageResponse(w http.ResponseWriter) error
+}
+
+type UpdatePage200JSONResponse Page
+
+func (response UpdatePage200JSONResponse) VisitUpdatePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdatePagedefaultApplicationProblemPlusJSONResponse) VisitUpdatePageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBoardRequestObject struct {
+	Id     Id `json:"id"`
+	Params GetBoardParams
+}
+
+type GetBoardResponseObject interface {
+	VisitGetBoardResponse(w http.ResponseWriter) error
+}
+
+type GetBoard200JSONResponse Board
+
+func (response GetBoard200JSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBoarddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBoarddefaultApplicationProblemPlusJSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTrashRequestObject struct {
+	Params ListTrashParams
+}
+
+type ListTrashResponseObject interface {
+	VisitListTrashResponse(w http.ResponseWriter) error
+}
+
+type ListTrash200JSONResponse NotePage
+
+func (response ListTrash200JSONResponse) VisitListTrashResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTrashdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListTrashdefaultApplicationProblemPlusJSONResponse) VisitListTrashResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2694,6 +4460,18 @@ type StrictServerInterface interface {
 	// ListBotInstances Bot instances the user can link to, with their online status
 	// (GET /api/v1/bot-instances)
 	ListBotInstances(ctx context.Context, request ListBotInstancesRequestObject) (ListBotInstancesResponseObject, error)
+	// CreateCategory Create a category on a page
+	// (POST /api/v1/categories)
+	CreateCategory(ctx context.Context, request CreateCategoryRequestObject) (CreateCategoryResponseObject, error)
+	// DeleteCategory Delete a category; its notes return to the Inbox
+	// (DELETE /api/v1/categories/{id})
+	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
+	// UpdateCategory Rename a category, reorder it, or move it to another page
+	// (PATCH /api/v1/categories/{id})
+	UpdateCategory(ctx context.Context, request UpdateCategoryRequestObject) (UpdateCategoryResponseObject, error)
+	// ListCategoryNotes Notes of a category in their manual order
+	// (GET /api/v1/categories/{id}/notes)
+	ListCategoryNotes(ctx context.Context, request ListCategoryNotesRequestObject) (ListCategoryNotesResponseObject, error)
 	// ListChanges The change feed after a cursor
 	// (GET /api/v1/changes)
 	ListChanges(ctx context.Context, request ListChangesRequestObject) (ListChangesResponseObject, error)
@@ -2730,9 +4508,54 @@ type StrictServerInterface interface {
 	// RevokeSession Sign out one session
 	// (DELETE /api/v1/me/sessions/{id})
 	RevokeSession(ctx context.Context, request RevokeSessionRequestObject) (RevokeSessionResponseObject, error)
+	// CreateNote Create a note in the app, in the Inbox or in a category
+	// (POST /api/v1/notes)
+	CreateNote(ctx context.Context, request CreateNoteRequestObject) (CreateNoteResponseObject, error)
+	// DeleteNotePermanently Permanently delete a note that is in the Trash
+	// (DELETE /api/v1/notes/{id})
+	DeleteNotePermanently(ctx context.Context, request DeleteNotePermanentlyRequestObject) (DeleteNotePermanentlyResponseObject, error)
 	// GetNote One note with its parts
 	// (GET /api/v1/notes/{id})
 	GetNote(ctx context.Context, request GetNoteRequestObject) (GetNoteResponseObject, error)
+	// DismissNote Dismiss a note (soft delete); undo with restore
+	// (POST /api/v1/notes/{id}/dismiss)
+	DismissNote(ctx context.Context, request DismissNoteRequestObject) (DismissNoteResponseObject, error)
+	// GetNoteHistory Every text version of every part of a note
+	// (GET /api/v1/notes/{id}/history)
+	GetNoteHistory(ctx context.Context, request GetNoteHistoryRequestObject) (GetNoteHistoryResponseObject, error)
+	// MoveNote Move a note to a category (at a position) or back to the Inbox
+	// (POST /api/v1/notes/{id}/move)
+	MoveNote(ctx context.Context, request MoveNoteRequestObject) (MoveNoteResponseObject, error)
+	// AddNotePart Add a text or attachment part to a note
+	// (POST /api/v1/notes/{id}/parts)
+	AddNotePart(ctx context.Context, request AddNotePartRequestObject) (AddNotePartResponseObject, error)
+	// DeleteNotePart Remove a part (a note always keeps at least one)
+	// (DELETE /api/v1/notes/{id}/parts/{partId})
+	DeleteNotePart(ctx context.Context, request DeleteNotePartRequestObject) (DeleteNotePartResponseObject, error)
+	// EditNotePart Edit the text of a part (the latest edit wins; nothing is lost)
+	// (PATCH /api/v1/notes/{id}/parts/{partId})
+	EditNotePart(ctx context.Context, request EditNotePartRequestObject) (EditNotePartResponseObject, error)
+	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
+	// (POST /api/v1/notes/{id}/restore)
+	RestoreNote(ctx context.Context, request RestoreNoteRequestObject) (RestoreNoteResponseObject, error)
+	// ListPages The user's pages in order
+	// (GET /api/v1/pages)
+	ListPages(ctx context.Context, request ListPagesRequestObject) (ListPagesResponseObject, error)
+	// CreatePage Create a page
+	// (POST /api/v1/pages)
+	CreatePage(ctx context.Context, request CreatePageRequestObject) (CreatePageResponseObject, error)
+	// DeletePage Delete a page; its notes return to the Inbox
+	// (DELETE /api/v1/pages/{id})
+	DeletePage(ctx context.Context, request DeletePageRequestObject) (DeletePageResponseObject, error)
+	// UpdatePage Rename, reorder or archive a page
+	// (PATCH /api/v1/pages/{id})
+	UpdatePage(ctx context.Context, request UpdatePageRequestObject) (UpdatePageResponseObject, error)
+	// GetBoard A page's categories with their first notes and counts, in one call
+	// (GET /api/v1/pages/{id}/board)
+	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
+	// ListTrash Dismissed notes, newest first
+	// (GET /api/v1/trash/notes)
+	ListTrash(ctx context.Context, request ListTrashRequestObject) (ListTrashResponseObject, error)
 	// GetVersion Build information
 	// (GET /api/v1/version)
 	GetVersion(ctx context.Context, request GetVersionRequestObject) (GetVersionResponseObject, error)
@@ -3186,6 +5009,123 @@ func (sh *strictHandler) ListBotInstances(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// CreateCategory operation middleware
+func (sh *strictHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	var request CreateCategoryRequestObject
+
+	var body CreateCategoryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCategory(ctx, request.(CreateCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCategoryResponseObject); ok {
+		if err := validResponse.VisitCreateCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCategory operation middleware
+func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteCategoryRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCategory(ctx, request.(DeleteCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCategoryResponseObject); ok {
+		if err := validResponse.VisitDeleteCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCategory operation middleware
+func (sh *strictHandler) UpdateCategory(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateCategoryRequestObject
+
+	request.Id = id
+
+	var body UpdateCategoryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCategory(ctx, request.(UpdateCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCategoryResponseObject); ok {
+		if err := validResponse.VisitUpdateCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListCategoryNotes operation middleware
+func (sh *strictHandler) ListCategoryNotes(w http.ResponseWriter, r *http.Request, id Id, params ListCategoryNotesParams) {
+	var request ListCategoryNotesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCategoryNotes(ctx, request.(ListCategoryNotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCategoryNotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCategoryNotesResponseObject); ok {
+		if err := validResponse.VisitListCategoryNotesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListChanges operation middleware
 func (sh *strictHandler) ListChanges(w http.ResponseWriter, r *http.Request, params ListChangesParams) {
 	var request ListChangesRequestObject
@@ -3513,6 +5453,63 @@ func (sh *strictHandler) RevokeSession(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
+// CreateNote operation middleware
+func (sh *strictHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
+	var request CreateNoteRequestObject
+
+	var body CreateNoteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNote(ctx, request.(CreateNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNoteResponseObject); ok {
+		if err := validResponse.VisitCreateNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNotePermanently operation middleware
+func (sh *strictHandler) DeleteNotePermanently(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteNotePermanentlyRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNotePermanently(ctx, request.(DeleteNotePermanentlyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNotePermanently")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNotePermanentlyResponseObject); ok {
+		if err := validResponse.VisitDeleteNotePermanentlyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetNote operation middleware
 func (sh *strictHandler) GetNote(w http.ResponseWriter, r *http.Request, id Id) {
 	var request GetNoteRequestObject
@@ -3532,6 +5529,378 @@ func (sh *strictHandler) GetNote(w http.ResponseWriter, r *http.Request, id Id) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetNoteResponseObject); ok {
 		if err := validResponse.VisitGetNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissNote operation middleware
+func (sh *strictHandler) DismissNote(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DismissNoteRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissNote(ctx, request.(DismissNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissNoteResponseObject); ok {
+		if err := validResponse.VisitDismissNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNoteHistory operation middleware
+func (sh *strictHandler) GetNoteHistory(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetNoteHistoryRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNoteHistory(ctx, request.(GetNoteHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNoteHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNoteHistoryResponseObject); ok {
+		if err := validResponse.VisitGetNoteHistoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MoveNote operation middleware
+func (sh *strictHandler) MoveNote(w http.ResponseWriter, r *http.Request, id Id) {
+	var request MoveNoteRequestObject
+
+	request.Id = id
+
+	var body MoveNoteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MoveNote(ctx, request.(MoveNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MoveNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MoveNoteResponseObject); ok {
+		if err := validResponse.VisitMoveNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddNotePart operation middleware
+func (sh *strictHandler) AddNotePart(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddNotePartRequestObject
+
+	request.Id = id
+
+	var body AddNotePartJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddNotePart(ctx, request.(AddNotePartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddNotePart")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddNotePartResponseObject); ok {
+		if err := validResponse.VisitAddNotePartResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNotePart operation middleware
+func (sh *strictHandler) DeleteNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId) {
+	var request DeleteNotePartRequestObject
+
+	request.Id = id
+	request.PartId = partId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNotePart(ctx, request.(DeleteNotePartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNotePart")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNotePartResponseObject); ok {
+		if err := validResponse.VisitDeleteNotePartResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EditNotePart operation middleware
+func (sh *strictHandler) EditNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId) {
+	var request EditNotePartRequestObject
+
+	request.Id = id
+	request.PartId = partId
+
+	var body EditNotePartJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EditNotePart(ctx, request.(EditNotePartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EditNotePart")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EditNotePartResponseObject); ok {
+		if err := validResponse.VisitEditNotePartResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RestoreNote operation middleware
+func (sh *strictHandler) RestoreNote(w http.ResponseWriter, r *http.Request, id Id) {
+	var request RestoreNoteRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RestoreNote(ctx, request.(RestoreNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RestoreNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RestoreNoteResponseObject); ok {
+		if err := validResponse.VisitRestoreNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPages operation middleware
+func (sh *strictHandler) ListPages(w http.ResponseWriter, r *http.Request) {
+	var request ListPagesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPages(ctx, request.(ListPagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPagesResponseObject); ok {
+		if err := validResponse.VisitListPagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePage operation middleware
+func (sh *strictHandler) CreatePage(w http.ResponseWriter, r *http.Request) {
+	var request CreatePageRequestObject
+
+	var body CreatePageJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePage(ctx, request.(CreatePageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePageResponseObject); ok {
+		if err := validResponse.VisitCreatePageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePage operation middleware
+func (sh *strictHandler) DeletePage(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeletePageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePage(ctx, request.(DeletePageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePageResponseObject); ok {
+		if err := validResponse.VisitDeletePageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePage operation middleware
+func (sh *strictHandler) UpdatePage(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdatePageRequestObject
+
+	request.Id = id
+
+	var body UpdatePageJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePage(ctx, request.(UpdatePageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePageResponseObject); ok {
+		if err := validResponse.VisitUpdatePageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBoard operation middleware
+func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams) {
+	var request GetBoardRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBoard(ctx, request.(GetBoardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBoard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBoardResponseObject); ok {
+		if err := validResponse.VisitGetBoardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTrash operation middleware
+func (sh *strictHandler) ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams) {
+	var request ListTrashRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTrash(ctx, request.(ListTrashRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTrash")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTrashResponseObject); ok {
+		if err := validResponse.VisitListTrashResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3568,72 +5937,99 @@ func (sh *strictHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"//8=",
+	"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",
+	"S2LCuK2oKieyNe2W03KZBCfBKLj/dv9/AQAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

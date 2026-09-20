@@ -274,6 +274,249 @@ export interface paths {
         get: operations["getNote"];
         put?: never;
         post?: never;
+        /** Permanently delete a note that is in the Trash */
+        delete: operations["deleteNotePermanently"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The user's pages in order */
+        get: operations["listPages"];
+        put?: never;
+        /** Create a page */
+        post: operations["createPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a page; its notes return to the Inbox */
+        delete: operations["deletePage"];
+        options?: never;
+        head?: never;
+        /** Rename, reorder or archive a page */
+        patch: operations["updatePage"];
+        trace?: never;
+    };
+    "/api/v1/pages/{id}/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page's categories with their first notes and counts, in one call */
+        get: operations["getBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a category on a page */
+        post: operations["createCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a category; its notes return to the Inbox */
+        delete: operations["deleteCategory"];
+        options?: never;
+        head?: never;
+        /** Rename a category, reorder it, or move it to another page */
+        patch: operations["updateCategory"];
+        trace?: never;
+    };
+    "/api/v1/categories/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notes of a category in their manual order */
+        get: operations["listCategoryNotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a note in the app, in the Inbox or in a category */
+        post: operations["createNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move a note to a category (at a position) or back to the Inbox */
+        post: operations["moveNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a note (soft delete); undo with restore */
+        post: operations["dismissNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a dismissed note to where it was (or the Inbox) */
+        post: operations["restoreNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a text or attachment part to a note */
+        post: operations["addNotePart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/parts/{partId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a part (a note always keeps at least one) */
+        delete: operations["deleteNotePart"];
+        options?: never;
+        head?: never;
+        /** Edit the text of a part (the latest edit wins; nothing is lost) */
+        patch: operations["editNotePart"];
+        trace?: never;
+    };
+    "/api/v1/notes/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every text version of every part of a note */
+        get: operations["getNoteHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trash/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dismissed notes, newest first */
+        get: operations["listTrash"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -588,6 +831,7 @@ export interface components {
             updated_at: string;
             /** Format: date-time */
             deleted_at?: string;
+            previous_location?: components["schemas"]["PreviousLocation"];
             version: number;
             parts: components["schemas"]["NotePart"][];
         };
@@ -596,6 +840,168 @@ export interface components {
             next_cursor?: string;
             /** Format: int64 */
             total?: number;
+        };
+        Page: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            archived?: boolean;
+            version: number;
+        };
+        CreatePage: {
+            /**
+             * Format: uuid
+             * @description Client-generated id; repeating it returns the existing page
+             */
+            id?: string;
+            name: string;
+            /**
+             * Format: uuid
+             * @description Place after this page; default is the end
+             */
+            after_id?: string | null;
+        };
+        UpdatePage: {
+            name?: string;
+            archived?: boolean;
+            /** Format: uuid */
+            before_id?: string | null;
+            /** Format: uuid */
+            after_id?: string | null;
+        };
+        Category: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            page_id: string;
+            name: string;
+            version: number;
+        };
+        CreateCategory: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            page_id: string;
+            name: string;
+            /** Format: uuid */
+            after_id?: string | null;
+        };
+        UpdateCategory: {
+            name?: string;
+            /**
+             * Format: uuid
+             * @description Move the category to another page
+             */
+            page_id?: string;
+            /** Format: uuid */
+            before_id?: string | null;
+            /** Format: uuid */
+            after_id?: string | null;
+        };
+        Deleted: {
+            /** @description Notes that returned to the Inbox */
+            moved_notes: number;
+        };
+        Board: {
+            page: components["schemas"]["Page"];
+            /** Format: int64 */
+            inbox_total: number;
+            categories: components["schemas"]["BoardCategory"][];
+        };
+        BoardCategory: {
+            category: components["schemas"]["Category"];
+            notes: components["schemas"]["Note"][];
+            /** Format: int64 */
+            total: number;
+            next_cursor?: string;
+        };
+        NewPartInput: {
+            /** @enum {string} */
+            type: "text" | "attachment";
+            text?: string;
+            /**
+             * Format: uuid
+             * @description An attachment uploaded earlier and not yet used
+             */
+            attachment_id?: string;
+        };
+        CreateNote: {
+            /**
+             * Format: uuid
+             * @description Client-generated id; repeating it with the same content returns the note
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description null puts the note in the Inbox
+             */
+            category_id?: string | null;
+            /** Format: uuid */
+            before_id?: string | null;
+            /** Format: uuid */
+            after_id?: string | null;
+            parts: components["schemas"]["NewPartInput"][];
+        };
+        MoveNote: {
+            /**
+             * Format: uuid
+             * @description null moves the note to the Inbox
+             */
+            category_id: string | null;
+            /**
+             * Format: uuid
+             * @description The note that should come right after it
+             */
+            before_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The note that should come right before it
+             */
+            after_id?: string | null;
+        };
+        NewPart: {
+            /** @enum {string} */
+            type: "text" | "attachment";
+            text?: string;
+            /** Format: uuid */
+            attachment_id?: string;
+        };
+        EditPart: {
+            text: string;
+            /** @description The note version the edit is based on */
+            base_version?: number;
+        };
+        EditResult: {
+            note: components["schemas"]["Note"];
+            /** @description True when the note changed since base_version; the overwritten text stays in history */
+            stale: boolean;
+        };
+        NoteHistory: {
+            parts: {
+                /** Format: uuid */
+                part_id: string;
+                versions: components["schemas"]["PartVersion"][];
+            }[];
+        };
+        PartVersion: {
+            /** Format: uuid */
+            id: string;
+            text: string;
+            /** @enum {string} */
+            origin: "chat" | "app";
+            /** Format: date-time */
+            edited_at: string;
+            /** @description false for a late chat edit that did not overwrite a newer text */
+            applied: boolean;
+        };
+        /** @description Where a dismissed note came from (Trash view) */
+        PreviousLocation: {
+            /** Format: uuid */
+            category_id?: string;
+            category_name?: string;
+            /** Format: uuid */
+            page_id?: string;
+            page_name?: string;
         };
         Change: {
             /** Format: int64 */
@@ -700,6 +1106,7 @@ export interface components {
     };
     parameters: {
         Id: string;
+        PartId: string;
         Limit: number;
         Cursor: string;
     };
@@ -1099,6 +1506,475 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteNotePermanently: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listPages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Page"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePage"];
+            };
+        };
+        responses: {
+            /** @description Created (or the existing page for a repeated client id) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deletePage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deleted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updatePage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePage"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getBoard: {
+        parameters: {
+            query?: {
+                notes_per_category?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCategory"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deleted"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategory"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listCategoryNotes: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNote"];
+            };
+        };
+        responses: {
+            /** @description Created (or the existing note for a repeated client id with the same content) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    moveNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveNote"];
+            };
+        };
+        responses: {
+            /** @description The moved note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    dismissNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dismissed note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    restoreNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restored note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    addNotePart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPart"];
+            };
+        };
+        responses: {
+            /** @description The updated note */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteNotePart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                partId: components["parameters"]["PartId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The updated note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Note"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    editNotePart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                partId: components["parameters"]["PartId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditPart"];
+            };
+        };
+        responses: {
+            /** @description The updated note; stale says another edit happened since base_version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getNoteHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description History, newest first per part */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteHistory"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listTrash: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of dismissed notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotePage"];
                 };
             };
             default: components["responses"]["Problem"];

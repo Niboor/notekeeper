@@ -8,6 +8,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/auth"
+	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/config"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
@@ -20,6 +21,7 @@ type Services struct {
 	Accounts *accounts.Service
 	Bots     *bots.Service
 	Notes    *notes.Service
+	Board    *board.Service
 	Ingest   *ingest.Service
 }
 
@@ -38,10 +40,12 @@ func NewServices(cfg config.Config, st *store.Store, log *slog.Logger) (*Service
 		SessionOnly: 12 * time.Hour, RefreshGrace: cfg.RefreshGrace, ActivationTTL: cfg.ActivationTTL,
 	}
 	b := bots.New(st)
+	n := notes.New(st)
 	return &Services{
 		Accounts: accounts.New(st, keys, hasher, acfg, log),
 		Bots:     b,
-		Notes:    notes.New(st),
+		Notes:    n,
+		Board:    board.New(st, n),
 		Ingest:   ingest.New(st, b),
 	}, nil
 }

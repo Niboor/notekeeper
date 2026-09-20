@@ -24,6 +24,83 @@ func (q *Queries) CountInbox(ctx context.Context, userID uuid.UUID) (int64, erro
 	return count, err
 }
 
+const countNoteParts = `-- name: CountNoteParts :one
+select count(*) from note_parts where note_id = $1
+`
+
+func (q *Queries) CountNoteParts(ctx context.Context, noteID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNoteParts, noteID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTrash = `-- name: CountTrash :one
+select count(*) from notes where user_id = $1 and state = 'deleted'
+`
+
+func (q *Queries) CountTrash(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countTrash, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteNote = `-- name: DeleteNote :execrows
+delete from notes where id = $1 and user_id = $2 and state = 'deleted'
+`
+
+type DeleteNoteParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteNote(ctx context.Context, arg DeleteNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNote, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteNotePart = `-- name: DeleteNotePart :exec
+delete from note_parts where id = $1
+`
+
+func (q *Queries) DeleteNotePart(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteNotePart, id)
+	return err
+}
+
+const dismissNote = `-- name: DismissNote :one
+update notes set state = 'deleted', deleted_at = $3, updated_at = $3, version = version + 1
+where id = $1 and user_id = $2 and state = 'active' returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type DismissNoteParams struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	DeletedAt *time.Time
+}
+
+func (q *Queries) DismissNote(ctx context.Context, arg DismissNoteParams) (Note, error) {
+	row := q.db.QueryRow(ctx, dismissNote, arg.ID, arg.UserID, arg.DeletedAt)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const getIngestEvent = `-- name: GetIngestEvent :one
 select result from ingest_events where bot_instance_id = $1 and event_id = $2
 `
@@ -63,6 +140,43 @@ func (q *Queries) GetNote(ctx context.Context, arg GetNoteParams) (Note, error) 
 		&i.ReceivedAt,
 		&i.UpdatedAt,
 		&i.Version,
+	)
+	return i, err
+}
+
+const getNotePart = `-- name: GetNotePart :one
+select id, user_id, note_id, ordinal, kind, text, attachment_id, failed_filename, failed_size, failed_reason, attach_reason, related_part_id, created_at, text_edited_at, source_bot_instance_id, source_identity_id, source_conversation_id, source_message_id, source_part_index from note_parts where id = $1 and note_id = $2 and user_id = $3
+`
+
+type GetNotePartParams struct {
+	ID     uuid.UUID
+	NoteID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetNotePart(ctx context.Context, arg GetNotePartParams) (NotePart, error) {
+	row := q.db.QueryRow(ctx, getNotePart, arg.ID, arg.NoteID, arg.UserID)
+	var i NotePart
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.NoteID,
+		&i.Ordinal,
+		&i.Kind,
+		&i.Text,
+		&i.AttachmentID,
+		&i.FailedFilename,
+		&i.FailedSize,
+		&i.FailedReason,
+		&i.AttachReason,
+		&i.RelatedPartID,
+		&i.CreatedAt,
+		&i.TextEditedAt,
+		&i.SourceBotInstanceID,
+		&i.SourceIdentityID,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
+		&i.SourcePartIndex,
 	)
 	return i, err
 }
@@ -109,6 +223,42 @@ func (q *Queries) InsertNote(ctx context.Context, arg InsertNoteParams) (Note, e
 		arg.UserID,
 		arg.CreatedAt,
 		arg.ReceivedAt,
+	)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const insertNoteAt = `-- name: InsertNoteAt :one
+insert into notes (id, user_id, category_id, position, created_at, received_at) values ($1, $2, $3, $4, $5, $5) returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type InsertNoteAtParams struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	CategoryID uuid.NullUUID
+	Position   *string
+	CreatedAt  time.Time
+}
+
+func (q *Queries) InsertNoteAt(ctx context.Context, arg InsertNoteAtParams) (Note, error) {
+	row := q.db.QueryRow(ctx, insertNoteAt,
+		arg.ID,
+		arg.UserID,
+		arg.CategoryID,
+		arg.Position,
+		arg.CreatedAt,
 	)
 	var i Note
 	err := row.Scan(
@@ -197,6 +347,56 @@ func (q *Queries) InsertNotePart(ctx context.Context, arg InsertNotePartParams) 
 		&i.SourceMessageID,
 		&i.SourcePartIndex,
 	)
+	return i, err
+}
+
+const insertPartVersion = `-- name: InsertPartVersion :exec
+insert into note_part_versions (id, user_id, part_id, text, origin, edited_at, applied, source_event_id, session_id)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`
+
+type InsertPartVersionParams struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	PartID        uuid.UUID
+	Text          string
+	Origin        string
+	EditedAt      time.Time
+	Applied       bool
+	SourceEventID *string
+	SessionID     uuid.NullUUID
+}
+
+func (q *Queries) InsertPartVersion(ctx context.Context, arg InsertPartVersionParams) error {
+	_, err := q.db.Exec(ctx, insertPartVersion,
+		arg.ID,
+		arg.UserID,
+		arg.PartID,
+		arg.Text,
+		arg.Origin,
+		arg.EditedAt,
+		arg.Applied,
+		arg.SourceEventID,
+		arg.SessionID,
+	)
+	return err
+}
+
+const latestAppVersion = `-- name: LatestAppVersion :one
+select id, session_id, recorded_at from note_part_versions
+where part_id = $1 and origin = 'app' and applied order by edited_at desc, recorded_at desc limit 1
+`
+
+type LatestAppVersionRow struct {
+	ID         uuid.UUID
+	SessionID  uuid.NullUUID
+	RecordedAt time.Time
+}
+
+func (q *Queries) LatestAppVersion(ctx context.Context, partID uuid.UUID) (LatestAppVersionRow, error) {
+	row := q.db.QueryRow(ctx, latestAppVersion, partID)
+	var i LatestAppVersionRow
+	err := row.Scan(&i.ID, &i.SessionID, &i.RecordedAt)
 	return i, err
 }
 
@@ -303,6 +503,283 @@ func (q *Queries) ListNoteParts(ctx context.Context, dollar_1 []uuid.UUID) ([]Li
 	return items, nil
 }
 
+const listNoteVersions = `-- name: ListNoteVersions :many
+select v.id, v.user_id, v.part_id, v.text, v.origin, v.edited_at, v.recorded_at, v.applied, v.source_event_id, v.session_id from note_part_versions v join note_parts p on p.id = v.part_id
+where p.note_id = $1 order by v.part_id, v.edited_at desc, v.recorded_at desc
+`
+
+func (q *Queries) ListNoteVersions(ctx context.Context, noteID uuid.UUID) ([]NotePartVersion, error) {
+	rows, err := q.db.Query(ctx, listNoteVersions, noteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotePartVersion{}
+	for rows.Next() {
+		var i NotePartVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.PartID,
+			&i.Text,
+			&i.Origin,
+			&i.EditedAt,
+			&i.RecordedAt,
+			&i.Applied,
+			&i.SourceEventID,
+			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrash = `-- name: ListTrash :many
+select id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version from notes
+where user_id = $1 and state = 'deleted'
+  and ($3::timestamptz is null or (deleted_at, id) < ($3::timestamptz, $4::uuid))
+order by deleted_at desc, id desc
+limit $2
+`
+
+type ListTrashParams struct {
+	UserID       uuid.UUID
+	Limit        int32
+	AfterDeleted *time.Time
+	AfterID      uuid.NullUUID
+}
+
+func (q *Queries) ListTrash(ctx context.Context, arg ListTrashParams) ([]Note, error) {
+	rows, err := q.db.Query(ctx, listTrash,
+		arg.UserID,
+		arg.Limit,
+		arg.AfterDeleted,
+		arg.AfterID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Note{}
+	for rows.Next() {
+		var i Note
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CategoryID,
+			&i.Position,
+			&i.State,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.ReceivedAt,
+			&i.UpdatedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const nextPartOrdinal = `-- name: NextPartOrdinal :one
+select coalesce(max(ordinal) + 1, 0)::int from note_parts where note_id = $1
+`
+
+func (q *Queries) NextPartOrdinal(ctx context.Context, noteID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, nextPartOrdinal, noteID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const noteByClientID = `-- name: NoteByClientID :one
+select id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version from notes where id = $1
+`
+
+func (q *Queries) NoteByClientID(ctx context.Context, id uuid.UUID) (Note, error) {
+	row := q.db.QueryRow(ctx, noteByClientID, id)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const noteLocations = `-- name: NoteLocations :many
+select n.id as note_id, c.id as category_id, c.name as category_name, p.id as page_id, p.name as page_name
+from notes n join categories c on c.user_id = n.user_id and c.id = n.category_id
+             join pages p on p.user_id = c.user_id and p.id = c.page_id
+where n.user_id = $1 and n.id = any($2::uuid[])
+`
+
+type NoteLocationsParams struct {
+	UserID  uuid.UUID
+	Column2 []uuid.UUID
+}
+
+type NoteLocationsRow struct {
+	NoteID       uuid.UUID
+	CategoryID   uuid.UUID
+	CategoryName string
+	PageID       uuid.UUID
+	PageName     string
+}
+
+func (q *Queries) NoteLocations(ctx context.Context, arg NoteLocationsParams) ([]NoteLocationsRow, error) {
+	rows, err := q.db.Query(ctx, noteLocations, arg.UserID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NoteLocationsRow{}
+	for rows.Next() {
+		var i NoteLocationsRow
+		if err := rows.Scan(
+			&i.NoteID,
+			&i.CategoryID,
+			&i.CategoryName,
+			&i.PageID,
+			&i.PageName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const overwriteVersionText = `-- name: OverwriteVersionText :exec
+update note_part_versions set text = $2, edited_at = $3, recorded_at = $3 where id = $1
+`
+
+type OverwriteVersionTextParams struct {
+	ID       uuid.UUID
+	Text     string
+	EditedAt time.Time
+}
+
+func (q *Queries) OverwriteVersionText(ctx context.Context, arg OverwriteVersionTextParams) error {
+	_, err := q.db.Exec(ctx, overwriteVersionText, arg.ID, arg.Text, arg.EditedAt)
+	return err
+}
+
+const restoreNote = `-- name: RestoreNote :one
+update notes set state = 'active', deleted_at = null, updated_at = $3, version = version + 1
+where id = $1 and user_id = $2 and state = 'deleted' returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type RestoreNoteParams struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	UpdatedAt time.Time
+}
+
+func (q *Queries) RestoreNote(ctx context.Context, arg RestoreNoteParams) (Note, error) {
+	row := q.db.QueryRow(ctx, restoreNote, arg.ID, arg.UserID, arg.UpdatedAt)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const setNoteLocation = `-- name: SetNoteLocation :one
+
+update notes set category_id = $3, position = $4, updated_at = $5, version = version + 1
+where id = $1 and user_id = $2 returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type SetNoteLocationParams struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	CategoryID uuid.NullUUID
+	Position   *string
+	UpdatedAt  time.Time
+}
+
+// ---- note operations (M2) ----
+func (q *Queries) SetNoteLocation(ctx context.Context, arg SetNoteLocationParams) (Note, error) {
+	row := q.db.QueryRow(ctx, setNoteLocation,
+		arg.ID,
+		arg.UserID,
+		arg.CategoryID,
+		arg.Position,
+		arg.UpdatedAt,
+	)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const touchNote = `-- name: TouchNote :one
+update notes set updated_at = $3, version = version + 1 where id = $1 and user_id = $2 returning id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version
+`
+
+type TouchNoteParams struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	UpdatedAt time.Time
+}
+
+func (q *Queries) TouchNote(ctx context.Context, arg TouchNoteParams) (Note, error) {
+	row := q.db.QueryRow(ctx, touchNote, arg.ID, arg.UserID, arg.UpdatedAt)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CategoryID,
+		&i.Position,
+		&i.State,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.ReceivedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const updateIngestResult = `-- name: UpdateIngestResult :exec
 update ingest_events set result = $3 where bot_instance_id = $1 and event_id = $2
 `
@@ -315,5 +792,20 @@ type UpdateIngestResultParams struct {
 
 func (q *Queries) UpdateIngestResult(ctx context.Context, arg UpdateIngestResultParams) error {
 	_, err := q.db.Exec(ctx, updateIngestResult, arg.BotInstanceID, arg.EventID, arg.Result)
+	return err
+}
+
+const updatePartText = `-- name: UpdatePartText :exec
+update note_parts set text = $2, text_edited_at = $3 where id = $1
+`
+
+type UpdatePartTextParams struct {
+	ID           uuid.UUID
+	Text         *string
+	TextEditedAt *time.Time
+}
+
+func (q *Queries) UpdatePartText(ctx context.Context, arg UpdatePartTextParams) error {
+	_, err := q.db.Exec(ctx, updatePartText, arg.ID, arg.Text, arg.TextEditedAt)
 	return err
 }

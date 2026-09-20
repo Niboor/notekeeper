@@ -3,9 +3,11 @@
 package server_test
 
 import (
+	"context"
 	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"net/http"
@@ -29,4 +31,13 @@ func userapiSpec() (*openapi3.T, error) { return userapi.GetSpec() }
 
 func accountsCreate(name string) accounts.CreateUserInput {
 	return accounts.CreateUserInput{Username: name}
+}
+
+func (s *stack) lookupUser(name string) uuid.UUID {
+	s.t.Helper()
+	var id uuid.UUID
+	if err := s.db.Admin.QueryRow(context.Background(), `select id from users where username = $1`, name).Scan(&id); err != nil {
+		s.t.Fatal(err)
+	}
+	return id
 }

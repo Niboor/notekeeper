@@ -299,6 +299,317 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Note'}
         default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteNotePermanently
+      summary: Permanently delete a note that is in the Trash
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '204': {description: Deleted}
+        default: {$ref: '#/components/responses/Problem'}
+
+  # ---- pages, categories, board ------------------------------------------------------------
+  /api/v1/pages:
+    get:
+      operationId: listPages
+      summary: The user's pages in order
+      security: &user
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Page'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createPage
+      summary: Create a page
+      security: *user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreatePage'}
+      responses:
+        '201':
+          description: Created (or the existing page for a repeated client id)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Page'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/pages/{id}:
+    patch:
+      operationId: updatePage
+      summary: Rename, reorder or archive a page
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdatePage'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Page'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deletePage
+      summary: Delete a page; its notes return to the Inbox
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Deleted'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/pages/{id}/board:
+    get:
+      operationId: getBoard
+      summary: A page's categories with their first notes and counts, in one call
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - name: notes_per_category
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 30}
+      responses:
+        '200':
+          description: The board
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Board'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/categories:
+    post:
+      operationId: createCategory
+      summary: Create a category on a page
+      security: *user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCategory'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Category'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/categories/{id}:
+    patch:
+      operationId: updateCategory
+      summary: Rename a category, reorder it, or move it to another page
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateCategory'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Category'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteCategory
+      summary: Delete a category; its notes return to the Inbox
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Deleted'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/categories/{id}/notes:
+    get:
+      operationId: listCategoryNotes
+      summary: Notes of a category in their manual order
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: One page of notes
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotePage'}
+        default: {$ref: '#/components/responses/Problem'}
+
+  # ---- note operations -----------------------------------------------------------------------
+  /api/v1/notes:
+    post:
+      operationId: createNote
+      summary: Create a note in the app, in the Inbox or in a category
+      security: *user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateNote'}
+      responses:
+        '201':
+          description: Created (or the existing note for a repeated client id with the same content)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/move:
+    post:
+      operationId: moveNote
+      summary: Move a note to a category (at a position) or back to the Inbox
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MoveNote'}
+      responses:
+        '200':
+          description: The moved note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/dismiss:
+    post:
+      operationId: dismissNote
+      summary: Dismiss a note (soft delete); undo with restore
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: The dismissed note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/restore:
+    post:
+      operationId: restoreNote
+      summary: Restore a dismissed note to where it was (or the Inbox)
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: The restored note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/parts:
+    post:
+      operationId: addNotePart
+      summary: Add a text or attachment part to a note
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewPart'}
+      responses:
+        '201':
+          description: The updated note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/parts/{partId}:
+    patch:
+      operationId: editNotePart
+      summary: Edit the text of a part (the latest edit wins; nothing is lost)
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/PartId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EditPart'}
+      responses:
+        '200':
+          description: The updated note; stale says another edit happened since base_version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EditResult'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteNotePart
+      summary: Remove a part (a note always keeps at least one)
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/PartId'}
+      responses:
+        '200':
+          description: The updated note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Note'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notes/{id}/history:
+    get:
+      operationId: getNoteHistory
+      summary: Every text version of every part of a note
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: History, newest first per part
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NoteHistory'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/trash/notes:
+    get:
+      operationId: listTrash
+      summary: Dismissed notes, newest first
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: One page of dismissed notes
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotePage'}
+        default: {$ref: '#/components/responses/Problem'}
 
   # ---- realtime and sync ------------------------------------------------------------------
   /api/v1/events:
@@ -535,6 +846,11 @@ components:
       in: path
       required: true
       schema: {type: string, format: uuid}
+    PartId:
+      name: partId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
     Limit:
       name: limit
       in: query
@@ -687,6 +1003,7 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         deleted_at: {type: string, format: date-time}
+        previous_location: {$ref: '#/components/schemas/PreviousLocation'}
         version: {type: integer}
         parts:
           type: array
@@ -700,6 +1017,153 @@ components:
           items: {$ref: '#/components/schemas/Note'}
         next_cursor: {type: string}
         total: {type: integer, format: int64}
+
+    Page:
+      type: object
+      required: [id, name, version]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        archived: {type: boolean}
+        version: {type: integer}
+    CreatePage:
+      type: object
+      required: [name]
+      properties:
+        id: {type: string, format: uuid, description: Client-generated id; repeating it returns the existing page}
+        name: {type: string, minLength: 1, maxLength: 100}
+        after_id: {type: string, format: uuid, nullable: true, description: Place after this page; default is the end}
+    UpdatePage:
+      type: object
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        archived: {type: boolean}
+        before_id: {type: string, format: uuid, nullable: true}
+        after_id: {type: string, format: uuid, nullable: true}
+    Category:
+      type: object
+      required: [id, page_id, name, version]
+      properties:
+        id: {type: string, format: uuid}
+        page_id: {type: string, format: uuid}
+        name: {type: string}
+        version: {type: integer}
+    CreateCategory:
+      type: object
+      required: [page_id, name]
+      properties:
+        id: {type: string, format: uuid}
+        page_id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100}
+        after_id: {type: string, format: uuid, nullable: true}
+    UpdateCategory:
+      type: object
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        page_id: {type: string, format: uuid, description: Move the category to another page}
+        before_id: {type: string, format: uuid, nullable: true}
+        after_id: {type: string, format: uuid, nullable: true}
+    Deleted:
+      type: object
+      required: [moved_notes]
+      properties:
+        moved_notes: {type: integer, description: Notes that returned to the Inbox}
+    Board:
+      type: object
+      required: [page, categories, inbox_total]
+      properties:
+        page: {$ref: '#/components/schemas/Page'}
+        inbox_total: {type: integer, format: int64}
+        categories:
+          type: array
+          items: {$ref: '#/components/schemas/BoardCategory'}
+    BoardCategory:
+      type: object
+      required: [category, notes, total]
+      properties:
+        category: {$ref: '#/components/schemas/Category'}
+        notes:
+          type: array
+          items: {$ref: '#/components/schemas/Note'}
+        total: {type: integer, format: int64}
+        next_cursor: {type: string}
+    NewPartInput:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [text, attachment]}
+        text: {type: string, maxLength: 100000}
+        attachment_id: {type: string, format: uuid, description: An attachment uploaded earlier and not yet used}
+    CreateNote:
+      type: object
+      required: [parts]
+      properties:
+        id: {type: string, format: uuid, description: Client-generated id; repeating it with the same content returns the note}
+        category_id: {type: string, format: uuid, nullable: true, description: null puts the note in the Inbox}
+        before_id: {type: string, format: uuid, nullable: true}
+        after_id: {type: string, format: uuid, nullable: true}
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: {$ref: '#/components/schemas/NewPartInput'}
+    MoveNote:
+      type: object
+      required: [category_id]
+      properties:
+        category_id: {type: string, format: uuid, nullable: true, description: null moves the note to the Inbox}
+        before_id: {type: string, format: uuid, nullable: true, description: The note that should come right after it}
+        after_id: {type: string, format: uuid, nullable: true, description: The note that should come right before it}
+    NewPart:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [text, attachment]}
+        text: {type: string, maxLength: 100000}
+        attachment_id: {type: string, format: uuid}
+    EditPart:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 100000}
+        base_version: {type: integer, description: The note version the edit is based on}
+    EditResult:
+      type: object
+      required: [note, stale]
+      properties:
+        note: {$ref: '#/components/schemas/Note'}
+        stale: {type: boolean, description: True when the note changed since base_version; the overwritten text stays in history}
+    NoteHistory:
+      type: object
+      required: [parts]
+      properties:
+        parts:
+          type: array
+          items:
+            type: object
+            required: [part_id, versions]
+            properties:
+              part_id: {type: string, format: uuid}
+              versions:
+                type: array
+                items: {$ref: '#/components/schemas/PartVersion'}
+    PartVersion:
+      type: object
+      required: [id, text, origin, edited_at, applied]
+      properties:
+        id: {type: string, format: uuid}
+        text: {type: string}
+        origin: {type: string, enum: [chat, app]}
+        edited_at: {type: string, format: date-time}
+        applied: {type: boolean, description: false for a late chat edit that did not overwrite a newer text}
+    PreviousLocation:
+      type: object
+      description: Where a dismissed note came from (Trash view)
+      properties:
+        category_id: {type: string, format: uuid}
+        category_name: {type: string}
+        page_id: {type: string, format: uuid}
+        page_name: {type: string}
     Change:
       type: object
       required: [seq, entity_type, entity_id, op]

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Niboor/notekeeper/core/internal/accounts"
+	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
@@ -39,9 +40,9 @@ func mapError(err error) *httpx.Error {
 		return errUnauthenticated
 	case errors.Is(err, accounts.ErrInvalidToken):
 		return httpx.NewError(http.StatusBadRequest, "invalid_link")
-	case errors.Is(err, accounts.ErrInvalidInput), errors.Is(err, bots.ErrInvalidInput):
+	case errors.Is(err, accounts.ErrInvalidInput), errors.Is(err, bots.ErrInvalidInput), errors.Is(err, notes.ErrInvalidInput), errors.Is(err, board.ErrInvalidInput):
 		return httpx.NewError(http.StatusBadRequest, "invalid_input").WithDetail(err.Error())
-	case errors.Is(err, accounts.ErrConflict), errors.Is(err, bots.ErrConflict):
+	case errors.Is(err, accounts.ErrConflict), errors.Is(err, bots.ErrConflict), errors.Is(err, notes.ErrConflict), errors.Is(err, board.ErrConflict):
 		return httpx.NewError(http.StatusConflict, "conflict")
 	case errors.Is(err, store.ErrNotFound):
 		return errNotFound

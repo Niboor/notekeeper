@@ -62,7 +62,7 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 	routers, err := server.NewRouters(server.Deps{Config: cfg, Log: log, Store: st, Accounts: svc.Accounts, Bots: svc.Bots,
-		Notes: svc.Notes, Ingest: svc.Ingest, Hub: hub})
+		Notes: svc.Notes, Board: svc.Board, Ingest: svc.Ingest, Hub: hub})
 	if err != nil {
 		t.Fatal(err)
 	}

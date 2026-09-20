@@ -277,6 +277,14 @@ func (s *Service) created(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 		if _, err := tx.Q.InsertNotePart(ctx, params); err != nil {
 			return Outcome{}, fmt.Errorf("insert part: %w", err)
 		}
+		if params.Text != nil { // the first history entry of a text part
+			vid, _ := uuid.NewV7()
+			evID := ev.EventID
+			if err := tx.Q.InsertPartVersion(ctx, dbq.InsertPartVersionParams{ID: vid, UserID: tx.UserID, PartID: partID, Text: *params.Text,
+				Origin: "chat", EditedAt: ev.Timestamp, Applied: true, SourceEventID: &evID}); err != nil {
+				return Outcome{}, fmt.Errorf("insert version: %w", err)
+			}
+		}
 	}
 	if err := tx.Change(ctx, "note", noteID, "upsert", &note.Version); err != nil {
 		return Outcome{}, err
