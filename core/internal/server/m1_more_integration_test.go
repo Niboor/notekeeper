@@ -145,7 +145,7 @@ func TestChangesReachStreamsOnOtherReplicas(t *testing.T) {
 	defer cancel()
 	go hub2.Run(ctx)
 	routers2, err := server.NewRouters(server.Deps{Config: s.cfg, Log: discardLog(), Store: s.st, Accounts: s.svc.Accounts, Bots: s.svc.Bots,
-		Notes: s.svc.Notes, Board: s.svc.Board, Blobs: s.svc.Blobs, Ingest: s.svc.Ingest, Outbox: s.svc.Outbox, Shares: s.svc.Shares, Hub: hub2})
+		Notes: s.svc.Notes, Board: s.svc.Board, Blobs: s.svc.Blobs, Ingest: s.svc.Ingest, Outbox: s.svc.Outbox, Shares: s.svc.Shares, Reminders: s.svc.Reminders, Hub: hub2})
 	if err != nil {
 		t.Fatal(err)
 	}

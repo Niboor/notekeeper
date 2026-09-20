@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
@@ -184,13 +185,15 @@ func TestForeignObjectsAnswerLikeMissingOnes(t *testing.T) {
 	victim.upload(attachment, "secret.pdf", "application/pdf", []byte("%PDF-1.4 secret"))
 	victim.attachNote(attachment)
 	shareLink := victim.share(note.ID, "1d").Link.ID
+	reminder := victim.remind(note.ID, time.Now().Add(time.Hour), "").ID
 
 	// Which kind of object each path parameter names, by the collection it follows.
-	real := map[string]string{"attachments": attachment, "notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID, "share-links": shareLink}
+	real := map[string]string{"attachments": attachment, "notes": note.ID, "pages": page, "categories": cat, "sessions": sessions.Items[0].ID, "identities": idents.Items[0].ID, "share-links": shareLink, "reminders": reminder}
 	bodies := map[string]any{
 		"updatePage": map[string]any{"name": "x"}, "updateCategory": map[string]any{"name": "x"},
 		"moveNote": map[string]any{"category_id": nil}, "addNotePart": map[string]any{"type": "text", "text": "x"},
-		"editNotePart": map[string]any{"text": "x"}, "createShareLink": map[string]any{"expires_in": "1d"},
+		"editNotePart": map[string]any{"text": "x"}, "createShareLink": map[string]any{"expires_in": "1d"}, "createReminder": map[string]any{"due_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
+		"updateReminder": map[string]any{"rrule": ""}, "snoozeReminder": map[string]any{"until": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}, "updateIdentity": map[string]any{"reminder_target": true},
 	}
 
 	spec, _ := userapiSpec()

@@ -231,6 +231,27 @@ func (e NotePartKind) Valid() bool {
 	}
 }
 
+// Defines values for NotificationKind.
+const (
+	NotificationKindDeliveryFailed NotificationKind = "delivery_failed"
+	NotificationKindReminder       NotificationKind = "reminder"
+	NotificationKindSecurity       NotificationKind = "security"
+)
+
+// Valid indicates whether the value is a known member of the NotificationKind enum.
+func (e NotificationKind) Valid() bool {
+	switch e {
+	case NotificationKindDeliveryFailed:
+		return true
+	case NotificationKindReminder:
+		return true
+	case NotificationKindSecurity:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PartVersionOrigin.
 const (
 	PartVersionOriginApp  PartVersionOrigin = "app"
@@ -243,6 +264,60 @@ func (e PartVersionOrigin) Valid() bool {
 	case PartVersionOriginApp:
 		return true
 	case PartVersionOriginChat:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReminderState.
+const (
+	ReminderStateCancelled ReminderState = "cancelled"
+	ReminderStateDone      ReminderState = "done"
+	ReminderStateFired     ReminderState = "fired"
+	ReminderStatePending   ReminderState = "pending"
+	ReminderStateSuspended ReminderState = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the ReminderState enum.
+func (e ReminderState) Valid() bool {
+	switch e {
+	case ReminderStateCancelled:
+		return true
+	case ReminderStateDone:
+		return true
+	case ReminderStateFired:
+		return true
+	case ReminderStatePending:
+		return true
+	case ReminderStateSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpcomingReminderState.
+const (
+	UpcomingReminderStateCancelled UpcomingReminderState = "cancelled"
+	UpcomingReminderStateDone      UpcomingReminderState = "done"
+	UpcomingReminderStateFired     UpcomingReminderState = "fired"
+	UpcomingReminderStatePending   UpcomingReminderState = "pending"
+	UpcomingReminderStateSuspended UpcomingReminderState = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the UpcomingReminderState enum.
+func (e UpcomingReminderState) Valid() bool {
+	switch e {
+	case UpcomingReminderStateCancelled:
+		return true
+	case UpcomingReminderStateDone:
+		return true
+	case UpcomingReminderStateFired:
+		return true
+	case UpcomingReminderStatePending:
+		return true
+	case UpcomingReminderStateSuspended:
 		return true
 	default:
 		return false
@@ -494,6 +569,12 @@ type CreatePage struct {
 	Name string              `json:"name"`
 }
 
+// CreateReminderRequest defines model for CreateReminderRequest.
+type CreateReminderRequest struct {
+	DueAt time.Time `json:"due_at"`
+	Rrule *string   `json:"rrule,omitempty"`
+}
+
 // CreateShareLinkRequest defines model for CreateShareLinkRequest.
 type CreateShareLinkRequest struct {
 	// ExpiresIn How long the link works. The operator may set a lower maximum.
@@ -621,6 +702,7 @@ type Note struct {
 
 	// PreviousLocation Where a dismissed note came from (Trash view)
 	PreviousLocation *PreviousLocation `json:"previous_location,omitempty"`
+	Reminders        *[]Reminder       `json:"reminders,omitempty"`
 	State            NoteState         `json:"state"`
 	UpdatedAt        time.Time         `json:"updated_at"`
 	Version          int               `json:"version"`
@@ -664,6 +746,18 @@ type NotePartAttachReason string
 
 // NotePartKind defines model for NotePart.Kind.
 type NotePartKind string
+
+// Notification defines model for Notification.
+type Notification struct {
+	CreatedAt time.Time              `json:"created_at"`
+	Id        openapi_types.UUID     `json:"id"`
+	Kind      NotificationKind       `json:"kind"`
+	Payload   map[string]interface{} `json:"payload"`
+	ReadAt    *time.Time             `json:"read_at,omitempty"`
+}
+
+// NotificationKind defines model for Notification.Kind.
+type NotificationKind string
 
 // Page defines model for Page.
 type Page struct {
@@ -722,6 +816,23 @@ type RefreshRequest struct {
 	RefreshToken *string `json:"refresh_token,omitempty"`
 }
 
+// Reminder defines model for Reminder.
+type Reminder struct {
+	DueAt       time.Time          `json:"due_at"`
+	Id          openapi_types.UUID `json:"id"`
+	LastFiredAt *time.Time         `json:"last_fired_at,omitempty"`
+	NoteId      openapi_types.UUID `json:"note_id"`
+
+	// Rrule Repeat rule such as FREQ=WEEKLY;BYDAY=MO,WE
+	Rrule   *string       `json:"rrule,omitempty"`
+	State   ReminderState `json:"state"`
+	Tz      string        `json:"tz"`
+	Version int           `json:"version"`
+}
+
+// ReminderState defines model for Reminder.State.
+type ReminderState string
+
 // SearchHit defines model for SearchHit.
 type SearchHit struct {
 	// Location Where a dismissed note came from (Trash view)
@@ -763,6 +874,24 @@ type ShareLink struct {
 	ViewCount  int                `json:"view_count"`
 }
 
+// UpcomingReminder defines model for UpcomingReminder.
+type UpcomingReminder struct {
+	DueAt       time.Time          `json:"due_at"`
+	Excerpt     string             `json:"excerpt"`
+	Id          openapi_types.UUID `json:"id"`
+	LastFiredAt *time.Time         `json:"last_fired_at,omitempty"`
+	NoteId      openapi_types.UUID `json:"note_id"`
+
+	// Rrule Repeat rule such as FREQ=WEEKLY;BYDAY=MO,WE
+	Rrule   *string               `json:"rrule,omitempty"`
+	State   UpcomingReminderState `json:"state"`
+	Tz      string                `json:"tz"`
+	Version int                   `json:"version"`
+}
+
+// UpcomingReminderState defines model for UpcomingReminder.State.
+type UpcomingReminderState string
+
 // UpdateCategory defines model for UpdateCategory.
 type UpdateCategory struct {
 	AfterId  *openapi_types.UUID `json:"after_id,omitempty"`
@@ -771,6 +900,11 @@ type UpdateCategory struct {
 
 	// PageId Move the category to another page
 	PageId *openapi_types.UUID `json:"page_id,omitempty"`
+}
+
+// UpdateIdentityRequest defines model for UpdateIdentityRequest.
+type UpdateIdentityRequest struct {
+	ReminderTarget *bool `json:"reminder_target,omitempty"`
 }
 
 // UpdateMe defines model for UpdateMe.
@@ -786,6 +920,14 @@ type UpdatePage struct {
 	Archived *bool               `json:"archived,omitempty"`
 	BeforeId *openapi_types.UUID `json:"before_id,omitempty"`
 	Name     *string             `json:"name,omitempty"`
+}
+
+// UpdateReminderRequest defines model for UpdateReminderRequest.
+type UpdateReminderRequest struct {
+	DueAt *time.Time `json:"due_at,omitempty"`
+
+	// Rrule An empty string ends the repetition
+	Rrule *string `json:"rrule,omitempty"`
 }
 
 // Version defines model for Version.
@@ -856,9 +998,24 @@ type RevokeAllSessionsJSONBody struct {
 	KeepCurrent *bool `json:"keep_current,omitempty"`
 }
 
+// ListNotificationsParams defines parameters for ListNotifications.
+type ListNotificationsParams struct {
+	Unread *bool `form:"unread,omitempty" json:"unread,omitempty"`
+}
+
+// MarkNotificationsReadJSONBody defines parameters for MarkNotificationsRead.
+type MarkNotificationsReadJSONBody struct {
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
+}
+
 // GetBoardParams defines parameters for GetBoard.
 type GetBoardParams struct {
 	NotesPerCategory *int `form:"notes_per_category,omitempty" json:"notes_per_category,omitempty"`
+}
+
+// SnoozeReminderJSONBody defines parameters for SnoozeReminder.
+type SnoozeReminderJSONBody struct {
+	Until time.Time `json:"until"`
 }
 
 // SearchNotesParams defines parameters for SearchNotes.
@@ -920,6 +1077,9 @@ type UpdateCategoryJSONRequestBody = UpdateCategory
 // UpdateMeJSONRequestBody defines body for UpdateMe for application/json ContentType.
 type UpdateMeJSONRequestBody = UpdateMe
 
+// UpdateIdentityJSONRequestBody defines body for UpdateIdentity for application/json ContentType.
+type UpdateIdentityJSONRequestBody = UpdateIdentityRequest
+
 // CreatePairingCodeJSONRequestBody defines body for CreatePairingCode for application/json ContentType.
 type CreatePairingCodeJSONRequestBody CreatePairingCodeJSONBody
 
@@ -941,14 +1101,26 @@ type AddNotePartJSONRequestBody = NewPart
 // EditNotePartJSONRequestBody defines body for EditNotePart for application/json ContentType.
 type EditNotePartJSONRequestBody = EditPart
 
+// CreateReminderJSONRequestBody defines body for CreateReminder for application/json ContentType.
+type CreateReminderJSONRequestBody = CreateReminderRequest
+
 // CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
 type CreateShareLinkJSONRequestBody = CreateShareLinkRequest
+
+// MarkNotificationsReadJSONRequestBody defines body for MarkNotificationsRead for application/json ContentType.
+type MarkNotificationsReadJSONRequestBody MarkNotificationsReadJSONBody
 
 // CreatePageJSONRequestBody defines body for CreatePage for application/json ContentType.
 type CreatePageJSONRequestBody = CreatePage
 
 // UpdatePageJSONRequestBody defines body for UpdatePage for application/json ContentType.
 type UpdatePageJSONRequestBody = UpdatePage
+
+// UpdateReminderJSONRequestBody defines body for UpdateReminder for application/json ContentType.
+type UpdateReminderJSONRequestBody = UpdateReminderRequest
+
+// SnoozeReminderJSONRequestBody defines body for SnoozeReminder for application/json ContentType.
+type SnoozeReminderJSONRequestBody SnoozeReminderJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1033,6 +1205,9 @@ type ServerInterface interface {
 	// UnlinkIdentity Unlink a chat identity
 	// (DELETE /api/v1/me/identities/{id})
 	UnlinkIdentity(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateIdentity Choose whether a linked chat receives reminders
+	// (PATCH /api/v1/me/identities/{id})
+	UpdateIdentity(w http.ResponseWriter, r *http.Request, id Id)
 	// CreatePairingCode Create a one-time code to link a chat with `!link CODE`
 	// (POST /api/v1/me/pairing-codes)
 	CreatePairingCode(w http.ResponseWriter, r *http.Request)
@@ -1075,12 +1250,21 @@ type ServerInterface interface {
 	// EditNotePart Edit the text of a part (the latest edit wins; nothing is lost)
 	// (PATCH /api/v1/notes/{id}/parts/{partId})
 	EditNotePart(w http.ResponseWriter, r *http.Request, id Id, partId PartId)
+	// CreateReminder Remind about a note at a point in time, once or repeating
+	// (POST /api/v1/notes/{id}/reminders)
+	CreateReminder(w http.ResponseWriter, r *http.Request, id Id)
 	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
 	// (POST /api/v1/notes/{id}/restore)
 	RestoreNote(w http.ResponseWriter, r *http.Request, id Id)
 	// CreateShareLink Create a read-only link to a note that expires; the token is returned once
 	// (POST /api/v1/notes/{id}/share-links)
 	CreateShareLink(w http.ResponseWriter, r *http.Request, id Id)
+	// ListNotifications Notifications for the user, newest first
+	// (GET /api/v1/notifications)
+	ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams)
+	// MarkNotificationsRead Mark notifications read (all when no ids are given)
+	// (POST /api/v1/notifications/read)
+	MarkNotificationsRead(w http.ResponseWriter, r *http.Request)
 	// ListPages The user's pages in order
 	// (GET /api/v1/pages)
 	ListPages(w http.ResponseWriter, r *http.Request)
@@ -1096,6 +1280,21 @@ type ServerInterface interface {
 	// GetBoard A page's categories with their first notes and counts, in one call
 	// (GET /api/v1/pages/{id}/board)
 	GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams)
+	// ListReminders The user's upcoming reminders
+	// (GET /api/v1/reminders)
+	ListReminders(w http.ResponseWriter, r *http.Request)
+	// DeleteReminder Clear a reminder (for a repeating one, end it)
+	// (DELETE /api/v1/reminders/{id})
+	DeleteReminder(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateReminder Change when a reminder fires or how it repeats; arms it again
+	// (PATCH /api/v1/reminders/{id})
+	UpdateReminder(w http.ResponseWriter, r *http.Request, id Id)
+	// CompleteReminder Mark a reminder done (a repeating one skips to its next time)
+	// (POST /api/v1/reminders/{id}/done)
+	CompleteReminder(w http.ResponseWriter, r *http.Request, id Id)
+	// SnoozeReminder Fire again at a later time
+	// (POST /api/v1/reminders/{id}/snooze)
+	SnoozeReminder(w http.ResponseWriter, r *http.Request, id Id)
 	// SearchNotes Full-text search over the user's notes
 	// (GET /api/v1/search)
 	SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams)
@@ -1282,6 +1481,12 @@ func (_ Unimplemented) UnlinkIdentity(w http.ResponseWriter, r *http.Request, id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// UpdateIdentity Choose whether a linked chat receives reminders
+// (PATCH /api/v1/me/identities/{id})
+func (_ Unimplemented) UpdateIdentity(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // CreatePairingCode Create a one-time code to link a chat with `!link CODE`
 // (POST /api/v1/me/pairing-codes)
 func (_ Unimplemented) CreatePairingCode(w http.ResponseWriter, r *http.Request) {
@@ -1366,6 +1571,12 @@ func (_ Unimplemented) EditNotePart(w http.ResponseWriter, r *http.Request, id I
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// CreateReminder Remind about a note at a point in time, once or repeating
+// (POST /api/v1/notes/{id}/reminders)
+func (_ Unimplemented) CreateReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // RestoreNote Restore a dismissed note to where it was (or the Inbox)
 // (POST /api/v1/notes/{id}/restore)
 func (_ Unimplemented) RestoreNote(w http.ResponseWriter, r *http.Request, id Id) {
@@ -1375,6 +1586,18 @@ func (_ Unimplemented) RestoreNote(w http.ResponseWriter, r *http.Request, id Id
 // CreateShareLink Create a read-only link to a note that expires; the token is returned once
 // (POST /api/v1/notes/{id}/share-links)
 func (_ Unimplemented) CreateShareLink(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotifications Notifications for the user, newest first
+// (GET /api/v1/notifications)
+func (_ Unimplemented) ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// MarkNotificationsRead Mark notifications read (all when no ids are given)
+// (POST /api/v1/notifications/read)
+func (_ Unimplemented) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1405,6 +1628,36 @@ func (_ Unimplemented) UpdatePage(w http.ResponseWriter, r *http.Request, id Id)
 // GetBoard A page's categories with their first notes and counts, in one call
 // (GET /api/v1/pages/{id}/board)
 func (_ Unimplemented) GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListReminders The user's upcoming reminders
+// (GET /api/v1/reminders)
+func (_ Unimplemented) ListReminders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteReminder Clear a reminder (for a repeating one, end it)
+// (DELETE /api/v1/reminders/{id})
+func (_ Unimplemented) DeleteReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateReminder Change when a reminder fires or how it repeats; arms it again
+// (PATCH /api/v1/reminders/{id})
+func (_ Unimplemented) UpdateReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CompleteReminder Mark a reminder done (a repeating one skips to its next time)
+// (POST /api/v1/reminders/{id}/done)
+func (_ Unimplemented) CompleteReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SnoozeReminder Fire again at a later time
+// (POST /api/v1/reminders/{id}/snooze)
+func (_ Unimplemented) SnoozeReminder(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2112,6 +2365,32 @@ func (siw *ServerInterfaceWrapper) UnlinkIdentity(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateIdentity operation middleware
+func (siw *ServerInterfaceWrapper) UpdateIdentity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateIdentity(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreatePairingCode operation middleware
 func (siw *ServerInterfaceWrapper) CreatePairingCode(w http.ResponseWriter, r *http.Request) {
 
@@ -2434,6 +2713,32 @@ func (siw *ServerInterfaceWrapper) EditNotePart(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// CreateReminder operation middleware
+func (siw *ServerInterfaceWrapper) CreateReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateReminder(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RestoreNote operation middleware
 func (siw *ServerInterfaceWrapper) RestoreNote(w http.ResponseWriter, r *http.Request) {
 
@@ -2477,6 +2782,53 @@ func (siw *ServerInterfaceWrapper) CreateShareLink(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateShareLink(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListNotifications(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListNotificationsParams
+
+	// ------------- Optional query parameter "unread" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "unread", r.URL.Query(), &params.Unread, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "unread"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "unread", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotifications(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarkNotificationsRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkNotificationsRead(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2599,6 +2951,124 @@ func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBoard(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListReminders operation middleware
+func (siw *ServerInterfaceWrapper) ListReminders(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListReminders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteReminder operation middleware
+func (siw *ServerInterfaceWrapper) DeleteReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteReminder(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateReminder operation middleware
+func (siw *ServerInterfaceWrapper) UpdateReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateReminder(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteReminder operation middleware
+func (siw *ServerInterfaceWrapper) CompleteReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteReminder(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SnoozeReminder operation middleware
+func (siw *ServerInterfaceWrapper) SnoozeReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SnoozeReminder(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3018,6 +3488,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Delete(options.BaseURL+"/api/v1/me/identities/{id}", wrapper.UnlinkIdentity)
 	})
 	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/me/identities/{id}", wrapper.UpdateIdentity)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/me/pairing-codes", wrapper.CreatePairingCode)
 	})
 	r.Group(func(r chi.Router) {
@@ -3139,6 +3612,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/share-links/revoke-all", wrapper.RevokeAllShareLinks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notes/{id}/reminders", wrapper.CreateReminder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/reminders", wrapper.ListReminders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/reminders/{id}", wrapper.DeleteReminder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/reminders/{id}", wrapper.UpdateReminder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/reminders/{id}/snooze", wrapper.SnoozeReminder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/reminders/{id}/done", wrapper.CompleteReminder)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notifications", wrapper.ListNotifications)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notifications/read", wrapper.MarkNotificationsRead)
 	})
 
 	return r
@@ -4210,6 +4707,46 @@ func (response UnlinkIdentitydefaultApplicationProblemPlusJSONResponse) VisitUnl
 	return err
 }
 
+type UpdateIdentityRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateIdentityJSONRequestBody
+}
+
+type UpdateIdentityResponseObject interface {
+	VisitUpdateIdentityResponse(w http.ResponseWriter) error
+}
+
+type UpdateIdentity200JSONResponse Identity
+
+func (response UpdateIdentity200JSONResponse) VisitUpdateIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIdentitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateIdentitydefaultApplicationProblemPlusJSONResponse) VisitUpdateIdentityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreatePairingCodeRequestObject struct {
 	Body *CreatePairingCodeJSONRequestBody
 }
@@ -4738,6 +5275,46 @@ func (response EditNotePartdefaultApplicationProblemPlusJSONResponse) VisitEditN
 	return err
 }
 
+type CreateReminderRequestObject struct {
+	Id   Id `json:"id"`
+	Body *CreateReminderJSONRequestBody
+}
+
+type CreateReminderResponseObject interface {
+	VisitCreateReminderResponse(w http.ResponseWriter) error
+}
+
+type CreateReminder201JSONResponse Reminder
+
+func (response CreateReminder201JSONResponse) VisitCreateReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateReminderdefaultApplicationProblemPlusJSONResponse) VisitCreateReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RestoreNoteRequestObject struct {
 	Id Id `json:"id"`
 }
@@ -4806,6 +5383,81 @@ type CreateShareLinkdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response CreateShareLinkdefaultApplicationProblemPlusJSONResponse) VisitCreateShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationsRequestObject struct {
+	Params ListNotificationsParams
+}
+
+type ListNotificationsResponseObject interface {
+	VisitListNotificationsResponse(w http.ResponseWriter) error
+}
+
+type ListNotifications200JSONResponse struct {
+	Items  []Notification `json:"items"`
+	Unread int            `json:"unread"`
+}
+
+func (response ListNotifications200JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListNotificationsdefaultApplicationProblemPlusJSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkNotificationsReadRequestObject struct {
+	Body *MarkNotificationsReadJSONRequestBody
+}
+
+type MarkNotificationsReadResponseObject interface {
+	VisitMarkNotificationsReadResponse(w http.ResponseWriter) error
+}
+
+type MarkNotificationsRead204Response struct {
+}
+
+func (response MarkNotificationsRead204Response) VisitMarkNotificationsReadResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MarkNotificationsReaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response MarkNotificationsReaddefaultApplicationProblemPlusJSONResponse) VisitMarkNotificationsReadResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5004,6 +5656,198 @@ type GetBoarddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetBoarddefaultApplicationProblemPlusJSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRemindersRequestObject struct {
+}
+
+type ListRemindersResponseObject interface {
+	VisitListRemindersResponse(w http.ResponseWriter) error
+}
+
+type ListReminders200JSONResponse struct {
+	Items []UpcomingReminder `json:"items"`
+}
+
+func (response ListReminders200JSONResponse) VisitListRemindersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRemindersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListRemindersdefaultApplicationProblemPlusJSONResponse) VisitListRemindersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteReminderRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteReminderResponseObject interface {
+	VisitDeleteReminderResponse(w http.ResponseWriter) error
+}
+
+type DeleteReminder204Response struct {
+}
+
+func (response DeleteReminder204Response) VisitDeleteReminderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteReminderdefaultApplicationProblemPlusJSONResponse) VisitDeleteReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateReminderRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateReminderJSONRequestBody
+}
+
+type UpdateReminderResponseObject interface {
+	VisitUpdateReminderResponse(w http.ResponseWriter) error
+}
+
+type UpdateReminder200JSONResponse Reminder
+
+func (response UpdateReminder200JSONResponse) VisitUpdateReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateReminderdefaultApplicationProblemPlusJSONResponse) VisitUpdateReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteReminderRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type CompleteReminderResponseObject interface {
+	VisitCompleteReminderResponse(w http.ResponseWriter) error
+}
+
+type CompleteReminder200JSONResponse Reminder
+
+func (response CompleteReminder200JSONResponse) VisitCompleteReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CompleteReminderdefaultApplicationProblemPlusJSONResponse) VisitCompleteReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SnoozeReminderRequestObject struct {
+	Id   Id `json:"id"`
+	Body *SnoozeReminderJSONRequestBody
+}
+
+type SnoozeReminderResponseObject interface {
+	VisitSnoozeReminderResponse(w http.ResponseWriter) error
+}
+
+type SnoozeReminder200JSONResponse Reminder
+
+func (response SnoozeReminder200JSONResponse) VisitSnoozeReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SnoozeReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SnoozeReminderdefaultApplicationProblemPlusJSONResponse) VisitSnoozeReminderResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5314,6 +6158,9 @@ type StrictServerInterface interface {
 	// UnlinkIdentity Unlink a chat identity
 	// (DELETE /api/v1/me/identities/{id})
 	UnlinkIdentity(ctx context.Context, request UnlinkIdentityRequestObject) (UnlinkIdentityResponseObject, error)
+	// UpdateIdentity Choose whether a linked chat receives reminders
+	// (PATCH /api/v1/me/identities/{id})
+	UpdateIdentity(ctx context.Context, request UpdateIdentityRequestObject) (UpdateIdentityResponseObject, error)
 	// CreatePairingCode Create a one-time code to link a chat with `!link CODE`
 	// (POST /api/v1/me/pairing-codes)
 	CreatePairingCode(ctx context.Context, request CreatePairingCodeRequestObject) (CreatePairingCodeResponseObject, error)
@@ -5356,12 +6203,21 @@ type StrictServerInterface interface {
 	// EditNotePart Edit the text of a part (the latest edit wins; nothing is lost)
 	// (PATCH /api/v1/notes/{id}/parts/{partId})
 	EditNotePart(ctx context.Context, request EditNotePartRequestObject) (EditNotePartResponseObject, error)
+	// CreateReminder Remind about a note at a point in time, once or repeating
+	// (POST /api/v1/notes/{id}/reminders)
+	CreateReminder(ctx context.Context, request CreateReminderRequestObject) (CreateReminderResponseObject, error)
 	// RestoreNote Restore a dismissed note to where it was (or the Inbox)
 	// (POST /api/v1/notes/{id}/restore)
 	RestoreNote(ctx context.Context, request RestoreNoteRequestObject) (RestoreNoteResponseObject, error)
 	// CreateShareLink Create a read-only link to a note that expires; the token is returned once
 	// (POST /api/v1/notes/{id}/share-links)
 	CreateShareLink(ctx context.Context, request CreateShareLinkRequestObject) (CreateShareLinkResponseObject, error)
+	// ListNotifications Notifications for the user, newest first
+	// (GET /api/v1/notifications)
+	ListNotifications(ctx context.Context, request ListNotificationsRequestObject) (ListNotificationsResponseObject, error)
+	// MarkNotificationsRead Mark notifications read (all when no ids are given)
+	// (POST /api/v1/notifications/read)
+	MarkNotificationsRead(ctx context.Context, request MarkNotificationsReadRequestObject) (MarkNotificationsReadResponseObject, error)
 	// ListPages The user's pages in order
 	// (GET /api/v1/pages)
 	ListPages(ctx context.Context, request ListPagesRequestObject) (ListPagesResponseObject, error)
@@ -5377,6 +6233,21 @@ type StrictServerInterface interface {
 	// GetBoard A page's categories with their first notes and counts, in one call
 	// (GET /api/v1/pages/{id}/board)
 	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
+	// ListReminders The user's upcoming reminders
+	// (GET /api/v1/reminders)
+	ListReminders(ctx context.Context, request ListRemindersRequestObject) (ListRemindersResponseObject, error)
+	// DeleteReminder Clear a reminder (for a repeating one, end it)
+	// (DELETE /api/v1/reminders/{id})
+	DeleteReminder(ctx context.Context, request DeleteReminderRequestObject) (DeleteReminderResponseObject, error)
+	// UpdateReminder Change when a reminder fires or how it repeats; arms it again
+	// (PATCH /api/v1/reminders/{id})
+	UpdateReminder(ctx context.Context, request UpdateReminderRequestObject) (UpdateReminderResponseObject, error)
+	// CompleteReminder Mark a reminder done (a repeating one skips to its next time)
+	// (POST /api/v1/reminders/{id}/done)
+	CompleteReminder(ctx context.Context, request CompleteReminderRequestObject) (CompleteReminderResponseObject, error)
+	// SnoozeReminder Fire again at a later time
+	// (POST /api/v1/reminders/{id}/snooze)
+	SnoozeReminder(ctx context.Context, request SnoozeReminderRequestObject) (SnoozeReminderResponseObject, error)
 	// SearchNotes Full-text search over the user's notes
 	// (GET /api/v1/search)
 	SearchNotes(ctx context.Context, request SearchNotesRequestObject) (SearchNotesResponseObject, error)
@@ -6198,6 +7069,39 @@ func (sh *strictHandler) UnlinkIdentity(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// UpdateIdentity operation middleware
+func (sh *strictHandler) UpdateIdentity(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateIdentityRequestObject
+
+	request.Id = id
+
+	var body UpdateIdentityJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateIdentity(ctx, request.(UpdateIdentityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateIdentity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateIdentityResponseObject); ok {
+		if err := validResponse.VisitUpdateIdentityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreatePairingCode operation middleware
 func (sh *strictHandler) CreatePairingCode(w http.ResponseWriter, r *http.Request) {
 	var request CreatePairingCodeRequestObject
@@ -6606,6 +7510,39 @@ func (sh *strictHandler) EditNotePart(w http.ResponseWriter, r *http.Request, id
 	}
 }
 
+// CreateReminder operation middleware
+func (sh *strictHandler) CreateReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	var request CreateReminderRequestObject
+
+	request.Id = id
+
+	var body CreateReminderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateReminder(ctx, request.(CreateReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateReminderResponseObject); ok {
+		if err := validResponse.VisitCreateReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RestoreNote operation middleware
 func (sh *strictHandler) RestoreNote(w http.ResponseWriter, r *http.Request, id Id) {
 	var request RestoreNoteRequestObject
@@ -6658,6 +7595,66 @@ func (sh *strictHandler) CreateShareLink(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateShareLinkResponseObject); ok {
 		if err := validResponse.VisitCreateShareLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotifications operation middleware
+func (sh *strictHandler) ListNotifications(w http.ResponseWriter, r *http.Request, params ListNotificationsParams) {
+	var request ListNotificationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotifications(ctx, request.(ListNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationsResponseObject); ok {
+		if err := validResponse.VisitListNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkNotificationsRead operation middleware
+func (sh *strictHandler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	var request MarkNotificationsReadRequestObject
+
+	var body MarkNotificationsReadJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkNotificationsRead(ctx, request.(MarkNotificationsReadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkNotificationsRead")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkNotificationsReadResponseObject); ok {
+		if err := validResponse.VisitMarkNotificationsReadResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6799,6 +7796,148 @@ func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request, id Id,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBoardResponseObject); ok {
 		if err := validResponse.VisitGetBoardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListReminders operation middleware
+func (sh *strictHandler) ListReminders(w http.ResponseWriter, r *http.Request) {
+	var request ListRemindersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListReminders(ctx, request.(ListRemindersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListReminders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRemindersResponseObject); ok {
+		if err := validResponse.VisitListRemindersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteReminder operation middleware
+func (sh *strictHandler) DeleteReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteReminderRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteReminder(ctx, request.(DeleteReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteReminderResponseObject); ok {
+		if err := validResponse.VisitDeleteReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateReminder operation middleware
+func (sh *strictHandler) UpdateReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateReminderRequestObject
+
+	request.Id = id
+
+	var body UpdateReminderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateReminder(ctx, request.(UpdateReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateReminderResponseObject); ok {
+		if err := validResponse.VisitUpdateReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteReminder operation middleware
+func (sh *strictHandler) CompleteReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	var request CompleteReminderRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteReminder(ctx, request.(CompleteReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteReminderResponseObject); ok {
+		if err := validResponse.VisitCompleteReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SnoozeReminder operation middleware
+func (sh *strictHandler) SnoozeReminder(w http.ResponseWriter, r *http.Request, id Id) {
+	var request SnoozeReminderRequestObject
+
+	request.Id = id
+
+	var body SnoozeReminderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SnoozeReminder(ctx, request.(SnoozeReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SnoozeReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SnoozeReminderResponseObject); ok {
+		if err := validResponse.VisitSnoozeReminderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6963,120 +8102,132 @@ func (sh *strictHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"K2QanARHwe232/8LAAD//w==",
+	"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",
+	"kOnoZHQ0+vbl2/8EAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

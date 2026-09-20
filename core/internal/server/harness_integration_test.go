@@ -76,7 +76,7 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 		RefreshGrace: 60 * time.Second, ActivationTTL: 7 * 24 * time.Hour,
 		Argon2MemoryKiB: 8, Argon2Iterations: 1, Argon2Parallelism: 1, Argon2Concurrency: 8,
 		MaxAttachmentBytes: 25 << 20, DefaultQuotaBytes: 2 << 30,
-		ShareEnabled: true, ShareMaxLifetime: 30 * 24 * time.Hour, ShareMaxActive: 200, ShareURL: "https://share.example.net",
+		AppURL: "https://app.example.net", ShareEnabled: true, ShareMaxLifetime: 30 * 24 * time.Hour, ShareMaxActive: 200, ShareURL: "https://share.example.net",
 	}
 	if mod != nil {
 		mod(&cfg)
@@ -96,7 +96,7 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 	routers, err := server.NewRouters(server.Deps{Config: cfg, Log: log, Store: st, Accounts: svc.Accounts, Bots: svc.Bots,
-		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Shares: svc.Shares, Hub: hub})
+		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Shares: svc.Shares, Reminders: svc.Reminders, Hub: hub})
 	if err != nil {
 		t.Fatal(err)
 	}

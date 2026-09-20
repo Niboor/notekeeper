@@ -210,6 +210,26 @@ paths:
                     items: {$ref: '#/components/schemas/Identity'}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/me/identities/{id}:
+    patch:
+      operationId: updateIdentity
+      summary: Choose whether a linked chat receives reminders
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateIdentityRequest'}
+      responses:
+        '200':
+          description: The identity
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Identity'}
+        default: {$ref: '#/components/responses/Problem'}
     delete:
       operationId: unlinkIdentity
       summary: Unlink a chat identity
@@ -992,6 +1012,152 @@ paths:
                   revoked: {type: integer}
         default: {$ref: '#/components/responses/Problem'}
 
+  # ---- reminders and notifications ---------------------------------------------------------
+  /api/v1/notes/{id}/reminders:
+    post:
+      operationId: createReminder
+      summary: Remind about a note at a point in time, once or repeating
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateReminderRequest'}
+      responses:
+        '201':
+          description: The reminder
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reminder'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/reminders:
+    get:
+      operationId: listReminders
+      summary: The user's upcoming reminders
+      security: *user
+      responses:
+        '200':
+          description: Reminders that are armed, soonest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/UpcomingReminder'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/reminders/{id}:
+    patch:
+      operationId: updateReminder
+      summary: Change when a reminder fires or how it repeats; arms it again
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateReminderRequest'}
+      responses:
+        '200':
+          description: The reminder
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reminder'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteReminder
+      summary: 'Clear a reminder (for a repeating one, end it)'
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '204': {description: Cleared}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/reminders/{id}/snooze:
+    post:
+      operationId: snoozeReminder
+      summary: Fire again at a later time
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [until]
+              properties:
+                until: {type: string, format: date-time}
+      responses:
+        '200':
+          description: The reminder
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reminder'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/reminders/{id}/done:
+    post:
+      operationId: completeReminder
+      summary: Mark a reminder done (a repeating one skips to its next time)
+      security: *user
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: The reminder
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reminder'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notifications:
+    get:
+      operationId: listNotifications
+      summary: Notifications for the user, newest first
+      security: *user
+      parameters:
+        - name: unread
+          in: query
+          required: false
+          schema: {type: boolean}
+      responses:
+        '200':
+          description: Notifications and how many are unread
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, unread]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Notification'}
+                  unread: {type: integer}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/notifications/read:
+    post:
+      operationId: markNotificationsRead
+      summary: Mark notifications read (all when no ids are given)
+      security: *user
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items: {type: string, format: uuid}
+      responses:
+        '204': {description: Marked}
+        default: {$ref: '#/components/responses/Problem'}
+
 components:
   securitySchemes:
     sessionAuth:
@@ -1113,6 +1279,49 @@ components:
       properties:
         link: {$ref: '#/components/schemas/ShareLink'}
         url: {type: string, description: The address to give to the recipient, with the token in the fragment}
+    Reminder:
+      type: object
+      required: [id, note_id, due_at, tz, state, version]
+      properties:
+        id: {type: string, format: uuid}
+        note_id: {type: string, format: uuid}
+        due_at: {type: string, format: date-time}
+        rrule: {type: string, nullable: true, description: 'Repeat rule such as FREQ=WEEKLY;BYDAY=MO,WE'}
+        tz: {type: string}
+        state: {type: string, enum: [pending, fired, suspended, done, cancelled]}
+        last_fired_at: {type: string, format: date-time, nullable: true}
+        version: {type: integer}
+    UpcomingReminder:
+      allOf:
+        - $ref: '#/components/schemas/Reminder'
+        - type: object
+          required: [excerpt]
+          properties:
+            excerpt: {type: string}
+    CreateReminderRequest:
+      type: object
+      required: [due_at]
+      properties:
+        due_at: {type: string, format: date-time}
+        rrule: {type: string, nullable: true, maxLength: 200}
+    UpdateReminderRequest:
+      type: object
+      properties:
+        due_at: {type: string, format: date-time}
+        rrule: {type: string, maxLength: 200, description: 'An empty string ends the repetition'}
+    Notification:
+      type: object
+      required: [id, kind, payload, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [reminder, security, delivery_failed]}
+        payload: {type: object, additionalProperties: true}
+        created_at: {type: string, format: date-time}
+        read_at: {type: string, format: date-time, nullable: true}
+    UpdateIdentityRequest:
+      type: object
+      properties:
+        reminder_target: {type: boolean}
     ChangePasswordRequest:
       type: object
       required: [current_password, new_password]
@@ -1197,6 +1406,9 @@ components:
         parts:
           type: array
           items: {$ref: '#/components/schemas/NotePart'}
+        reminders:
+          type: array
+          items: {$ref: '#/components/schemas/Reminder'}
     NotePage:
       type: object
       required: [items]

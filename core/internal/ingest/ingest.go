@@ -20,6 +20,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/grouping"
+	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -606,6 +607,9 @@ func (s *Service) deleted(ctx context.Context, tx *store.UserTx, bot *bots.Princ
 				return Outcome{}, err
 			}
 			version = n.Version
+			if err := reminders.OnDismiss(ctx, tx, noteID); err != nil {
+				return Outcome{}, err
+			}
 		} else {
 			return Outcome{Result: ResultRemoved, NoteID: &noteID}, nil
 		}

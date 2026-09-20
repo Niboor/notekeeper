@@ -13,6 +13,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/fracindex"
 	"github.com/Niboor/notekeeper/core/internal/position"
+	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -452,6 +453,15 @@ func (s *Service) transition(ctx context.Context, user, id uuid.UUID, do func(*s
 		n, err := do(tx, s.now())
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrConflict // already in that state: the second of two identical requests
+		}
+		if err != nil {
+			return err
+		}
+		// Dismissing suspends the note's reminders; restoring re-arms the ones still ahead (CORE-R7).
+		if n.State == "deleted" {
+			err = reminders.OnDismiss(ctx, tx, id)
+		} else {
+			err = reminders.OnRestore(ctx, tx, id, s.now())
 		}
 		if err != nil {
 			return err

@@ -87,7 +87,7 @@ func serve(ctx context.Context) error {
 	go hub.Run(ctx)
 
 	// Background jobs (River). Its tables are created by `core migrate`, never here (no DDL rights).
-	workers, err := jobs.New(pool, jobs.Deps{Store: st, Blobs: sv.Blobs, Outbox: sv.Outbox, Shares: sv.Shares, Log: log})
+	workers, err := jobs.New(pool, jobs.Deps{Store: st, Blobs: sv.Blobs, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Log: log})
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func serve(ctx context.Context) error {
 
 	routers, err := server.NewRouters(server.Deps{
 		Config: cfg, Log: log, Store: st,
-		Accounts: sv.Accounts, Bots: sv.Bots, Notes: sv.Notes, Board: sv.Board, Blobs: sv.Blobs, Ingest: sv.Ingest, Outbox: sv.Outbox, Shares: sv.Shares, Hub: hub,
+		Accounts: sv.Accounts, Bots: sv.Bots, Notes: sv.Notes, Board: sv.Board, Blobs: sv.Blobs, Ingest: sv.Ingest, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Hub: hub,
 		Ready: func(ctx context.Context) error {
 			if err := pool.Ping(ctx); err != nil {
 				log.Warn("not ready: database unreachable", "error", err)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
+	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
@@ -34,12 +35,13 @@ const (
 
 // Deps are what workers need.
 type Deps struct {
-	Store  *store.Store
-	Blobs  *blobs.Service
-	Outbox *outbox.Service
-	Shares *shares.Service
-	Log    *slog.Logger
-	Now    func() time.Time
+	Store     *store.Store
+	Blobs     *blobs.Service
+	Outbox    *outbox.Service
+	Shares    *shares.Service
+	Reminders *reminders.Service
+	Log       *slog.Logger
+	Now       func() time.Time
 }
 
 func (d Deps) now() time.Time {
@@ -158,6 +160,24 @@ func (w *ExpireOutboxWorker) Work(ctx context.Context, _ *river.Job[ExpireOutbox
 	return w.D.Outbox.Expire(ctx)
 }
 
+// FireDueRemindersArgs fires reminders that are due (docs/design/05 section 5.1).
+type FireDueRemindersArgs struct{}
+
+// Kind identifies the job type.
+func (FireDueRemindersArgs) Kind() string { return "fire_due_reminders" }
+
+// FireDueRemindersWorker performs FireDueRemindersArgs.
+type FireDueRemindersWorker struct {
+	river.WorkerDefaults[FireDueRemindersArgs]
+	D Deps
+}
+
+// Work fires what is due.
+func (w *FireDueRemindersWorker) Work(ctx context.Context, _ *river.Job[FireDueRemindersArgs]) error {
+	_, err := w.D.Reminders.FireDue(ctx)
+	return err
+}
+
 // PurgeShareLinksArgs deletes links that ended more than a week ago (docs/design/05 section 3).
 type PurgeShareLinksArgs struct{}
 
@@ -184,6 +204,7 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 	river.AddWorker(workers, &ReleaseStaleUploadsWorker{D: d})
 	river.AddWorker(workers, &ExpireOutboxWorker{D: d})
 	river.AddWorker(workers, &PurgeShareLinksWorker{D: d})
+	river.AddWorker(workers, &FireDueRemindersWorker{D: d})
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}},
 		Workers: workers,
@@ -197,6 +218,9 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 				nil),
 			river.NewPeriodicJob(river.PeriodicInterval(5*time.Minute),
 				func() (river.JobArgs, *river.InsertOpts) { return ExpireOutboxArgs{}, nil },
+				nil),
+			river.NewPeriodicJob(river.PeriodicInterval(10*time.Second),
+				func() (river.JobArgs, *river.InsertOpts) { return FireDueRemindersArgs{}, nil },
 				nil),
 			river.NewPeriodicJob(river.PeriodicInterval(time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return PurgeShareLinksArgs{}, nil },

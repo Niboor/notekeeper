@@ -64,6 +64,8 @@ type Location struct {
 type Note struct {
 	Note  dbq.Note
 	Parts []Part
+	// Reminders are the note's reminders, soonest first (CORE-R1, CORE-R8).
+	Reminders []dbq.Reminder
 	// Location is set for dismissed notes that were in a category.
 	Location *Location
 }
@@ -145,6 +147,14 @@ func withParts(ctx context.Context, q *dbq.Queries, notes []dbq.Note) ([]Note, e
 			atts[r.ID] = AttachmentInfo{ID: r.ID, Filename: r.Filename, MediaType: r.MediaType, Size: r.SizeBytes}
 		}
 	}
+	rems, err := q.ListRemindersForNotes(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	remsByNote := make(map[uuid.UUID][]dbq.Reminder, len(notes))
+	for _, r := range rems {
+		remsByNote[r.NoteID] = append(remsByNote[r.NoteID], r)
+	}
 	byNote := make(map[uuid.UUID][]Part, len(notes))
 	for _, p := range parts {
 		part := Part{NotePart: p.NotePart, SourceBotType: p.SourceBotType}
@@ -157,7 +167,7 @@ func withParts(ctx context.Context, q *dbq.Queries, notes []dbq.Note) ([]Note, e
 	}
 	out := make([]Note, len(notes))
 	for i, n := range notes {
-		out[i] = Note{Note: n, Parts: byNote[n.ID]}
+		out[i] = Note{Note: n, Parts: byNote[n.ID], Reminders: remsByNote[n.ID]}
 	}
 	return out, nil
 }

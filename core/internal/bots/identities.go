@@ -264,3 +264,17 @@ func (s *Service) Unlink(ctx context.Context, actor Actor, user, identity uuid.U
 func (s *Service) ListIdentities(ctx context.Context, user uuid.UUID) ([]dbq.ListUserIdentitiesRow, error) {
 	return s.St.Q().ListUserIdentities(ctx, user)
 }
+
+// SetReminderTarget chooses whether a linked chat receives reminders (CORE-R3, WEB-12).
+func (s *Service) SetReminderTarget(ctx context.Context, user, identity uuid.UUID, on bool) error {
+	return s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
+		n, err := tx.Q.SetReminderTarget(ctx, dbq.SetReminderTargetParams{ID: identity, UserID: user, ReminderTarget: on})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return store.ErrNotFound
+		}
+		return tx.Change(ctx, "identity", identity, "upsert", nil)
+	})
+}

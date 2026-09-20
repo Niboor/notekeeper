@@ -230,3 +230,21 @@ func (s *Store) InUserScoped(ctx context.Context, userID uuid.UUID, fn func(q *d
 	}
 	return pgtx.Commit(ctx)
 }
+
+// InSchedulerTx runs fn in a transaction that may see every user's reminders, and nothing else
+// across users. It is only for the scheduler's claim step; whatever it finds is then handled one
+// user at a time under that user's own context (docs/design/05 section 5.1).
+func (s *Store) InSchedulerTx(ctx context.Context, fn func(q *dbq.Queries) error) error {
+	pgtx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = pgtx.Rollback(ctx) }()
+	if _, err := pgtx.Exec(ctx, `select set_config('app.scheduler', 'on', true)`); err != nil {
+		return fmt.Errorf("set scheduler context: %w", err)
+	}
+	if err := fn(dbq.New(pgtx)); err != nil {
+		return err
+	}
+	return pgtx.Commit(ctx)
+}

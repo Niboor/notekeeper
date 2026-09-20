@@ -103,6 +103,13 @@ func noteOf(n notes.Note) userapi.Note {
 		id := n.Note.CategoryID.UUID
 		out.CategoryId = &id
 	}
+	if len(n.Reminders) > 0 {
+		rs := make([]userapi.Reminder, len(n.Reminders))
+		for i, r := range n.Reminders {
+			rs[i] = reminderOf(r)
+		}
+		out.Reminders = &rs
+	}
 	for i, p := range n.Parts {
 		part := userapi.NotePart{Id: p.ID, Kind: userapi.NotePartKind(p.Kind), Text: p.Text,
 			AttachReason: userapi.NotePartAttachReason(p.AttachReason), CreatedAt: p.CreatedAt, TextEditedAt: p.TextEditedAt,

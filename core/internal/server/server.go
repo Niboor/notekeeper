@@ -27,6 +27,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/notes"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
+	"github.com/Niboor/notekeeper/core/internal/reminders"
 	"github.com/Niboor/notekeeper/core/internal/shares"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
@@ -37,16 +38,17 @@ type Deps struct {
 	Log    *slog.Logger
 	Ready  Readiness
 
-	Store    *store.Store
-	Accounts *accounts.Service
-	Bots     *bots.Service
-	Notes    *notes.Service
-	Board    *board.Service
-	Blobs    *blobs.Service
-	Ingest   *ingest.Service
-	Outbox   *outbox.Service
-	Shares   *shares.Service
-	Hub      *realtime.Hub
+	Store     *store.Store
+	Accounts  *accounts.Service
+	Bots      *bots.Service
+	Notes     *notes.Service
+	Board     *board.Service
+	Blobs     *blobs.Service
+	Ingest    *ingest.Service
+	Outbox    *outbox.Service
+	Shares    *shares.Service
+	Reminders *reminders.Service
+	Hub       *realtime.Hub
 }
 
 // Routers holds the four handlers so that tests can exercise them without listening.
@@ -57,16 +59,17 @@ type Routers struct {
 
 // userAPI implements the generated user API and the hand-written SSE handler.
 type userAPI struct {
-	st      *store.Store
-	accts   *accounts.Service
-	bots    *bots.Service
-	notes   *notes.Service
-	board   *board.Service
-	blobs   *blobs.Service
-	shares  *shares.Service
-	hub     *realtime.Hub
-	trusted []netip.Prefix
-	log     *slog.Logger
+	st        *store.Store
+	accts     *accounts.Service
+	bots      *bots.Service
+	notes     *notes.Service
+	board     *board.Service
+	blobs     *blobs.Service
+	shares    *shares.Service
+	reminders *reminders.Service
+	hub       *realtime.Hub
+	trusted   []netip.Prefix
+	log       *slog.Logger
 
 	shareURL string // public address of the share page, without a trailing slash
 }
@@ -108,7 +111,7 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
-	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
+	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, reminders: d.Reminders, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
 	user := base("user", d.Config.AppHosts, false)
 	// The authentication middleware sits on a route group, so it runs after routing (it needs the
 	// route) but BEFORE the generated code parses parameters and bodies: an unauthenticated caller

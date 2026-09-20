@@ -44,6 +44,8 @@ func mapError(err error) *httpx.Error {
 		return httpx.NewError(http.StatusBadRequest, "invalid_input").WithDetail(err.Error())
 	case errors.Is(err, accounts.ErrConflict), errors.Is(err, bots.ErrConflict), errors.Is(err, notes.ErrConflict), errors.Is(err, board.ErrConflict):
 		return httpx.NewError(http.StatusConflict, "conflict")
+	case reminderError(err) != nil:
+		return reminderError(err)
 	case shareError(err) != nil:
 		return shareError(err)
 	case errors.Is(err, store.ErrNotFound):
