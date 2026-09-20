@@ -5,7 +5,9 @@ server {
     listen 8080;
     server_name ${APP_HOST};
     server_tokens off;
-    client_max_body_size 30m;   # the attachment limit plus headroom; Core enforces its own limit
+    client_max_body_size 30m;
+    client_body_timeout 60s;    # an upload that sends nothing for a minute is dropped (Core does the same)
+    client_header_timeout 20s;   # the attachment limit plus headroom; Core enforces its own limit
 
     root /usr/share/nginx/html;
 

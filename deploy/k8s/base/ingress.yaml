@@ -10,6 +10,11 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: 30m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # An upload that sends nothing for a minute is dropped (Core does the same, NK_UPLOAD_IDLE_TIMEOUT).
+    # The body is not buffered, so a slow client is slow to Core too. proxy-send-timeout bounds the time
+    # between two writes to Core; client_body_timeout (a controller-wide setting, "client-body-timeout" in
+    # the ingress-nginx ConfigMap) bounds the time between two reads from the client, 60s by default.
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"

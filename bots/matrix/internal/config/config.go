@@ -78,6 +78,9 @@ func Load(getenv func(string) string) (Config, error) {
 	if len(c.PickleKey) < 16 {
 		return Config{}, errors.New("MX_PICKLE_KEY must be at least 16 characters")
 	}
+	if strings.ToLower(getenv("NK_ALLOW_DEV_CREDENTIALS")) != "true" && strings.Contains(c.DatabaseURL, "nk_bot_dev") {
+		return Config{}, errors.New("NK_BOT_DATABASE_URL uses the development password from deploy/sql/roles.sql; choose your own (NK_ALLOW_DEV_CREDENTIALS=true is for development only)")
+	}
 	for _, v := range []string{c.Password, string(c.PickleKey), c.BotKey} {
 		if strings.Contains(strings.ToLower(v), "change-me") {
 			return Config{}, errors.New("a secret still contains a placeholder value (SEC-OPS-1)")

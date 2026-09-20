@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,12 +18,34 @@ import (
 // uploadDeadline bounds a single upload (docs/design/02-api.md section 4).
 const uploadDeadline = 10 * time.Minute
 
+// UploadIdleTimeout is how long an upload may go without receiving a byte before it is dropped, so a
+// client that sends a little and then stalls cannot hold an upload slot and a quota reservation for the
+// whole deadline (SR-017). Set from NK_UPLOAD_IDLE_TIMEOUT.
+var UploadIdleTimeout = 60 * time.Second
+
+// idleBody wraps a request body so that every read must be served within UploadIdleTimeout. The context
+// deadline alone cannot interrupt a read that is blocked on a stalled connection; a read deadline can.
+func idleBody(w http.ResponseWriter, body io.Reader) io.Reader {
+	if w == nil || UploadIdleTimeout <= 0 {
+		return body
+	}
+	rc := http.NewResponseController(w)
+	return readerFunc(func(p []byte) (int, error) {
+		_ = rc.SetReadDeadline(time.Now().Add(UploadIdleTimeout)) // not supported on every writer: then only the context bounds it
+		return body.Read(p)
+	})
+}
+
+type readerFunc func([]byte) (int, error)
+
+func (f readerFunc) Read(p []byte) (int, error) { return f(p) }
+
 func (u *userAPI) UploadAttachment(ctx context.Context, req userapi.UploadAttachmentRequestObject) (userapi.UploadAttachmentResponseObject, error) {
 	p, err := mustPrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, r := httpx.HTTPFrom(ctx)
+	w, r := httpx.HTTPFrom(ctx)
 	if r.ContentLength < 0 {
 		return nil, httpx.NewError(http.StatusLengthRequired, "length_required")
 	}
@@ -39,7 +62,7 @@ func (u *userAPI) UploadAttachment(ctx context.Context, req userapi.UploadAttach
 	}
 	ctx, cancel := context.WithTimeout(ctx, uploadDeadline)
 	defer cancel()
-	a, err := u.blobs.Upload(ctx, p.UserID, req.Id, name, mediaType, r.ContentLength, req.Body)
+	a, err := u.blobs.Upload(ctx, p.UserID, req.Id, name, mediaType, r.ContentLength, idleBody(w, req.Body))
 	if err != nil {
 		return nil, mapBlobError(err)
 	}

@@ -357,7 +357,7 @@ func TestShareHostServerBlockIsMinimal(t *testing.T) {
 func TestDatabaseTLSAndNoMediaProcessing(t *testing.T) {
 	overlay := repoFile(t, "deploy", "k8s", "overlays", "example", "kustomization.yaml")
 	for _, line := range strings.Split(overlay, "\n") {
-		if strings.Contains(line, "DATABASE_URL=") && !strings.Contains(line, "sslmode=require") {
+		if strings.Contains(line, "DATABASE_URL=") && !strings.Contains(line, "sslmode=verify-full") {
 			t.Errorf("a database URL without TLS: %s", strings.TrimSpace(line))
 		}
 	}

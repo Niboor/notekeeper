@@ -19,7 +19,14 @@ const keepHost = (target: string) => ({
 })
 const proxy = { '^/api/public/': keepHost(publicTarget), '^/api/(?!public/)': keepHost(apiTarget) }
 
+// Every build gets its own service worker cache (the page registers /sw.js?v=<id>): a release starts with
+// an empty cache, and the previous release's hashed files are deleted when the new worker activates, so the
+// cache does not grow with every version. Set NK_BUILD_ID (for instance to the git commit) for a
+// reproducible id.
+const buildId = process.env.NK_BUILD_ID ?? String(Date.now())
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(buildId) },
   plugins: [react()],
   server: {
     proxy,

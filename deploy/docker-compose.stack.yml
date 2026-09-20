@@ -5,6 +5,7 @@
 name: notekeeper-stack
 
 x-core-env: &core-env
+  NK_ALLOW_DEV_CREDENTIALS: "true"   # this throwaway stack uses the passwords of deploy/sql/roles.sql
   NK_DATABASE_URL: postgres://nk_app:nk_app_dev@db:5432/notekeeper?sslmode=disable
   NK_TOKEN_KEYS: "stack:c3RhY2stdGVzdC1rZXktMzItYnl0ZXMtbG9uZy0hISE="   # 32 bytes, base64: a test key only
   NK_APP_URL: http://localhost:8088
@@ -35,6 +36,7 @@ services:
     image: notekeeper/core:dev
     command: ["migrate"]
     environment:   # the schema owner's credential goes to the migration alone, as in the Kubernetes example
+      NK_ALLOW_DEV_CREDENTIALS: "true"
       NK_MIGRATE_DATABASE_URL: postgres://nk_migrate:nk_migrate_dev@db:5432/notekeeper?sslmode=disable
     depends_on:
       db: {condition: service_healthy}

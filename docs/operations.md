@@ -16,8 +16,7 @@ For the person who installs and looks after a deployment. What every setting mea
 
 ## 2. First installation
 
-1. **Database.** Create a database. As a superuser, run `deploy/sql/roles.sql` inside it after replacing
-   the placeholder passwords: it creates the roles `nk_migrate` (owns the schema, used only by the
+1. **Database.** Create a database. As a superuser, run `deploy/sql/roles.sql` inside it, then give each role its own password (`alter role nk_app password '…'`, and the same for `nk_migrate` and `nk_bot_matrix`); the script's passwords are published and Core and the bot refuse to start with them: it creates the roles `nk_migrate` (owns the schema, used only by the
    migration), `nk_app` (Core at runtime; cannot alter the schema and is bound by row-level security) and
    `nk_bot_matrix` (the bot, with a schema of its own that cannot read Core's tables).
 2. **Secrets.** Generate the token keys (`head -c 32 /dev/urandom | base64`, as `k1:<key>`), and choose the
@@ -114,7 +113,7 @@ Core, so one message can be followed; they never contain note text, file names o
 * TLS at the ingress (TLS 1.2 or later, HSTS), a different registrable domain for the share host if possible.
 * Only ports 8080 and 8082 of Core, and the web image, are reachable from outside. **8081 (bot API) and 9090
   (metrics, health) are cluster-internal**; the example NetworkPolicies allow only what is needed.
-* PostgreSQL reachable only from Core, the migration Job and the bot; use `sslmode=require` or better.
+* PostgreSQL reachable only from Core, the migration Job and the bot; use `sslmode=verify-full`, which also checks the server certificate.
 * Secrets in Secrets, never in ConfigMaps, images or git; nothing shipped with a default password.
 * Containers as non-root with read-only root filesystems (the examples do this).
 * Backups encrypted, and their retention known.

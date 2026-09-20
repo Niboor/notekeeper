@@ -24,6 +24,7 @@ import (
 
 	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/server"
 )
 
 // upload sends a file the way the web app does and returns the response.
@@ -507,4 +508,36 @@ func TestStreamingMemoryStaysFlat(t *testing.T) {
 	if mib > 64 {
 		t.Fatalf("memory grew with the file: peak heap %d MiB", mib)
 	}
+}
+
+// A client that sends a little and then stalls, without hanging up, is dropped after the idle timeout and
+// its reserved space comes back; it does not hold an upload slot for the whole deadline (SEC-API-4, SR-017).
+func TestStalledUploadIsDroppedAfterTheIdleTimeout(t *testing.T) {
+	s := newStack(t)
+	u := s.appUser("alice")
+	old := server.UploadIdleTimeout
+	server.UploadIdleTimeout = time.Second
+	t.Cleanup(func() { server.UploadIdleTimeout = old })
+	host := strings.TrimPrefix(s.user.URL, "http://")
+	conn, err := net.Dial("tcp", host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	fmt.Fprintf(conn, "PUT /api/v1/attachments/%s HTTP/1.1\r\nHost: %s\r\nX-Notekeeper-Client: web\r\nSec-Fetch-Site: same-origin\r\nCookie: __Host-nka=%s\r\nX-Filename: f\r\nContent-Type: application/octet-stream\r\nContent-Length: 1000000\r\n\r\n",
+		uuid.NewString(), host, u.c.cookies["__Host-nka"])
+	_, _ = conn.Write(make([]byte, 1000)) // ... and then nothing, with the connection left open
+	deadline := time.Now().Add(15 * time.Second)
+	sawReservation := false
+	for time.Now().Before(deadline) {
+		st := s.storageOf("alice")
+		if st.reserved > 0 {
+			sawReservation = true
+		}
+		if sawReservation && st.reserved == 0 {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("the stalled upload still holds its reservation after 15 s: %+v (reservation seen: %v)", s.storageOf("alice"), sawReservation)
 }

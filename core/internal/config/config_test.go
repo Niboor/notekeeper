@@ -105,3 +105,26 @@ func TestSecurityLimitsAreConfigurable(t *testing.T) {
 		t.Fatalf("a limit did not follow its variable: %+v", c)
 	}
 }
+
+// The passwords of deploy/sql/roles.sql are published, so a deployment must not run with them unless it
+// says it is a development environment (SEC-OPS-7).
+func TestPublishedDevelopmentPasswordsAreRefused(t *testing.T) {
+	get := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	app := "postgres://nk_app:nk_app_dev@db/notekeeper"
+	c, _ := LoadFrom(get(map[string]string{"NK_DATABASE_URL": app}))
+	if err := c.RequireDatabase(); err == nil {
+		t.Error("the development password of nk_app was accepted")
+	}
+	c, _ = LoadFrom(get(map[string]string{"NK_MIGRATE_DATABASE_URL": "postgres://nk_migrate:nk_migrate_dev@db/notekeeper"}))
+	if err := c.RequireMigrateDatabase(); err == nil {
+		t.Error("the development password of nk_migrate was accepted")
+	}
+	c, _ = LoadFrom(get(map[string]string{"NK_DATABASE_URL": app, "NK_ALLOW_DEV_CREDENTIALS": "true"}))
+	if err := c.RequireDatabase(); err != nil {
+		t.Errorf("development environments must be able to opt in: %v", err)
+	}
+	c, _ = LoadFrom(get(map[string]string{"NK_DATABASE_URL": "postgres://nk_app:s3cret-real@db/notekeeper"}))
+	if err := c.RequireDatabase(); err != nil {
+		t.Errorf("a real password was refused: %v", err)
+	}
+}

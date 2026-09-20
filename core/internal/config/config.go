@@ -60,6 +60,10 @@ type Config struct {
 	ShareMaxActive   int
 	// ShareCreatedPerHour is how many links one user may create per hour (SEC-SHR-11, SEC-BASE-5).
 	ShareCreatedPerHour int
+	// AllowDevCredentials permits the published development database passwords. Development and tests only.
+	AllowDevCredentials bool
+	// UploadIdleTimeout drops an upload that receives no data for this long (SEC-API-4).
+	UploadIdleTimeout time.Duration
 	// MaxNotesPerUser and MaxTextBytesPerUser bound one account's notes and their text (history
 	// included); files have their own quota (SEC-API-3, SEC-CNT-6, SEC-BASE-5). Zero means no limit.
 	MaxNotesPerUser, MaxTextBytesPerUser int64
@@ -163,6 +167,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		}
 		*f.dst = int(v)
 	}
+	c.AllowDevCredentials = strings.ToLower(env(getenv, "NK_ALLOW_DEV_CREDENTIALS", "false")) == "true"
 	c.ShareEnabled = strings.ToLower(env(getenv, "NK_SHARE_ENABLED", "true")) != "false"
 	if c.ShareMaxLifetime, err = duration(getenv, "NK_SHARE_MAX_LIFETIME", 30*24*time.Hour); err != nil {
 		return Config{}, err
@@ -177,6 +182,9 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	c.ShareCreatedPerHour = int(shareRate)
+	if c.UploadIdleTimeout, err = duration(getenv, "NK_UPLOAD_IDLE_TIMEOUT", 60*time.Second); err != nil {
+		return Config{}, err
+	}
 	maxNotes, err := number(getenv, "NK_MAX_NOTES_PER_USER", 100000)
 	if err != nil {
 		return Config{}, err
@@ -214,9 +222,30 @@ func number(getenv func(string) string, key string, def uint64) (uint64, error) 
 	return n, nil
 }
 
+// devPasswords are the passwords deploy/sql/roles.sql gives the roles it creates for development. They are
+// published in the repository, so a deployment that still uses one is open to anybody who has read it.
+var devPasswords = []string{"nk_app_dev", "nk_migrate_dev", "nk_bot_dev"}
+
+// refuseDevCredentials fails when a database URL carries one of the published development passwords, unless
+// NK_ALLOW_DEV_CREDENTIALS=true says this is a development or test environment (SEC-OPS-1, SEC-OPS-7).
+func (c Config) refuseDevCredentials(name, url string) error {
+	if c.AllowDevCredentials {
+		return nil
+	}
+	for _, p := range devPasswords {
+		if strings.Contains(url, p) {
+			return fmt.Errorf("%s uses a development password from deploy/sql/roles.sql; choose your own (NK_ALLOW_DEV_CREDENTIALS=true is for development only)", name)
+		}
+	}
+	return nil
+}
+
 // RequireMigrateDatabase fails when the schema owner's URL is missing or a placeholder. `core migrate`
 // needs this credential and nothing else; the serving processes never need it (SEC-OPS-5).
 func (c Config) RequireMigrateDatabase() error {
+	if err := c.refuseDevCredentials("NK_MIGRATE_DATABASE_URL", c.MigrateDatabaseURL); err != nil {
+		return err
+	}
 	if c.MigrateDatabaseURL == "" {
 		return fmt.Errorf("NK_MIGRATE_DATABASE_URL is required")
 	}
@@ -236,7 +265,7 @@ func (c Config) RequireDatabase() error {
 	if strings.Contains(strings.ToLower(c.DatabaseURL), "change-me") {
 		return fmt.Errorf("NK_DATABASE_URL still contains a placeholder value")
 	}
-	return nil
+	return c.refuseDevCredentials("NK_DATABASE_URL", c.DatabaseURL)
 }
 
 func env(getenv func(string) string, key, def string) string {

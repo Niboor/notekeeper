@@ -24,6 +24,7 @@ $COMPOSE exec -T db psql -U nk -d "$DB" -v ON_ERROR_STOP=1 -q < deploy/sql/roles
 (cd core && go build -o ../.bin/core ./cmd/core)
 (cd web && npm run build --silent)
 
+export NK_ALLOW_DEV_CREDENTIALS=true   # the throwaway database of this run uses the passwords of deploy/sql/roles.sql
 export NK_DATABASE_URL="postgres://nk_app:nk_app_dev@localhost:5432/$DB?sslmode=disable"
 MIGRATE_URL="postgres://nk_migrate:nk_migrate_dev@localhost:5432/$DB?sslmode=disable"   # the schema owner: for the migration only
 export NK_TOKEN_KEYS="e2e:$(head -c 32 /dev/urandom | base64)"

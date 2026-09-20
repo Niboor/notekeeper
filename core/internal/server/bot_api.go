@@ -219,7 +219,7 @@ func (b *botAPI) PutUpload(ctx context.Context, req botapi.PutUploadRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	_, r := httpx.HTTPFrom(ctx)
+	w, r := httpx.HTTPFrom(ctx)
 	if r.ContentLength < 0 {
 		return nil, httpx.NewError(http.StatusLengthRequired, "length_required")
 	}
@@ -243,7 +243,7 @@ func (b *botAPI) PutUpload(ctx context.Context, req botapi.PutUploadRequestObjec
 	}
 	ctx, cancel := context.WithTimeout(ctx, uploadDeadline)
 	defer cancel()
-	a, err := b.blobs.Upload(ctx, ident.UserID, req.Id, name, mediaType, r.ContentLength, req.Body)
+	a, err := b.blobs.Upload(ctx, ident.UserID, req.Id, name, mediaType, r.ContentLength, idleBody(w, req.Body))
 	if err != nil {
 		return nil, mapBlobError(err)
 	}

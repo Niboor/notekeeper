@@ -1,5 +1,8 @@
 -- Example role setup (docs/design/01-data-model.md section 12). Run once, as a superuser, connected to
--- the application database (the bot's schema is created in it), before `core migrate`. Passwords here are for development only; production passwords come from Secrets.
+-- the application database (the bot's schema is created in it), before `core migrate`. The passwords here are
+-- for development only and published in the repository: Core and the bot refuse to start with them unless
+-- NK_ALLOW_DEV_CREDENTIALS=true. For a real installation change them (alter role ... password '...') right
+-- after running this script, and put the new ones in the Secrets.
 --
 --   nk_migrate     Owns the schema and runs `core migrate` (and River's migrations); DDL only in practice.
 --   nk_app         Core runtime: DML under row-level security, no DDL, no BYPASSRLS.

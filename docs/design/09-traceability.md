@@ -279,7 +279,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-API-1 | Must | fully tested | 01 §8 (query builder); sqlc | Integration | 1 |
 | SEC-API-2 | Must | fully tested | README §2; 08 §5 | Authz matrix | 1 |
 | SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 5 |
-| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 3 |
+| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 4 |
 | SEC-API-5 | Must | fully tested | README §3 | Integration | 1 |
 | SEC-API-6 | Must | fully tested | 03 §2.4 | Integration | 1 |
 | SEC-API-7 | Must | fully tested | README §3; 01 §6.2 | Integration | 3 |

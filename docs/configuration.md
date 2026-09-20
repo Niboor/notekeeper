@@ -12,7 +12,7 @@ missing here, or documented here but read by nothing.
 
 | Variable | Purpose |
 |---|---|
-| `NK_DATABASE_URL` | PostgreSQL connection for the runtime role `nk_app` (16 or later). Prefer `sslmode=require` or better. Refused if it still contains the placeholder `change-me` |
+| `NK_DATABASE_URL` | PostgreSQL connection for the runtime role `nk_app` (16 or later). Use `sslmode=verify-full` (with `sslrootcert=` for a private CA): `require` encrypts but does not check who answers. Refused if it still contains the placeholder `change-me` |
 | `NK_TOKEN_KEYS` | Keys that sign access and refresh tokens, `kid:base64key` pairs separated by commas; the first signs, all verify, so keys can be rotated by prepending a new one. At least 32 random bytes each. Refused if it contains a placeholder |
 | `NK_APP_URL` | Public address of the web app, `https://notes.example.org`. The host is the only one the user API answers to, and it is the base of links in reminders |
 | `NK_SHARE_URL` | Public address of the share host, `https://share.example.net`, on a different registrable domain from the app if you can (CORE-SH8). Share links are built from it |
@@ -61,6 +61,8 @@ missing here, or documented here but read by nothing.
 | `NK_SHARE_MAX_LIFETIME` | `720h` (30 days) | The longest a share link may live (CORE-SH2) |
 | `NK_SHARE_MAX_ACTIVE` | `200` | Links one user may hold at once (SEC-SHR-11) |
 | `NK_SHARE_CREATED_PER_HOUR` | `30` | Links one user may create per hour (SEC-SHR-11) |
+| `NK_ALLOW_DEV_CREDENTIALS` | `false` | Development and tests only. Without it Core and the bot refuse to start when a database URL contains one of the passwords that `deploy/sql/roles.sql` sets for development (SEC-OPS-7) |
+| `NK_UPLOAD_IDLE_TIMEOUT` | `60s` | An upload that receives no data for this long is dropped and its reserved space released, so a stalled client cannot hold an upload slot (SEC-API-4). Set the ingress's `client_body_timeout` alike |
 | `NK_MAX_NOTES_PER_USER` | `100000` | Notes one account may hold (Inbox, pages and Trash). Past it, creating a note is refused with `413 notes_limit` and a chat message is answered with a reply; deleting notes for good makes room (SEC-API-3) |
 | `NK_MAX_TEXT_BYTES_PER_USER` | `268435456` | Text one account may hold, counting all note text and its history (256 MiB). Past it, growth is refused with `413 text_limit`; editing downwards still works (SEC-CNT-6). Files have their own quota, `NK_DEFAULT_QUOTA_BYTES` |
 | `NK_RATE_USER_PER_MIN` | `1800` | Requests per minute per signed-in user on the user API |

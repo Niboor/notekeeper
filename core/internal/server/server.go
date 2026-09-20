@@ -80,6 +80,9 @@ type userAPI struct {
 
 // NewRouters builds the handlers for the four listeners.
 func NewRouters(d Deps) (Routers, error) {
+	if d.Config.UploadIdleTimeout > 0 {
+		UploadIdleTimeout = d.Config.UploadIdleTimeout
+	}
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	metrics := httpx.NewMetrics(reg)

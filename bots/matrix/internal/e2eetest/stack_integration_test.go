@@ -110,6 +110,7 @@ func startCore(t *testing.T, pgAdminURL string) *coreProcess {
 	p.botURL = fmt.Sprintf("http://127.0.0.1:%d", botPort)
 	p.ops = fmt.Sprintf("http://127.0.0.1:%d", opsPort)
 	p.env = append(os.Environ(),
+		"NK_ALLOW_DEV_CREDENTIALS=true", // the throwaway database of this test
 		"NK_DATABASE_URL="+dsn("nk_app", "nk_app_dev"),
 		"NK_TOKEN_KEYS=e2e:"+"ZTJlLW9ubHkta2V5LWUyZS1vbmx5LWtleS1lMmUtb25seS1rZXk=",
 		"NK_APP_URL="+p.userURL,

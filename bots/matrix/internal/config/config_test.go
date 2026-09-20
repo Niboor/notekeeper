@@ -73,3 +73,19 @@ func TestAllowedDomainsAreOptionalAndNormalised(t *testing.T) {
 		t.Fatalf("list: %+v %v", c.AllowedDomains, err)
 	}
 }
+
+func TestBotRefusesThePublishedDevelopmentPassword(t *testing.T) {
+	env := map[string]string{"MX_HOMESERVER": "https://m.example", "MX_USER": "bot", "MX_PASSWORD": "pw", "MX_PICKLE_KEY": "0123456789abcdef", "NK_BOT_DATABASE_URL": "postgres://nk_bot_matrix:nk_bot_dev@db/x", "NK_CORE_URL": "http://core", "NK_BOT_KEY": "nkb.a.b"}
+	get := func(k string) string { return env[k] }
+	if _, err := Load(get); err == nil {
+		t.Fatal("the development password was accepted")
+	}
+	env["NK_ALLOW_DEV_CREDENTIALS"] = "true"
+	if _, err := Load(get); err != nil {
+		t.Fatalf("development opt-in: %v", err)
+	}
+	env["NK_ALLOW_DEV_CREDENTIALS"], env["NK_BOT_DATABASE_URL"] = "", "postgres://nk_bot_matrix:real-secret@db/x"
+	if _, err := Load(get); err != nil {
+		t.Fatalf("a real password: %v", err)
+	}
+}

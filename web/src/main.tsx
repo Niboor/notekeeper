@@ -9,7 +9,7 @@ applyStoredTheme()
 
 // The application shell is cached for offline start (WEB-N8); the share page and the API never are.
 if ('serviceWorker' in navigator && import.meta.env.PROD && window.location.pathname !== '/s') {
-  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch(() => undefined))
+  window.addEventListener('load', () => void navigator.serviceWorker.register(`/sw.js?v=${__BUILD_ID__}`).catch(() => undefined))
 }
 
 const root = document.getElementById('root')
