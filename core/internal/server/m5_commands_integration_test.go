@@ -86,6 +86,17 @@ func TestRemindFromChat(t *testing.T) {
 	if r := ch.reminderOf(made.ID); len(r) != 1 {
 		t.Fatalf("the new note's reminder: %+v", r)
 	}
+	// Editing or deleting the command message afterwards changes neither the note nor its reminder.
+	dueBefore := ch.reminderOf(made.ID)[0].DueAt
+	if out := ch.edit("$c2", time.Second, "!remind in 3 hours call the plumber"); out.Result != "ignored" {
+		t.Fatalf("edit of a command message: %+v", out)
+	}
+	if out := ch.remove("$c2", 2*time.Second); out.Result != "ignored" {
+		t.Fatalf("delete of a command message: %+v", out)
+	}
+	if got := ch.texts(ch.get(made.ID)); len(got) != 1 || got[0] != "call the dentist" || !ch.reminderOf(made.ID)[0].DueAt.Equal(dueBefore) {
+		t.Fatalf("the note or its reminder was changed by an edit of the command message: %v", got)
+	}
 	// Delivered twice (the bot restarted): nothing more is created.
 	ch.command("remind", "in 2 hours call the dentist", "", "$c2")
 	if ch.notes() != 2 || ch.s.count(`select count(*) from reminders`) != 2 {

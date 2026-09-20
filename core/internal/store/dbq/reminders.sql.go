@@ -107,18 +107,6 @@ func (q *Queries) CountUserReminders(ctx context.Context, userID uuid.UUID) (int
 	return count, err
 }
 
-const deleteOldNotifications = `-- name: DeleteOldNotifications :execrows
-delete from notifications where created_at < $1 and read_at is not null
-`
-
-func (q *Queries) DeleteOldNotifications(ctx context.Context, createdAt time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteOldNotifications, createdAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteReminder = `-- name: DeleteReminder :one
 delete from reminders where id = $1 and user_id = $2 returning note_id
 `

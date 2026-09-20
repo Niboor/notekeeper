@@ -112,6 +112,11 @@ func (s *Service) remind(ctx context.Context, bot *bots.Principal, ident bots.Id
 		}
 		ev := Event{EventID: "remind:" + cmd.MessageID, Kind: KindCreated, Sender: cmd.Sender, Conversation: cmd.Conversation, MessageID: cmd.MessageID,
 			Timestamp: now, Parts: []Part{{Type: PartText, Text: text}}, Standalone: true}
+		// The note does not carry the command message as its source. Editing that message in the chat
+		// would otherwise replace the note's text with the raw command line and leave the reminder where it
+		// was; with a source of its own, such an edit finds nothing and is ignored (EDT-6). The note and
+		// the reminder are then changed in the app.
+		ev.MessageID = "remind:" + cmd.MessageID
 		if cmd.MessageID == "" {
 			ev.MessageID = "remind:" + uuid.NewString()
 		}

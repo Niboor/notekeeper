@@ -90,9 +90,6 @@ select count(*) from notifications where user_id = $1 and read_at is null;
 -- name: MarkNotificationsRead :many
 update notifications set read_at = $2 where user_id = $1 and read_at is null and (sqlc.narg('ids')::uuid[] is null or id = any(sqlc.narg('ids')::uuid[])) returning id;
 
--- name: DeleteOldNotifications :execrows
-delete from notifications where created_at < $1 and read_at is not null;
-
 -- name: NoteExcerpt :one
 select coalesce((select left(p.text, 300) from note_parts p where p.user_id = $1 and p.note_id = $2 and p.kind = 'text' order by p.ordinal limit 1), '')::text;
 

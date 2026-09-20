@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
-import { api } from './api/client'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
+import { useAdoptBrowserTimezone } from './auth/useAdoptBrowserTimezone'
 import { ToastProvider } from './components/Toast'
 import { Layout } from './components/Layout'
 import { BoardShell } from './features/board/BoardShell'
@@ -15,20 +15,6 @@ import { t } from './i18n'
 import { ActivatePage } from './pages/ActivatePage'
 import { LoginPage } from './pages/LoginPage'
 import { useEvents } from './realtime/useEvents'
-
-/** A new account starts in UTC; the first time it is used, the browser's zone is adopted (CORE-R2). */
-function useAdoptBrowserTimezone() {
-  const { user, updateUser } = useAuth()
-  useEffect(() => {
-    if (!user || user.timezone !== 'UTC') return
-    const settings = user.settings as { tz_auto?: boolean }
-    if (settings.tz_auto) return
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-    void api
-      .PATCH('/api/v1/me', { body: { timezone: zone || 'UTC', settings: { ...settings, tz_auto: true } } })
-      .then((res) => res.data && updateUser(res.data))
-  }, [user, updateUser])
-}
 
 function RequireAuth() {
   const { user } = useAuth()
