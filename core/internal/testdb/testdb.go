@@ -102,7 +102,7 @@ func start(ctx context.Context) error {
 	if _, err := tpl.Exec(ctx, roles); err != nil {
 		return fmt.Errorf("roles: %w", err)
 	}
-	if err := db.Migrate(ctx, withDB(u, templateName, "", "")); err != nil {
+	if err := db.Migrate(ctx, withDB(u, templateName, "nk_migrate", "nk_migrate_dev")); err != nil {
 		return fmt.Errorf("migrate template: %w", err)
 	}
 	container, adminURL = c, u

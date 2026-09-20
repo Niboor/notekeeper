@@ -114,6 +114,112 @@ func (q *Queries) InsertUserToken(ctx context.Context, arg InsertUserTokenParams
 	return err
 }
 
+const listUserIDs = `-- name: ListUserIDs :many
+select id from users order by id
+`
+
+func (q *Queries) ListUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const purgeChanges = `-- name: PurgeChanges :execrows
+delete from changes where user_id = $1 and created_at < $2
+`
+
+type PurgeChangesParams struct {
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) PurgeChanges(ctx context.Context, arg PurgeChangesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeChanges, arg.UserID, arg.CreatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeIdempotency = `-- name: PurgeIdempotency :execrows
+delete from idempotency_keys where created_at < $1
+`
+
+func (q *Queries) PurgeIdempotency(ctx context.Context, createdAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeIdempotency, createdAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeIngestEvents = `-- name: PurgeIngestEvents :execrows
+delete from ingest_events where received_at < $1
+`
+
+func (q *Queries) PurgeIngestEvents(ctx context.Context, receivedAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeIngestEvents, receivedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeReadNotifications = `-- name: PurgeReadNotifications :execrows
+delete from notifications where user_id = $1 and read_at is not null and read_at < $2
+`
+
+type PurgeReadNotificationsParams struct {
+	UserID uuid.UUID
+	ReadAt *time.Time
+}
+
+func (q *Queries) PurgeReadNotifications(ctx context.Context, arg PurgeReadNotificationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeReadNotifications, arg.UserID, arg.ReadAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeThrottle = `-- name: PurgeThrottle :execrows
+delete from auth_throttle where updated_at < $1
+`
+
+func (q *Queries) PurgeThrottle(ctx context.Context, updatedAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeThrottle, updatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeUnlinkedSenders = `-- name: PurgeUnlinkedSenders :execrows
+delete from unlinked_senders where last_notice_at < $1
+`
+
+func (q *Queries) PurgeUnlinkedSenders(ctx context.Context, lastNoticeAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeUnlinkedSenders, lastNoticeAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const recordThrottleFailure = `-- name: RecordThrottleFailure :one
 insert into auth_throttle (key, failures, blocked_until, updated_at)
 values ($1, 1, null, $2)

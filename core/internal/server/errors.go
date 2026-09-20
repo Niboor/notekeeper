@@ -66,6 +66,10 @@ func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, err
 	}
 }
 
-func badRequest(w http.ResponseWriter, r *http.Request, _ error) {
+func badRequest(w http.ResponseWriter, r *http.Request, err error) {
+	if httpx.IsBodyTooLarge(err) {
+		httpx.WriteProblem(w, r, http.StatusRequestEntityTooLarge, "too_large", "")
+		return
+	}
 	httpx.WriteError(w, r, errBadRequest)
 }

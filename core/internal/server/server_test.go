@@ -209,3 +209,34 @@ func TestAPIResponsesCarrySecurityHeaders(t *testing.T) {
 		}
 	}
 }
+
+// Oversized bodies are refused before they are parsed (SEC-API-3).
+func TestRequestBodiesAreLimited(t *testing.T) {
+	r := testRouters(t, config.Config{}, nil)
+	big := strings.NewReader(strings.Repeat("x", 2<<20))
+	for name, tc := range map[string]struct {
+		h    http.Handler
+		path string
+	}{"user": {r.User, "/api/v1/auth/login"}, "bot": {r.Bot, "/bot/v1/events"}} {
+		req := httptest.NewRequest(http.MethodPost, tc.path, big)
+		req.Header.Set("X-Notekeeper-Client", "web")
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		rec := httptest.NewRecorder()
+		tc.h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("%s: a 2 MiB body got %d, want 413", name, rec.Code)
+		}
+		big.Reset(strings.Repeat("x", 2<<20))
+	}
+	// A chunked body that lies about its size is cut off while being read.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", io.NopCloser(strings.NewReader(`{"username":"`+strings.Repeat("a", 2<<20)+`"}`)))
+	req.ContentLength = -1
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Notekeeper-Client", "web")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	r.User.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("chunked oversized body got %d, want 413", rec.Code)
+	}
+}

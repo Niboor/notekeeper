@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/Niboor/notekeeper/core/migrations"
 )
@@ -42,7 +44,26 @@ func Migrate(ctx context.Context, url string) error {
 	if err != nil {
 		return err
 	}
-	_, err = p.Up(ctx)
+	if _, err = p.Up(ctx); err != nil {
+		return err
+	}
+	return migrateRiver(ctx, url)
+}
+
+// migrateRiver applies River's own schema (the job queue) under the same schema-owning role, so
+// the serving processes never need DDL rights. Default privileges set by the first migration give
+// the runtime role access to the tables created here.
+func migrateRiver(ctx context.Context, url string) error {
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	m, err := rivermigrate.New(riverpgxv5.New(pool), nil)
+	if err != nil {
+		return err
+	}
+	_, err = m.Migrate(ctx, rivermigrate.DirectionUp, nil)
 	return err
 }
 

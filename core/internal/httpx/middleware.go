@@ -198,3 +198,31 @@ func APIHeaders() func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// MaxJSONBody is the largest request body an ordinary API call may send (SEC-API-3). Streaming
+// upload routes are the only exemption; see LimitBody.
+const MaxJSONBody = 1 << 20
+
+// LimitBody caps request bodies. exempt reports routes that stream large bodies themselves and
+// enforce their own limits (attachment uploads); everything else is limited to max bytes, and a
+// body that is larger fails when read (see IsBodyTooLarge).
+func LimitBody(max int64, exempt func(r *http.Request) bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil && (exempt == nil || !exempt(r)) {
+				if r.ContentLength > max {
+					WriteProblem(w, r, http.StatusRequestEntityTooLarge, "too_large", "")
+					return
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, max)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// IsBodyTooLarge reports whether err came from a body that exceeded LimitBody's cap.
+func IsBodyTooLarge(err error) bool {
+	var mbe *http.MaxBytesError
+	return errors.As(err, &mbe)
+}

@@ -111,7 +111,7 @@ func startCore(t *testing.T, pgAdminURL string) *coreProcess {
 	p.ops = fmt.Sprintf("http://127.0.0.1:%d", opsPort)
 	p.env = append(os.Environ(),
 		"NK_DATABASE_URL="+dsn("nk_app", "nk_app_dev"),
-		"NK_MIGRATE_DATABASE_URL="+dsn(cfg.User, cfg.Password),
+		"NK_MIGRATE_DATABASE_URL="+dsn("nk_migrate", "nk_migrate_dev"),
 		"NK_TOKEN_KEYS=e2e:"+"ZTJlLW9ubHkta2V5LWUyZS1vbmx5LWtleS1lMmUtb25seS1rZXk=",
 		"NK_APP_URL="+p.userURL,
 		fmt.Sprintf("NK_USER_ADDR=127.0.0.1:%d", userPort), fmt.Sprintf("NK_BOT_ADDR=127.0.0.1:%d", botPort),

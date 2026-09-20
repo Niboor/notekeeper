@@ -14,6 +14,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/config"
 	"github.com/Niboor/notekeeper/core/internal/db"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
+	"github.com/Niboor/notekeeper/core/internal/jobs"
 	"github.com/Niboor/notekeeper/core/internal/realtime"
 	"github.com/Niboor/notekeeper/core/internal/server"
 	"github.com/Niboor/notekeeper/core/internal/store"
@@ -84,6 +85,22 @@ func serve(ctx context.Context) error {
 	}
 	hub := realtime.NewHub(cfg.DatabaseURL, log)
 	go hub.Run(ctx)
+
+	// Background jobs (River). Its tables are created by `core migrate`, never here (no DDL rights).
+	workers, err := jobs.New(pool, jobs.Deps{Store: st, Log: log})
+	if err != nil {
+		return err
+	}
+	if err := workers.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+		if err := workers.Stop(stopCtx); err != nil {
+			log.Warn("stopping background jobs", "error", err)
+		}
+	}()
 
 	routers, err := server.NewRouters(server.Deps{
 		Config: cfg, Log: log, Store: st,

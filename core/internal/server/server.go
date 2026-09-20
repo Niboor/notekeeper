@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,6 +73,7 @@ func NewRouters(d Deps) (Routers, error) {
 			httpx.Observe(name, d.Log, metrics),
 			httpx.HostCheck(hosts),
 			httpx.APIHeaders(),
+			httpx.LimitBody(httpx.MaxJSONBody, uploadRoute),
 		)
 		r.NotFound(httpx.NotFound)
 		r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
@@ -160,4 +162,11 @@ type publicHandler struct{}
 
 func (publicHandler) GetPublicVersion(context.Context, publicapi.GetPublicVersionRequestObject) (publicapi.GetPublicVersionResponseObject, error) {
 	return publicapi.GetPublicVersion200JSONResponse{Version: version.Version}, nil
+}
+
+// uploadRoute reports the streaming upload routes, the only ones allowed to exceed the JSON body
+// limit; they enforce the attachment size limit and the quota themselves (CORE-A3).
+func uploadRoute(r *http.Request) bool {
+	return r.Method == http.MethodPut &&
+		(strings.HasPrefix(r.URL.Path, "/api/v1/attachments/") || strings.HasPrefix(r.URL.Path, "/bot/v1/uploads/"))
 }
