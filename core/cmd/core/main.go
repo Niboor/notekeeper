@@ -104,7 +104,7 @@ func serve(ctx context.Context) error {
 
 	routers, err := server.NewRouters(server.Deps{
 		Config: cfg, Log: log, Store: st,
-		Accounts: sv.Accounts, Bots: sv.Bots, Notes: sv.Notes, Board: sv.Board, Blobs: sv.Blobs, Ingest: sv.Ingest, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Hub: hub,
+		Accounts: sv.Accounts, Bots: sv.Bots, Notes: sv.Notes, Board: sv.Board, Blobs: sv.Blobs, Ingest: sv.Ingest, Outbox: sv.Outbox, Shares: sv.Shares, Reminders: sv.Reminders, Export: sv.Export, Hub: hub,
 		Ready: func(ctx context.Context) error {
 			if err := pool.Ping(ctx); err != nil {
 				log.Warn("not ready: database unreachable", "error", err)

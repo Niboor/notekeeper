@@ -96,7 +96,7 @@ func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 	routers, err := server.NewRouters(server.Deps{Config: cfg, Log: log, Store: st, Accounts: svc.Accounts, Bots: svc.Bots,
-		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Shares: svc.Shares, Reminders: svc.Reminders, Hub: hub})
+		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Outbox: svc.Outbox, Shares: svc.Shares, Reminders: svc.Reminders, Export: svc.Export, Hub: hub})
 	if err != nil {
 		t.Fatal(err)
 	}

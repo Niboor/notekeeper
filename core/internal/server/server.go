@@ -19,6 +19,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/export"
 	"github.com/Niboor/notekeeper/core/internal/gen/botapi"
 	"github.com/Niboor/notekeeper/core/internal/gen/publicapi"
 	"github.com/Niboor/notekeeper/core/internal/gen/userapi"
@@ -48,6 +49,7 @@ type Deps struct {
 	Outbox    *outbox.Service
 	Shares    *shares.Service
 	Reminders *reminders.Service
+	Export    *export.Service
 	Hub       *realtime.Hub
 }
 
@@ -67,6 +69,7 @@ type userAPI struct {
 	blobs     *blobs.Service
 	shares    *shares.Service
 	reminders *reminders.Service
+	export    *export.Service
 	hub       *realtime.Hub
 	trusted   []netip.Prefix
 	log       *slog.Logger
@@ -111,7 +114,7 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
-	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, reminders: d.Reminders, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
+	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, shares: d.Shares, reminders: d.Reminders, export: d.Export, hub: d.Hub, trusted: trusted, log: d.Log, shareURL: d.Config.ShareURL}
 	user := base("user", d.Config.AppHosts, false)
 	// The authentication middleware sits on a route group, so it runs after routing (it needs the
 	// route) but BEFORE the generated code parses parameters and bodies: an unauthenticated caller

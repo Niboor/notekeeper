@@ -122,6 +122,20 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Me'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/export:
+    get:
+      operationId: exportMyData
+      summary: Everything the user has, as a ZIP archive that is streamed
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The archive
+          content:
+            application/zip:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/me/deletion:
     post:
       operationId: deleteMyAccount

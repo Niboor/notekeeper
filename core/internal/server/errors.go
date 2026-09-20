@@ -9,6 +9,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
+	"github.com/Niboor/notekeeper/core/internal/export"
 	"github.com/Niboor/notekeeper/core/internal/httpx"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
 	"github.com/Niboor/notekeeper/core/internal/notes"
@@ -34,6 +35,8 @@ func mapError(err error) *httpx.Error {
 	case errors.As(err, &th):
 		secs := int(math.Ceil(th.RetryAfter.Seconds()))
 		return &httpx.Error{Status: http.StatusTooManyRequests, Code: "throttled", RetryAfter: max(secs, 1)}
+	case errors.Is(err, export.ErrRateLimited):
+		return &httpx.Error{Status: http.StatusTooManyRequests, Code: "rate_limited", RetryAfter: 900}
 	case errors.Is(err, accounts.ErrProtected):
 		return httpx.NewError(http.StatusConflict, "admin_cannot_be_deleted")
 	case errors.Is(err, accounts.ErrInvalidCredentials):

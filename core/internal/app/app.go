@@ -12,6 +12,7 @@ import (
 	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/config"
+	"github.com/Niboor/notekeeper/core/internal/export"
 	"github.com/Niboor/notekeeper/core/internal/ingest"
 	"github.com/Niboor/notekeeper/core/internal/notes"
 	"github.com/Niboor/notekeeper/core/internal/outbox"
@@ -31,6 +32,7 @@ type Services struct {
 	Outbox    *outbox.Service
 	Shares    *shares.Service
 	Reminders *reminders.Service
+	Export    *export.Service
 }
 
 // NewServices constructs the services.
@@ -60,6 +62,7 @@ func NewServices(cfg config.Config, st *store.Store, log *slog.Logger) (*Service
 		Ingest:    ingest.New(st, b, bl, rem),
 		Outbox:    outbox.New(st),
 		Reminders: rem,
+		Export:    export.New(st, bl),
 		Shares:    shares.New(st, n, bl, shares.Config{Enabled: cfg.ShareEnabled, MaxLifetime: cfg.ShareMaxLifetime, MaxActive: cfg.ShareMaxActive}),
 	}, nil
 }
