@@ -83,6 +83,9 @@ func (b *Bot) send(ctx context.Context, it botclient.OutboxItem) botclient.Outbo
 		return sendFailure(err)
 	}
 	ids := []string{resp.EventID.String()}
+	if it.Kind == botclient.Reminder {
+		b.sendFiles(ctx, room, it) // best effort: the reminder text is already delivered
+	}
 	return botclient.OutboxResult{State: botclient.Delivered, MessageIds: &ids}
 }
 

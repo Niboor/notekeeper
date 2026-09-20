@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -43,9 +44,10 @@ type fakeCore struct {
 	reply     map[string]string
 	heartbeat atomic.Int32
 
-	uploads []fakeUpload     // files the bot sent, by upload id
-	outbox  []map[string]any // items waiting to be claimed
-	results []map[string]any // what the bot reported about them
+	uploads []fakeUpload      // files the bot sent, by upload id
+	outbox  []map[string]any  // items waiting to be claimed
+	results []map[string]any  // what the bot reported about them
+	files   map[string][]byte // reminder files by attachment id
 }
 
 type fakeUpload struct {
@@ -54,7 +56,7 @@ type fakeUpload struct {
 }
 
 func newFakeCore(t *testing.T) *fakeCore {
-	f := &fakeCore{seen: map[string]bool{}, reply: map[string]string{}}
+	f := &fakeCore{seen: map[string]bool{}, reply: map[string]string{}, files: map[string][]byte{}}
 	mux := http.NewServeMux()
 	respond := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
@@ -119,6 +121,18 @@ func newFakeCore(t *testing.T) *fakeCore {
 		}
 		respond(w, map[string]any{"items": items})
 	})
+	mux.HandleFunc("GET /bot/v1/outbox/{id}/attachments/{att}", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		data, ok := f.files[r.PathValue("att")]
+		f.mu.Unlock()
+		if !ok {
+			w.WriteHeader(404)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		_, _ = w.Write(data)
+	})
 	mux.HandleFunc("POST /bot/v1/outbox/{id}/result", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -142,6 +156,16 @@ func (f *fakeCore) queue(kind, room, text string) string {
 	}
 	f.mu.Lock()
 	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": kind, "external_user_id": "@x:x", "conversation_id": room, "payload": payload, "attempts": 0})
+	f.mu.Unlock()
+	return id
+}
+
+// queueReminder adds a reminder item that lists files; the ones with content in f.files can be fetched.
+func (f *fakeCore) queueReminder(room, text string, files []map[string]any) string {
+	id := uuid.NewString()
+	f.mu.Lock()
+	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": "reminder", "external_user_id": "@x:x", "conversation_id": room,
+		"payload": map[string]any{"text": text, "note_url": "https://app.example.net/notes/n1", "attachments": files}, "attempts": 0})
 	f.mu.Unlock()
 	return id
 }
@@ -586,6 +610,60 @@ func TestBotMovesFilesAndSpeaksForCore(t *testing.T) {
 	res := core.waitResult(t, rem)
 	if ids, _ := res["message_ids"].([]any); res["state"] != "delivered" || len(ids) != 1 {
 		t.Fatalf("reminder result: %+v", res)
+	}
+
+	// A reminder with files: the bot fetches them from Core and sends them as encrypted media; a file it
+	// cannot fetch becomes a line naming it with the link, and neither blocks the reminder (MX-12, BOT-15).
+	ticket := make([]byte, 120_000)
+	for i := range ticket {
+		ticket[i] = byte(i * 31)
+	}
+	okID, goneID := uuid.NewString(), uuid.NewString()
+	core.mu.Lock()
+	core.files[okID] = ticket
+	core.mu.Unlock()
+	withFiles := core.queueReminder(room.String(), "⏰ Reminder\nboarding pass", []map[string]any{
+		{"id": okID, "filename": "ticket.pdf", "media_type": "application/pdf", "size": len(ticket)},
+		{"id": goneID, "filename": "lost.pdf", "media_type": "application/pdf", "size": 10},
+	})
+	var media *event.MessageEventContent
+	sawFallback := false
+	deadline = time.Now().Add(45 * time.Second)
+	for media == nil || !sawFallback {
+		if time.Now().After(deadline) {
+			t.Fatalf("reminder files: media=%v fallback=%v", media != nil, sawFallback)
+		}
+		select {
+		case m := <-alice.messages:
+			if c := m.Content.AsMessage(); c != nil {
+				if c.MsgType == event.MsgFile && c.File != nil {
+					media = c
+				}
+				if c.MsgType == event.MsgNotice && strings.Contains(c.Body, "lost.pdf") && strings.Contains(c.Body, "https://app.example.net/notes/n1") {
+					sawFallback = true
+				}
+			}
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	uri, err := media.File.URL.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dl, err := alice.client.Download(ctx, uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := media.File.PrepareForDecryption(); err != nil {
+		t.Fatal(err)
+	}
+	stream := media.File.DecryptStream(dl.Body)
+	got, err := io.ReadAll(stream)
+	if err != nil || stream.Close() != nil || !bytes.Equal(got, ticket) || media.FileName != "ticket.pdf" {
+		t.Fatalf("the file that arrived is not the one sent: %d bytes, %v", len(got), err)
+	}
+	if r := core.waitResult(t, withFiles); r["state"] != "delivered" {
+		t.Fatalf("reminder with files: %+v", r)
 	}
 
 	// An unlink instruction: the bot says goodbye, leaves and forgets the room (MX-12, BOT-16).

@@ -259,3 +259,18 @@ func (c *Client) ReportOutbox(ctx context.Context, id uuid.UUID, result botclien
 	}
 	return err
 }
+
+// OutboxAttachment opens a file listed by a claimed outbox item (BOT-15). It makes one attempt: a
+// file that cannot be fetched is replaced by a link in the chat, it never blocks the reminder.
+// The caller closes the body and must check that it delivers exactly size bytes.
+func (c *Client) OutboxAttachment(ctx context.Context, item, attachment uuid.UUID) (io.ReadCloser, int64, error) {
+	res, err := c.API.GetOutboxAttachment(ctx, item, attachment)
+	if err != nil {
+		return nil, 0, err
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		return nil, 0, fmt.Errorf("core answered %d", res.StatusCode)
+	}
+	return res.Body, res.ContentLength, nil
+}
