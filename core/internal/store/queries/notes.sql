@@ -106,3 +106,6 @@ select * from notes where id = $1;
 
 -- name: InsertNoteAt :one
 insert into notes (id, user_id, category_id, position, created_at, received_at) values ($1, $2, $3, $4, $5, $5) returning *;
+
+-- name: NotesByIDs :many
+select * from notes where user_id = $1 and id = any($2::uuid[]);

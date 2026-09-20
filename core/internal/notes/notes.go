@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/store/dbq"
 )
@@ -27,17 +28,28 @@ const (
 
 // Service is the notes service.
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St    *store.Store
+	Blobs *blobs.Service
+	Now   func() time.Time
 }
 
 // New creates the service.
-func New(st *store.Store) *Service { return &Service{St: st} }
+func New(st *store.Store, b *blobs.Service) *Service { return &Service{St: st, Blobs: b} }
 
-// Part is a note part with the type of the bot it came from, if any (for "via Matrix").
+// Part is a note part with the type of the bot it came from, if any (for "via Matrix"), and,
+// for attachment parts, what the attachment is.
 type Part struct {
 	dbq.NotePart
 	SourceBotType *string
+	Attachment    *AttachmentInfo
+}
+
+// AttachmentInfo describes an attachment for display.
+type AttachmentInfo struct {
+	ID        uuid.UUID
+	Filename  string
+	MediaType string
+	Size      int64
 }
 
 // Location says where a dismissed note came from (the Trash view).
@@ -117,9 +129,31 @@ func withParts(ctx context.Context, q *dbq.Queries, notes []dbq.Note) ([]Note, e
 	if err != nil {
 		return nil, err
 	}
+	var attIDs []uuid.UUID
+	for _, p := range parts {
+		if p.NotePart.AttachmentID.Valid {
+			attIDs = append(attIDs, p.NotePart.AttachmentID.UUID)
+		}
+	}
+	atts := map[uuid.UUID]AttachmentInfo{}
+	if len(attIDs) > 0 {
+		rows, err := q.PartAttachmentInfo(ctx, dbq.PartAttachmentInfoParams{Column1: attIDs, UserID: notes[0].UserID})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			atts[r.ID] = AttachmentInfo{ID: r.ID, Filename: r.Filename, MediaType: r.MediaType, Size: r.SizeBytes}
+		}
+	}
 	byNote := make(map[uuid.UUID][]Part, len(notes))
 	for _, p := range parts {
-		byNote[p.NotePart.NoteID] = append(byNote[p.NotePart.NoteID], Part{NotePart: p.NotePart, SourceBotType: p.SourceBotType})
+		part := Part{NotePart: p.NotePart, SourceBotType: p.SourceBotType}
+		if p.NotePart.AttachmentID.Valid {
+			if a, ok := atts[p.NotePart.AttachmentID.UUID]; ok {
+				part.Attachment = &a
+			}
+		}
+		byNote[p.NotePart.NoteID] = append(byNote[p.NotePart.NoteID], part)
 	}
 	out := make([]Note, len(notes))
 	for i, n := range notes {

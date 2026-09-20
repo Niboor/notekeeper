@@ -523,6 +523,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a file; supports Range and conditional requests */
+        get: operations["downloadAttachment"];
+        /**
+         * Upload a file (raw body, streamed); idempotent on the id
+         * @description The body is the file itself with `Content-Type: application/octet-stream`; `Content-Length`
+         *     is required. The name goes in `X-Filename` (percent-encoded), the media type in `X-Media-Type`.
+         *     The attachment is unlinked until a note part references it; unused ones are removed after an hour.
+         */
+        put: operations["uploadAttachment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full-text search over the user's notes
+         * @description Matches note text and attachment filenames, ignoring case and accents, with prefix matching
+         *     for the last words typed. Results are ranked; `snippet` marks matches with the private-use
+         *     characters U+E000 (start) and U+E001 (end), which the client turns into highlights.
+         */
+        get: operations["searchNotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -1002,6 +1047,15 @@ export interface components {
             /** Format: uuid */
             page_id?: string;
             page_name?: string;
+        };
+        SearchHit: {
+            note: components["schemas"]["Note"];
+            snippet: string;
+            location?: components["schemas"]["PreviousLocation"];
+        };
+        SearchPage: {
+            items: components["schemas"]["SearchHit"][];
+            next_cursor?: string;
         };
         Change: {
             /** Format: int64 */
@@ -1975,6 +2029,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    downloadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file. Always sent with nosniff, a sandbox CSP and `private, no-cache`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    uploadAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Filename": string;
+                "X-Media-Type"?: string;
+            };
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentRef"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    searchNotes: {
+        parameters: {
+            query: {
+                q: string;
+                scope?: "active" | "trash" | "all";
+                page_id?: string;
+                category_id?: string;
+                has_attachment?: boolean;
+                has_reminder?: boolean;
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPage"];
                 };
             };
             default: components["responses"]["Problem"];

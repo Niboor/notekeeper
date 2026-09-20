@@ -193,7 +193,31 @@ func uuidPtr(id *uuid.UUID) uuid.NullUUID {
 // InUserRead runs fn in a read-only transaction scoped to the user through row-level security.
 // It takes no lock and records no changes, so reads never queue behind writers.
 func (s *Store) InUserRead(ctx context.Context, userID uuid.UUID, fn func(q *dbq.Queries) error) error {
+	return s.InUserReadTx(ctx, userID, func(_ pgx.Tx, q *dbq.Queries) error { return fn(q) })
+}
+
+// InUserReadTx is InUserRead for callers that also need the raw transaction (dynamic queries).
+func (s *Store) InUserReadTx(ctx context.Context, userID uuid.UUID, fn func(tx pgx.Tx, q *dbq.Queries) error) error {
 	pgtx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = pgtx.Rollback(ctx) }()
+	if _, err := pgtx.Exec(ctx, `select set_config('app.user_id', $1, true)`, userID.String()); err != nil {
+		return fmt.Errorf("set user context: %w", err)
+	}
+	if err := fn(pgtx, dbq.New(pgtx)); err != nil {
+		return err
+	}
+	return pgtx.Commit(ctx)
+}
+
+// InUserScoped runs fn in a read-write transaction scoped to the user through row-level security
+// but WITHOUT taking the user lock or recording changes. It is for bulk data that is invisible
+// until a later locked transaction publishes it: the chunks of an upload in progress. Everything
+// that changes what the user sees must use InUserTx instead.
+func (s *Store) InUserScoped(ctx context.Context, userID uuid.UUID, fn func(q *dbq.Queries) error) error {
+	pgtx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}

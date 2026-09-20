@@ -107,6 +107,9 @@ func noteOf(n notes.Note) userapi.Note {
 		part := userapi.NotePart{Id: p.ID, Kind: userapi.NotePartKind(p.Kind), Text: p.Text,
 			AttachReason: userapi.NotePartAttachReason(p.AttachReason), CreatedAt: p.CreatedAt, TextEditedAt: p.TextEditedAt,
 			SourceBotType: p.SourceBotType}
+		if p.Attachment != nil {
+			part.Attachment = &userapi.AttachmentRef{Id: p.Attachment.ID, Filename: p.Attachment.Filename, MediaType: p.Attachment.MediaType, Size: p.Attachment.Size}
+		}
 		if p.Kind == "failed_attachment" {
 			fa := userapi.FailedAttachment{Filename: deref(p.FailedFilename), Reason: deref(p.FailedReason)}
 			if p.FailedSize != nil {
@@ -235,3 +238,39 @@ func (u *userAPI) ListChanges(ctx context.Context, req userapi.ListChangesReques
 
 var _ = uuid.Nil
 var _ = store.ErrNotFound
+
+func (u *userAPI) SearchNotes(ctx context.Context, req userapi.SearchNotesRequestObject) (userapi.SearchNotesResponseObject, error) {
+	p, err := mustPrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	in := notes.SearchInput{Query: req.Params.Q, PageID: req.Params.PageId, CategoryID: req.Params.CategoryId,
+		HasAttachment: req.Params.HasAttachment, HasReminder: req.Params.HasReminder}
+	if req.Params.Scope != nil {
+		in.Scope = string(*req.Params.Scope)
+	}
+	if req.Params.Limit != nil {
+		in.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		in.Cursor = *req.Params.Cursor
+	}
+	page, err := u.notes.Search(ctx, p.UserID, in)
+	if err != nil {
+		return nil, err
+	}
+	out := userapi.SearchNotes200JSONResponse{Items: make([]userapi.SearchHit, len(page.Hits))}
+	for i, h := range page.Hits {
+		n := noteOf(h.Note)
+		hit := userapi.SearchHit{Note: n, Snippet: h.Snippet}
+		if n.PreviousLocation != nil {
+			hit.Location = n.PreviousLocation
+		}
+		out.Items[i] = hit
+	}
+	if page.NextCursor != "" {
+		c := page.NextCursor
+		out.NextCursor = &c
+	}
+	return out, nil
+}

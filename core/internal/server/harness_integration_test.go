@@ -43,7 +43,10 @@ type stack struct {
 	cfg  config.Config
 }
 
-func newStack(t *testing.T) *stack {
+func newStack(t *testing.T) *stack { return newStackWith(t, nil) }
+
+// newStackWith builds a stack whose configuration can be adjusted first.
+func newStackWith(t *testing.T, mod func(*config.Config)) *stack {
 	t.Helper()
 	d := testdb.New(t)
 	cfg := config.Config{
@@ -51,6 +54,10 @@ func newStack(t *testing.T) *stack {
 		AccessTokenTTL: 15 * time.Minute, SessionIdleLifetime: 90 * 24 * time.Hour, SessionAbsoluteLifetime: 365 * 24 * time.Hour,
 		RefreshGrace: 60 * time.Second, ActivationTTL: 7 * 24 * time.Hour,
 		Argon2MemoryKiB: 8, Argon2Iterations: 1, Argon2Parallelism: 1, Argon2Concurrency: 8,
+		MaxAttachmentBytes: 25 << 20, DefaultQuotaBytes: 2 << 30,
+	}
+	if mod != nil {
+		mod(&cfg)
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st := store.New(d.App)
@@ -62,7 +69,7 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 	routers, err := server.NewRouters(server.Deps{Config: cfg, Log: log, Store: st, Accounts: svc.Accounts, Bots: svc.Bots,
-		Notes: svc.Notes, Board: svc.Board, Ingest: svc.Ingest, Hub: hub})
+		Notes: svc.Notes, Board: svc.Board, Blobs: svc.Blobs, Ingest: svc.Ingest, Hub: hub})
 	if err != nil {
 		t.Fatal(err)
 	}

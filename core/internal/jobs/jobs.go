@@ -15,6 +15,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
 
@@ -32,6 +33,7 @@ const (
 // Deps are what workers need.
 type Deps struct {
 	Store *store.Store
+	Blobs *blobs.Service
 	Log   *slog.Logger
 	Now   func() time.Time
 }
@@ -100,11 +102,47 @@ func Purge(ctx context.Context, d Deps) error {
 	return nil
 }
 
+// ReleaseStaleUploadsArgs is the janitor for uploads: it frees the quota held by uploads that
+// never finished and deletes attachments no note ever used, both older than an hour.
+type ReleaseStaleUploadsArgs struct{}
+
+// Kind identifies the job type.
+func (ReleaseStaleUploadsArgs) Kind() string { return "release_stale_uploads" }
+
+// StaleUploadAge is how old an unfinished or unused upload must be before it is removed.
+const StaleUploadAge = time.Hour
+
+// ReleaseStaleUploadsWorker performs ReleaseStaleUploadsArgs.
+type ReleaseStaleUploadsWorker struct {
+	river.WorkerDefaults[ReleaseStaleUploadsArgs]
+	D Deps
+}
+
+// Work runs the janitor for every user.
+func (w *ReleaseStaleUploadsWorker) Work(ctx context.Context, _ *river.Job[ReleaseStaleUploadsArgs]) error {
+	return ReleaseStaleUploads(ctx, w.D)
+}
+
+// ReleaseStaleUploads is the body of the janitor job.
+func ReleaseStaleUploads(ctx context.Context, d Deps) error {
+	users, err := d.Store.Q().ListUserIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		if err := d.Blobs.ReleaseStale(ctx, u, StaleUploadAge); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
 // New builds the River client. Call Start on it in the serving process; tests and insert-only
 // callers can use it without starting workers.
 func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &PurgeWorker{D: d})
+	river.AddWorker(workers, &ReleaseStaleUploadsWorker{D: d})
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}},
 		Workers: workers,
@@ -113,6 +151,9 @@ func New(pool *pgxpool.Pool, d Deps) (*river.Client[pgx.Tx], error) {
 			river.NewPeriodicJob(river.PeriodicInterval(24*time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return PurgeArgs{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: true}),
+			river.NewPeriodicJob(river.PeriodicInterval(10*time.Minute),
+				func() (river.JobArgs, *river.InsertOpts) { return ReleaseStaleUploadsArgs{}, nil },
+				nil),
 		},
 	})
 }

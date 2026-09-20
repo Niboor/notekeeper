@@ -611,6 +611,97 @@ paths:
               schema: {$ref: '#/components/schemas/NotePage'}
         default: {$ref: '#/components/responses/Problem'}
 
+  # ---- attachments -----------------------------------------------------------------------------
+  /api/v1/attachments/{id}:
+    put:
+      operationId: uploadAttachment
+      summary: Upload a file (raw body, streamed); idempotent on the id
+      description: |
+        The body is the file itself with `Content-Type: application/octet-stream`; `Content-Length`
+        is required. The name goes in `X-Filename` (percent-encoded), the media type in `X-Media-Type`.
+        The attachment is unlinked until a note part references it; unused ones are removed after an hour.
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - name: X-Filename
+          in: header
+          required: true
+          schema: {type: string, maxLength: 1024}
+        - name: X-Media-Type
+          in: header
+          required: false
+          schema: {type: string, maxLength: 255}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '201':
+          description: Stored
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AttachmentRef'}
+        default: {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: downloadAttachment
+      summary: Download a file; supports Range and conditional requests
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: The file. Always sent with nosniff, a sandbox CSP and `private, no-cache`.
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+
+  /api/v1/search:
+    get:
+      operationId: searchNotes
+      summary: Full-text search over the user's notes
+      description: |
+        Matches note text and attachment filenames, ignoring case and accents, with prefix matching
+        for the last words typed. Results are ranked; `snippet` marks matches with the private-use
+        characters U+E000 (start) and U+E001 (end), which the client turns into highlights.
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 200}
+        - name: scope
+          in: query
+          schema: {type: string, enum: [active, trash, all], default: active}
+        - name: page_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: category_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: has_attachment
+          in: query
+          schema: {type: boolean}
+        - name: has_reminder
+          in: query
+          schema: {type: boolean}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: One page of results
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SearchPage'}
+        default: {$ref: '#/components/responses/Problem'}
+
   # ---- realtime and sync ------------------------------------------------------------------
   /api/v1/events:
     get:
@@ -1164,6 +1255,22 @@ components:
         category_name: {type: string}
         page_id: {type: string, format: uuid}
         page_name: {type: string}
+
+    SearchHit:
+      type: object
+      required: [note, snippet]
+      properties:
+        note: {$ref: '#/components/schemas/Note'}
+        snippet: {type: string}
+        location: {$ref: '#/components/schemas/PreviousLocation'}
+    SearchPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/SearchHit'}
+        next_cursor: {type: string}
     Change:
       type: object
       required: [seq, entity_type, entity_id, op]

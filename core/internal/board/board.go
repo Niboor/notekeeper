@@ -166,7 +166,7 @@ func (s *Service) CreatePage(ctx context.Context, user uuid.UUID, id *uuid.UUID,
 	now := s.Now()
 	var out dbq.Page
 	err = s.St.InUserTx(ctx, user, func(tx *store.UserTx) error {
-		pid := uuid.Nil
+		var pid uuid.UUID
 		if id != nil {
 			pid = *id
 			if existing, err := tx.Q.GetPage(ctx, dbq.GetPageParams{ID: pid, UserID: user}); err == nil {
@@ -314,7 +314,7 @@ func (s *Service) CreateCategory(ctx context.Context, user uuid.UUID, id *uuid.U
 		if _, err := tx.Q.GetPage(ctx, dbq.GetPageParams{ID: page, UserID: user}); err != nil {
 			return notFound(err)
 		}
-		cid := uuid.Nil
+		var cid uuid.UUID
 		if id != nil {
 			cid = *id
 			if existing, err := tx.Q.GetCategory(ctx, dbq.GetCategoryParams{ID: cid, UserID: user}); err == nil {

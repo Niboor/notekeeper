@@ -48,13 +48,6 @@ func notFound(err error) error {
 	return err
 }
 
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
-}
-
 // ---- reading ---------------------------------------------------------------------------------
 
 // CategoryPage returns one page of a category's notes in their manual order. It runs inside the
@@ -304,7 +297,18 @@ func (s *Service) insertPart(ctx context.Context, tx *store.UserTx, note uuid.UU
 	partID, _ := uuid.NewV7()
 	params := dbq.InsertNotePartParams{ID: partID, UserID: tx.UserID, NoteID: note, Ordinal: ordinal, AttachReason: "app", CreatedAt: now}
 	if in.AttachmentID != nil {
-		return invalid("attachments are not available yet")
+		// An attachment uploaded earlier by this user and not yet used by any part.
+		if _, err := tx.Q.GetAttachment(ctx, dbq.GetAttachmentParams{ID: *in.AttachmentID, UserID: tx.UserID}); err != nil {
+			return notFound(err) // a foreign attachment looks like a missing one (SEC-ISO-4)
+		}
+		if used, err := tx.Q.AttachmentInUse(ctx, dbq.AttachmentInUseParams{AttachmentID: uuid.NullUUID{UUID: *in.AttachmentID, Valid: true}, UserID: tx.UserID}); err != nil {
+			return err
+		} else if used {
+			return ErrConflict
+		}
+		params.Kind, params.AttachmentID = "attachment", uuid.NullUUID{UUID: *in.AttachmentID, Valid: true}
+		_, err := tx.Q.InsertNotePart(ctx, params)
+		return err
 	}
 	params.Kind, params.Text = "text", &text
 	if _, err := tx.Q.InsertNotePart(ctx, params); err != nil {
@@ -480,19 +484,34 @@ func (s *Service) DeletePermanently(ctx context.Context, user, id uuid.UUID) err
 		if n.State != "deleted" {
 			return ErrConflict // only notes in the Trash can be deleted for good
 		}
-		if err := s.releaseAttachments(ctx, tx, id); err != nil {
+		atts, err := s.attachmentsOf(ctx, tx, id)
+		if err != nil {
 			return err
 		}
-		if _, err := tx.Q.DeleteNote(ctx, dbq.DeleteNoteParams{ID: id, UserID: user}); err != nil {
+		if _, err := tx.Q.DeleteNote(ctx, dbq.DeleteNoteParams{ID: id, UserID: user}); err != nil { // parts cascade
 			return err
+		}
+		for _, a := range atts { // the files go with the note, and their space returns to the quota (CORE-A8)
+			if err := s.Blobs.Delete(ctx, tx, a); err != nil {
+				return err
+			}
 		}
 		return tx.Change(ctx, "note", id, "delete", nil)
 	})
 }
 
-// releaseAttachments deletes the attachments of a note that is going away. Attachment storage
-// arrives later in this milestone; until then there is nothing to release.
-func (s *Service) releaseAttachments(context.Context, *store.UserTx, uuid.UUID) error { return nil }
+// attachmentsOf lists the attachments used by a note's parts.
+func (s *Service) attachmentsOf(ctx context.Context, tx *store.UserTx, note uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := tx.Q.AttachmentsOfNote(ctx, note)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, len(rows))
+	for i, r := range rows {
+		ids[i] = r.ID
+	}
+	return ids, nil
+}
 
 // ---- editing --------------------------------------------------------------------------------
 
@@ -627,8 +646,17 @@ func (s *Service) RemovePart(ctx context.Context, user, noteID, partID uuid.UUID
 		if count <= 1 {
 			return ErrConflict
 		}
+		part, err := tx.Q.GetNotePart(ctx, dbq.GetNotePartParams{ID: partID, NoteID: noteID, UserID: user})
+		if err != nil {
+			return notFound(err)
+		}
 		if err := tx.Q.DeleteNotePart(ctx, partID); err != nil {
 			return err
+		}
+		if part.AttachmentID.Valid {
+			if err := s.Blobs.Delete(ctx, tx, part.AttachmentID.UUID); err != nil {
+				return err
+			}
 		}
 		n, err := tx.Q.TouchNote(ctx, dbq.TouchNoteParams{ID: noteID, UserID: user, UpdatedAt: now})
 		if err != nil {

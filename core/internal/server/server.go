@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/Niboor/notekeeper/core/internal/accounts"
+	"github.com/Niboor/notekeeper/core/internal/blobs"
 	"github.com/Niboor/notekeeper/core/internal/board"
 	"github.com/Niboor/notekeeper/core/internal/bots"
 	"github.com/Niboor/notekeeper/core/internal/config"
@@ -40,6 +41,7 @@ type Deps struct {
 	Bots     *bots.Service
 	Notes    *notes.Service
 	Board    *board.Service
+	Blobs    *blobs.Service
 	Ingest   *ingest.Service
 	Hub      *realtime.Hub
 }
@@ -57,6 +59,7 @@ type userAPI struct {
 	bots    *bots.Service
 	notes   *notes.Service
 	board   *board.Service
+	blobs   *blobs.Service
 	hub     *realtime.Hub
 	trusted []netip.Prefix
 	log     *slog.Logger
@@ -99,7 +102,7 @@ func NewRouters(d Deps) (Routers, error) {
 		return Routers{}, err
 	}
 	auth := &userAuth{accts: d.Accounts, reqs: reqs, appHosts: d.Config.AppHosts, trusted: trusted}
-	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, hub: d.Hub, trusted: trusted, log: d.Log}
+	ua := &userAPI{st: d.Store, accts: d.Accounts, bots: d.Bots, notes: d.Notes, board: d.Board, blobs: d.Blobs, hub: d.Hub, trusted: trusted, log: d.Log}
 	user := base("user", d.Config.AppHosts, false)
 	userapi.HandlerWithOptions(
 		userapi.NewStrictHandlerWithOptions(ua, []userapi.StrictMiddlewareFunc{stashHTTPUser}, userapi.StrictHTTPServerOptions{

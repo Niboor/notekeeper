@@ -669,6 +669,46 @@ func (q *Queries) NoteLocations(ctx context.Context, arg NoteLocationsParams) ([
 	return items, nil
 }
 
+const notesByIDs = `-- name: NotesByIDs :many
+select id, user_id, category_id, position, state, deleted_at, created_at, received_at, updated_at, version from notes where user_id = $1 and id = any($2::uuid[])
+`
+
+type NotesByIDsParams struct {
+	UserID  uuid.UUID
+	Column2 []uuid.UUID
+}
+
+func (q *Queries) NotesByIDs(ctx context.Context, arg NotesByIDsParams) ([]Note, error) {
+	rows, err := q.db.Query(ctx, notesByIDs, arg.UserID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Note{}
+	for rows.Next() {
+		var i Note
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CategoryID,
+			&i.Position,
+			&i.State,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.ReceivedAt,
+			&i.UpdatedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const overwriteVersionText = `-- name: OverwriteVersionText :exec
 update note_part_versions set text = $2, edited_at = $3, recorded_at = $3 where id = $1
 `

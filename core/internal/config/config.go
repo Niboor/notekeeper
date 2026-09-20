@@ -47,6 +47,10 @@ type Config struct {
 	Argon2Parallelism uint8
 	Argon2Concurrency int
 
+	// Attachments (CORE-A3): the largest single file and the default per-user quota, in bytes.
+	MaxAttachmentBytes int64
+	DefaultQuotaBytes  int64
+
 	// Ingress addresses whose X-Forwarded-For is trusted for per-address throttling.
 	TrustedProxies []string
 }
@@ -113,6 +117,15 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	maxAtt, err := number(getenv, "NK_MAX_ATTACHMENT_BYTES", 25<<20)
+	if err != nil {
+		return Config{}, err
+	}
+	quota, err := number(getenv, "NK_DEFAULT_QUOTA_BYTES", 2<<30)
+	if err != nil {
+		return Config{}, err
+	}
+	c.MaxAttachmentBytes, c.DefaultQuotaBytes = int64(maxAtt), int64(quota)
 	c.Argon2MemoryKiB, c.Argon2Iterations, c.Argon2Parallelism, c.Argon2Concurrency = uint32(mem), uint32(iter), uint8(par), int(conc)
 	return c, nil
 }
@@ -134,7 +147,7 @@ func number(getenv func(string) string, key string, def uint64) (uint64, error) 
 	if v == "" {
 		return def, nil
 	}
-	n, err := strconv.ParseUint(v, 10, 32)
+	n, err := strconv.ParseUint(v, 10, 63)
 	if err != nil || n == 0 {
 		return 0, fmt.Errorf("%s: must be a positive number", key)
 	}

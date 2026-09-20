@@ -114,15 +114,15 @@ func TestPlacementRules(t *testing.T) {
 		return k
 	}
 	// Between two neighbours.
-	if k := between(ptr(a), ptr(b), false); !(k > m.keys[a] && k < m.keys[b]) {
+	if k := between(ptr(a), ptr(b), false); k <= m.keys[a] || k >= m.keys[b] {
 		t.Fatalf("between a and b: %q", k)
 	}
 	// Right after a single neighbour: before its successor, not at the end.
-	if k := between(ptr(a), nil, false); !(k > m.keys[a] && k < m.keys[b]) {
+	if k := between(ptr(a), nil, false); k <= m.keys[a] || k >= m.keys[b] {
 		t.Fatalf("after a: %q", k)
 	}
 	// Right before a single neighbour: after its predecessor.
-	if k := between(nil, ptr(c), false); !(k > m.keys[b] && k < m.keys[c]) {
+	if k := between(nil, ptr(c), false); k <= m.keys[b] || k >= m.keys[c] {
 		t.Fatalf("before c: %q", k)
 	}
 	// No hints: top or end.
@@ -133,7 +133,7 @@ func TestPlacementRules(t *testing.T) {
 		t.Fatalf("end: %q", k)
 	}
 	// Stale hints (the neighbours swapped since the client looked) still land next to AfterID.
-	if k := between(ptr(b), ptr(a), false); !(k > m.keys[b] && k < m.keys[c]) {
+	if k := between(ptr(b), ptr(a), false); k <= m.keys[b] || k >= m.keys[c] {
 		t.Fatalf("stale neighbours: %q", k)
 	}
 	// An empty list works.

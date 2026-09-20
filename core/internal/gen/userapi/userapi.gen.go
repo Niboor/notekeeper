@@ -261,6 +261,27 @@ func (e AdminCreateBotCredentialJSONBodyScopes) Valid() bool {
 	}
 }
 
+// Defines values for SearchNotesParamsScope.
+const (
+	SearchNotesParamsScopeActive SearchNotesParamsScope = "active"
+	SearchNotesParamsScopeAll    SearchNotesParamsScope = "all"
+	SearchNotesParamsScopeTrash  SearchNotesParamsScope = "trash"
+)
+
+// Valid indicates whether the value is a known member of the SearchNotesParamsScope enum.
+func (e SearchNotesParamsScope) Valid() bool {
+	switch e {
+	case SearchNotesParamsScopeActive:
+		return true
+	case SearchNotesParamsScopeAll:
+		return true
+	case SearchNotesParamsScopeTrash:
+		return true
+	default:
+		return false
+	}
+}
+
 // ActivateRequest defines model for ActivateRequest.
 type ActivateRequest struct {
 	Password string `json:"password"`
@@ -654,6 +675,20 @@ type RefreshRequest struct {
 	RefreshToken *string `json:"refresh_token,omitempty"`
 }
 
+// SearchHit defines model for SearchHit.
+type SearchHit struct {
+	// Location Where a dismissed note came from (Trash view)
+	Location *PreviousLocation `json:"location,omitempty"`
+	Note     Note              `json:"note"`
+	Snippet  string            `json:"snippet"`
+}
+
+// SearchPage defines model for SearchPage.
+type SearchPage struct {
+	Items      []SearchHit `json:"items"`
+	NextCursor *string     `json:"next_cursor,omitempty"`
+}
+
 // Session defines model for Session.
 type Session struct {
 	ClientKind string             `json:"client_kind"`
@@ -723,6 +758,12 @@ type AdminCreateBotCredentialJSONBody struct {
 // AdminCreateBotCredentialJSONBodyScopes defines parameters for AdminCreateBotCredential.
 type AdminCreateBotCredentialJSONBodyScopes string
 
+// UploadAttachmentParams defines parameters for UploadAttachment.
+type UploadAttachmentParams struct {
+	XFilename  string  `json:"X-Filename"`
+	XMediaType *string `json:"X-Media-Type,omitempty"`
+}
+
 // ListCategoryNotesParams defines parameters for ListCategoryNotes.
 type ListCategoryNotesParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -756,6 +797,21 @@ type RevokeAllSessionsJSONBody struct {
 type GetBoardParams struct {
 	NotesPerCategory *int `form:"notes_per_category,omitempty" json:"notes_per_category,omitempty"`
 }
+
+// SearchNotesParams defines parameters for SearchNotes.
+type SearchNotesParams struct {
+	Q             string                  `form:"q" json:"q"`
+	Scope         *SearchNotesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+	PageId        *openapi_types.UUID     `form:"page_id,omitempty" json:"page_id,omitempty"`
+	CategoryId    *openapi_types.UUID     `form:"category_id,omitempty" json:"category_id,omitempty"`
+	HasAttachment *bool                   `form:"has_attachment,omitempty" json:"has_attachment,omitempty"`
+	HasReminder   *bool                   `form:"has_reminder,omitempty" json:"has_reminder,omitempty"`
+	Limit         *Limit                  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor        *Cursor                 `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// SearchNotesParamsScope defines parameters for SearchNotes.
+type SearchNotesParamsScope string
 
 // ListTrashParams defines parameters for ListTrash.
 type ListTrashParams struct {
@@ -852,6 +908,12 @@ type ServerInterface interface {
 	// AdminIssueActivationLink Issue an activation link (clears the password, signs the user out everywhere)
 	// (POST /api/v1/admin/users/{id}/activation-link)
 	AdminIssueActivationLink(w http.ResponseWriter, r *http.Request, id Id)
+	// DownloadAttachment Download a file; supports Range and conditional requests
+	// (GET /api/v1/attachments/{id})
+	DownloadAttachment(w http.ResponseWriter, r *http.Request, id Id)
+	// UploadAttachment Upload a file (raw body, streamed); idempotent on the id
+	// (PUT /api/v1/attachments/{id})
+	UploadAttachment(w http.ResponseWriter, r *http.Request, id Id, params UploadAttachmentParams)
 	// Activate Set a password from an activation link and sign in
 	// (POST /api/v1/auth/activate)
 	Activate(w http.ResponseWriter, r *http.Request)
@@ -960,6 +1022,9 @@ type ServerInterface interface {
 	// GetBoard A page's categories with their first notes and counts, in one call
 	// (GET /api/v1/pages/{id}/board)
 	GetBoard(w http.ResponseWriter, r *http.Request, id Id, params GetBoardParams)
+	// SearchNotes Full-text search over the user's notes
+	// (GET /api/v1/search)
+	SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams)
 	// ListTrash Dismissed notes, newest first
 	// (GET /api/v1/trash/notes)
 	ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams)
@@ -1023,6 +1088,18 @@ func (_ Unimplemented) AdminUpdateUser(w http.ResponseWriter, r *http.Request, i
 // AdminIssueActivationLink Issue an activation link (clears the password, signs the user out everywhere)
 // (POST /api/v1/admin/users/{id}/activation-link)
 func (_ Unimplemented) AdminIssueActivationLink(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DownloadAttachment Download a file; supports Range and conditional requests
+// (GET /api/v1/attachments/{id})
+func (_ Unimplemented) DownloadAttachment(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UploadAttachment Upload a file (raw body, streamed); idempotent on the id
+// (PUT /api/v1/attachments/{id})
+func (_ Unimplemented) UploadAttachment(w http.ResponseWriter, r *http.Request, id Id, params UploadAttachmentParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1242,6 +1319,12 @@ func (_ Unimplemented) GetBoard(w http.ResponseWriter, r *http.Request, id Id, p
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// SearchNotes Full-text search over the user's notes
+// (GET /api/v1/search)
+func (_ Unimplemented) SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListTrash Dismissed notes, newest first
 // (GET /api/v1/trash/notes)
 func (_ Unimplemented) ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams) {
@@ -1449,6 +1532,105 @@ func (siw *ServerInterfaceWrapper) AdminIssueActivationLink(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AdminIssueActivationLink(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadAttachment operation middleware
+func (siw *ServerInterfaceWrapper) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadAttachment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadAttachment operation middleware
+func (siw *ServerInterfaceWrapper) UploadAttachment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadAttachmentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Filename" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Filename")]; found {
+		var XFilename string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Filename", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Filename", valueList[0], &XFilename, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Filename", Err: err})
+			return
+		}
+
+		params.XFilename = XFilename
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Filename is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Filename", Err: err})
+		return
+	}
+
+	// ------------- Optional header parameter "X-Media-Type" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Media-Type")]; found {
+		var XMediaType string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Media-Type", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Media-Type", valueList[0], &XMediaType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Media-Type", Err: err})
+			return
+		}
+
+		params.XMediaType = &XMediaType
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadAttachment(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2293,6 +2475,130 @@ func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// SearchNotes operation middleware
+func (siw *ServerInterfaceWrapper) SearchNotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchNotesParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_id", r.URL.Query(), &params.PageId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "category_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "category_id", r.URL.Query(), &params.CategoryId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "category_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "category_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "has_attachment" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "has_attachment", r.URL.Query(), &params.HasAttachment, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "has_attachment"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "has_attachment", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "has_reminder" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "has_reminder", r.URL.Query(), &params.HasReminder, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "has_reminder"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "has_reminder", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchNotes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTrash operation middleware
 func (siw *ServerInterfaceWrapper) ListTrash(w http.ResponseWriter, r *http.Request) {
 
@@ -2573,6 +2879,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/trash/notes", wrapper.ListTrash)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/attachments/{id}", wrapper.DownloadAttachment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/attachments/{id}", wrapper.UploadAttachment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/search", wrapper.SearchNotes)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/events", wrapper.StreamEvents)
@@ -2941,6 +3256,92 @@ type AdminIssueActivationLinkdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response AdminIssueActivationLinkdefaultApplicationProblemPlusJSONResponse) VisitAdminIssueActivationLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadAttachmentRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DownloadAttachmentResponseObject interface {
+	VisitDownloadAttachmentResponse(w http.ResponseWriter) error
+}
+
+type DownloadAttachment200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response DownloadAttachment200ApplicationoctetStreamResponse) VisitDownloadAttachmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadAttachmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DownloadAttachmentdefaultApplicationProblemPlusJSONResponse) VisitDownloadAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadAttachmentRequestObject struct {
+	Id     Id `json:"id"`
+	Params UploadAttachmentParams
+	Body   io.Reader
+}
+
+type UploadAttachmentResponseObject interface {
+	VisitUploadAttachmentResponse(w http.ResponseWriter) error
+}
+
+type UploadAttachment201JSONResponse AttachmentRef
+
+func (response UploadAttachment201JSONResponse) VisitUploadAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadAttachmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UploadAttachmentdefaultApplicationProblemPlusJSONResponse) VisitUploadAttachmentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4356,6 +4757,45 @@ func (response GetBoarddefaultApplicationProblemPlusJSONResponse) VisitGetBoardR
 	return err
 }
 
+type SearchNotesRequestObject struct {
+	Params SearchNotesParams
+}
+
+type SearchNotesResponseObject interface {
+	VisitSearchNotesResponse(w http.ResponseWriter) error
+}
+
+type SearchNotes200JSONResponse SearchPage
+
+func (response SearchNotes200JSONResponse) VisitSearchNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchNotesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SearchNotesdefaultApplicationProblemPlusJSONResponse) VisitSearchNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListTrashRequestObject struct {
 	Params ListTrashParams
 }
@@ -4445,6 +4885,12 @@ type StrictServerInterface interface {
 	// AdminIssueActivationLink Issue an activation link (clears the password, signs the user out everywhere)
 	// (POST /api/v1/admin/users/{id}/activation-link)
 	AdminIssueActivationLink(ctx context.Context, request AdminIssueActivationLinkRequestObject) (AdminIssueActivationLinkResponseObject, error)
+	// DownloadAttachment Download a file; supports Range and conditional requests
+	// (GET /api/v1/attachments/{id})
+	DownloadAttachment(ctx context.Context, request DownloadAttachmentRequestObject) (DownloadAttachmentResponseObject, error)
+	// UploadAttachment Upload a file (raw body, streamed); idempotent on the id
+	// (PUT /api/v1/attachments/{id})
+	UploadAttachment(ctx context.Context, request UploadAttachmentRequestObject) (UploadAttachmentResponseObject, error)
 	// Activate Set a password from an activation link and sign in
 	// (POST /api/v1/auth/activate)
 	Activate(ctx context.Context, request ActivateRequestObject) (ActivateResponseObject, error)
@@ -4553,6 +4999,9 @@ type StrictServerInterface interface {
 	// GetBoard A page's categories with their first notes and counts, in one call
 	// (GET /api/v1/pages/{id}/board)
 	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
+	// SearchNotes Full-text search over the user's notes
+	// (GET /api/v1/search)
+	SearchNotes(ctx context.Context, request SearchNotesRequestObject) (SearchNotesResponseObject, error)
 	// ListTrash Dismissed notes, newest first
 	// (GET /api/v1/trash/notes)
 	ListTrash(ctx context.Context, request ListTrashRequestObject) (ListTrashResponseObject, error)
@@ -4858,6 +5307,61 @@ func (sh *strictHandler) AdminIssueActivationLink(w http.ResponseWriter, r *http
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AdminIssueActivationLinkResponseObject); ok {
 		if err := validResponse.VisitAdminIssueActivationLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadAttachment operation middleware
+func (sh *strictHandler) DownloadAttachment(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DownloadAttachmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadAttachment(ctx, request.(DownloadAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadAttachment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadAttachmentResponseObject); ok {
+		if err := validResponse.VisitDownloadAttachmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadAttachment operation middleware
+func (sh *strictHandler) UploadAttachment(w http.ResponseWriter, r *http.Request, id Id, params UploadAttachmentParams) {
+	var request UploadAttachmentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadAttachment(ctx, request.(UploadAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadAttachment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadAttachmentResponseObject); ok {
+		if err := validResponse.VisitUploadAttachmentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -5882,6 +6386,32 @@ func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request, id Id,
 	}
 }
 
+// SearchNotes operation middleware
+func (sh *strictHandler) SearchNotes(w http.ResponseWriter, r *http.Request, params SearchNotesParams) {
+	var request SearchNotesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchNotes(ctx, request.(SearchNotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchNotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchNotesResponseObject); ok {
+		if err := validResponse.VisitSearchNotesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListTrash operation middleware
 func (sh *strictHandler) ListTrash(w http.ResponseWriter, r *http.Request, params ListTrashParams) {
 	var request ListTrashRequestObject
@@ -5937,99 +6467,110 @@ func (sh *strictHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"S2LCuK2oKieyNe2W03KZBCfBKLj/dv9/AQAA//8=",
+	"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",
+	"1UT2go6ltEKmwVEwCu6/3f9fAAAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

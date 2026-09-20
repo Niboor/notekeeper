@@ -34,7 +34,15 @@ func provider(sqlDB *sql.DB) (*goose.Provider, error) {
 
 // Migrate applies all pending migrations. It is run by `core migrate` (the migration Job,
 // under the schema-owning role), never by the serving processes.
-func Migrate(ctx context.Context, url string) error {
+func Migrate(ctx context.Context, url string) error { return migrate(ctx, url, 0) }
+
+// MigrateTo applies migrations up to and including version, and no River migrations. Tests use it
+// to prove that data migrations behave under the same role and row-level security as production.
+func MigrateTo(ctx context.Context, url string, version int64) error {
+	return migrate(ctx, url, version)
+}
+
+func migrate(ctx context.Context, url string, upTo int64) error {
 	sqlDB, err := sql.Open("pgx", url)
 	if err != nil {
 		return err
@@ -42,6 +50,10 @@ func Migrate(ctx context.Context, url string) error {
 	defer func() { _ = sqlDB.Close() }()
 	p, err := provider(sqlDB)
 	if err != nil {
+		return err
+	}
+	if upTo > 0 {
+		_, err = p.UpTo(ctx, upTo)
 		return err
 	}
 	if _, err = p.Up(ctx); err != nil {

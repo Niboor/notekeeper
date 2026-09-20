@@ -129,6 +129,8 @@ type DB struct {
 	// for inspecting state from the outside.
 	Admin    *pgxpool.Pool
 	AdminURL string
+	// MigrateURL connects as the schema-owning role nk_migrate (only set for unmigrated databases).
+	MigrateURL string
 }
 
 // New clones the migrated template into a fresh database and removes it when the test ends.
@@ -156,6 +158,51 @@ func New(t testing.TB) *DB {
 	}
 	d.App, err = pgxpool.New(ctx, d.AppURL)
 	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		d.App.Close()
+		d.Admin.Close()
+		c, err := pgx.Connect(context.Background(), adminURL)
+		if err != nil {
+			return
+		}
+		defer func() { _ = c.Close(context.Background()) }()
+		_, _ = c.Exec(context.Background(), fmt.Sprintf(`drop database if exists %s with (force)`, name))
+	})
+	return d
+}
+
+// NewUnmigrated returns an empty database with the roles in place and no migrations applied, for
+// tests of the migrations themselves. MigrateURL connects as the schema-owning role.
+func NewUnmigrated(t testing.TB) *DB {
+	t.Helper()
+	ctx := context.Background()
+	if err := start(ctx); err != nil {
+		t.Fatalf("testdb: %v", err)
+	}
+	name := fmt.Sprintf("nk_m%d_%d", os.Getpid(), counter.Add(1))
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, `create database `+name); err != nil {
+		t.Fatal(err)
+	}
+	d := &DB{Name: name, AdminURL: withDB(adminURL, name, "", ""), AppURL: withDB(adminURL, name, "nk_app", "nk_app_dev"),
+		MigrateURL: withDB(adminURL, name, "nk_migrate", "nk_migrate_dev")}
+	if d.Admin, err = pgxpool.New(ctx, d.AdminURL); err != nil {
+		t.Fatal(err)
+	}
+	roles, err := rolesSQL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Admin.Exec(ctx, roles); err != nil {
+		t.Fatalf("roles: %v", err)
+	}
+	if d.App, err = pgxpool.New(ctx, d.AppURL); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {

@@ -54,7 +54,7 @@ Authentication: session cookies for the web app; bearer access tokens for native
 
 | Method and path | Purpose | Reqs |
 |---|---|---|
-| `PUT /attachments/{id}` | **Raw streamed upload.** Body is the file; `Content-Type` is its media type; `Content-Length` required; `X-Filename` carries the (percent-encoded) name. Idempotent on `id`. The attachment stays unlinked until a part references it | CORE-A1..A3, CORE-A6 |
+| `PUT /attachments/{id}` | **Raw streamed upload.** Body is the file with `Content-Type: application/octet-stream` (the generated server only hands a raw body through for that type); `Content-Length` required (`411` otherwise); `X-Filename` carries the (percent-encoded) name and `X-Media-Type` its media type. Idempotent on `id`. The attachment stays unlinked until a part references it | CORE-A1..A3, CORE-A6 |
 | `GET /attachments/{id}` | Download with `Range`, `If-None-Match`, `ETag` (blob sha256 or id+size) | CORE-A6, NFR-API4 |
 
 There is no multipart upload anywhere (see tech-stack §3.2). Downloads always carry `Content-Disposition`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, and `Cache-Control: private, no-cache` (design decision D5); types outside a small inline allowlist (common raster images, PDF, audio, video) are served as `attachment` with `application/octet-stream` (SEC-CNT-3).
