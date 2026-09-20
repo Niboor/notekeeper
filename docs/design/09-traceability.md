@@ -13,7 +13,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-A1 | Must | fully tested | 02 §1.3; 01 §6 | Authz matrix | 2 |
 | CORE-A2 | Must | implemented | 01 §6, §6.1 | Integration | 0 |
 | CORE-A3 | Must | fully tested | 01 §6.2 | Integration | 2 |
-| CORE-A4 | Must | fully tested | 02 §1.3 (no processing) | Review | 2 |
+| CORE-A4 | Must | implemented | 02 §1.3 (no processing) | Review | 2 |
 | CORE-A5 | Should | fully tested | 01 §6.3 | Integration | 1 |
 | CORE-A6 | Should | fully tested | 01 §6.1; 02 §4 | Integration (streaming memory test) | 2 |
 | CORE-A7 | Should | unimplemented | 01 §6.3 | Integration | 0 |
@@ -29,7 +29,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-N8 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 3 |
 | CORE-N9 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
 | CORE-N10 | Must | fully tested | 02 §1.2; 01 §6.2 | Integration | 1 |
-| CORE-N11 | Must | fully tested | 01 §13 (no purge job exists) | Review | 1 |
+| CORE-N11 | Must | implemented | 01 §13 (no purge job exists) | Review | 1 |
 | CORE-N13 | Must | fully tested | 01 §8; 02 §1.2 | Integration | 3 |
 | CORE-N14 | Should | fully tested | 02 §1.2 | Integration | 2 |
 | CORE-N15 | Could | unimplemented | deferred: batch endpoints can be added to 02 §1.2 | - | 0 |
@@ -189,7 +189,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | WEB-6 | Must | fully tested | 07 §4 | E2E | 2 |
 | WEB-7 | Must | fully tested | 07 §4 | E2E | 1 |
 | WEB-8 | Must | fully tested | 07 §2, §5 | Unit, E2E | 2 |
-| WEB-9 | Must | fully tested | 02 §1.2, §1.3 | E2E | 2 |
+| WEB-9 | Must | fully tested | 02 §1.2, §1.3 | E2E | 3 |
 | WEB-10 | Must | implemented | 02 §1.2 | E2E | 0 |
 | WEB-11 | Must | fully tested | 07 §4; 05 §2 | E2E | 2 |
 | WEB-12 | Must | fully tested | 07 §1; 02 §1.1 | E2E | 1 |
@@ -250,7 +250,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | NFR-Q1 | Must | fully tested | 04 §4; 08 §5 | Unit | 1 |
 | NFR-Q2 | Must | fully tested | 08 §5 | CI check | 1 |
 | NFR-Q3 | Should | unimplemented | 07 §9 | Review | 0 |
-| NFR-Q4 | Should | fully tested | documentation deliverable (bot-writing guide, deployment, backup) | Review | 1 |
+| NFR-Q4 | Should | implemented | documentation deliverable (bot-writing guide, deployment, backup) | Review | 1 |
 | NFR-Q5 | Must | implemented | 08 §5; tech-stack §9 | CI check | 0 |
 | NFR-R1 | Must | fully tested | 04 §2; 06 §3 | Integration, E2E | 3 |
 | NFR-R2 | Must | fully tested | 04 §2 | Integration | 1 |
@@ -261,7 +261,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | NFR-S2 | Must | fully tested | 08 §2; 01 §12 | CI check, Integration | 1 |
 | NFR-S3 | Must | fully tested | README §3 (RLS) | Authz matrix, Integration | 1 |
 | NFR-S4 | Must | fully tested | README §3; 02 | Integration | 1 |
-| NFR-S5 | Must | fully tested | documentation deliverable (user docs state that the server can read notes) | Review | 1 |
+| NFR-S5 | Must | implemented | documentation deliverable (user docs state that the server can read notes) | Review | 1 |
 | NFR-S6 | Should | fully tested | 08 §6; 03 §8 | CI check | 1 |
 | NFR-S7 | Must | fully tested | README §3 (logging); 02 §1.1, §5 | Integration | 3 |
 | NFR-X1 | Must | fully tested | 02 §2 (bot contract); tech-stack §2 (`bots/sdk`) | Review | 1 |
@@ -326,7 +326,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-CNT-2 | Must | fully tested | 07 §5 | Unit, E2E | 1 |
 | SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 2 |
 | SEC-CNT-4 | Must | fully tested | 02 §1.3 | Integration | 1 |
-| SEC-CNT-5 | Must | fully tested | 02 §1.3 (no media processing) | Review | 1 |
+| SEC-CNT-5 | Must | implemented | 02 §1.3 (no media processing) | Review | 1 |
 | SEC-CNT-6 | Must | fully tested | 01 §6.2 | Integration (races) | 2 |
 | SEC-CNT-7 | Must | fully tested | 05 §5.3 | Unit, E2E | 1 |
 | SEC-CNT-8 | Must | fully tested | 06 §5 | E2E | 1 |
@@ -337,7 +337,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-DATA-4 | Should | fully tested | 08 §1 | CI check | 1 |
 | SEC-DATA-5 | Must | fully tested | 03 §4.3 | Integration | 4 |
 | SEC-DATA-6 | Must | fully tested | 02 §1.3; 07 §8 | Integration | 1 |
-| SEC-DATA-7 | Should | fully tested | 08 §4 | Review | 2 |
+| SEC-DATA-7 | Should | implemented | 08 §4 | Review | 2 |
 | SEC-DATA-8 | Must | fully tested | 02 §5 | Integration | 1 |
 | SEC-ISO-1 | Must | fully tested | 08 §5 (generated matrix); README §3 | Authz matrix | 3 |
 | SEC-ISO-2 | Must | fully tested | 01 §1 (composite keys); README §3 | Authz matrix, Integration | 3 |
