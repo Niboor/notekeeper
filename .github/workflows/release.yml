@@ -95,10 +95,28 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Create the release with generated notes
+      - name: Create the release with generated notes and the image list
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="${GITHUB_REF_NAME#v}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          {
+            echo "## Container images"
+            echo
+            for image in core web matrix-bot; do
+              ref="ghcr.io/${owner}/notekeeper-${image}"
+              digest="$(docker buildx imagetools inspect "${ref}:${version}" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+              echo "- \`${ref}:${version}\`${digest:+ (digest \`${digest}\`)}"
+            done
+            echo
+            case "$version" in
+              *-*) echo "This is a pre-release: the images carry only the exact version tag, not \`latest\` or the \`major.minor\` tag." ;;
+              *)   echo "Also tagged \`${version%.*}\` (this minor version) and \`latest\`." ;;
+            esac
+            echo "All images are linux/amd64. Pin the version (or the digest) in your deployment; see docs/operations.md."
+            echo
+          } > release-notes.md
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --generate-notes $flags
+          gh release create "$GITHUB_REF_NAME" --generate-notes --notes-file release-notes.md $flags

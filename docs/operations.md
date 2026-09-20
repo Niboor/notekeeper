@@ -42,7 +42,7 @@ For the person who installs and looks after a deployment. What every setting mea
 
 ## 3. Upgrading
 
-Releases are images on ghcr (`ghcr.io/<owner>/notekeeper-core`, `-web`, `-matrix-bot`), published when a version tag such as `v1.2.3` is pushed and its tests have passed; pin the tag you have tried (or its digest) in your overlay.
+Releases are images on ghcr (`ghcr.io/<owner>/notekeeper-core`, `-web`, `-matrix-bot`), published when a version tag such as `v1.2.3` is pushed and its tests have passed. The GitHub release lists the images and their digests. Tags: `1.2.3` (exact), `1.2` (latest patch of that minor version) and `latest` (latest stable release); a pre-release (`v1.0.0-rc.1`) has its exact tag only. Pin the exact tag, or the digest, in your overlay.
 
 Run the new migration Job first, then roll out the new images. Migrations are forward-only and are written to
 work with the previous release still running (add before remove), so a rolling update needs no downtime.

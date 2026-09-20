@@ -17,6 +17,18 @@ Everything is documented under [docs/](docs/):
 | [tech-stack.md](docs/tech-stack.md) | Technology choices |
 | [design/](docs/design/README.md) | Technical design, and a requirement-to-design-to-test traceability table |
 
+## Releases and container images
+
+Pushing a version tag (`vMAJOR.MINOR.PATCH`, semantic versioning) runs the whole test suite and then publishes three linux/amd64 images to the GitHub container registry, and a GitHub release that lists them:
+
+| Image | Contents |
+|---|---|
+| `ghcr.io/niboor/notekeeper-core` | Core: API, jobs and the `migrate` / `admin` commands |
+| `ghcr.io/niboor/notekeeper-web` | The web app behind nginx (app host and share host) |
+| `ghcr.io/niboor/notekeeper-matrix-bot` | The Matrix bot |
+
+Tags: `1.2.3` (exact, immutable in practice: pin this), `1.2` (latest patch of a minor version) and `latest` (latest stable release). A pre-release such as `v1.0.0-rc.1` gets only its exact tag. Each image also carries a build-provenance attestation. See [operations.md](docs/operations.md) for installing and upgrading.
+
 ## Working on it
 
 Requirements: Go, Node.js, Docker (for integration tests), Python 3, `make`, and for the Matrix bot a C compiler plus the libolm library and headers (Arch: `sudo pacman -S libolm`; Debian/Ubuntu: `libolm-dev`).
