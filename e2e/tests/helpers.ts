@@ -59,6 +59,7 @@ export async function openFreshBoard(page: Page, columns: string[] = ['Todo', 'D
   await expect(page.getByRole('button', { name: 'New note' })).toBeVisible()
   const pageName = `P${Math.random().toString(36).slice(2, 8)}`
   const created = await api<{ id: string }>(page, 'POST', '/api/v1/pages', { name: pageName })
+  expect(created.status, `creating a page answered ${JSON.stringify(created.body)}`).toBe(201)
   const cols: Record<string, string> = {}
   for (const name of columns) {
     cols[name] = (await api<{ id: string }>(page, 'POST', '/api/v1/categories', { page_id: created.body.id, name })).body.id
