@@ -8,8 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Niboor/notekeeper/bots/sdk/botclient"
 )
@@ -148,4 +152,108 @@ func (c *Client) Heartbeat(ctx context.Context) error {
 func (c *Client) Reachable(ctx context.Context) bool {
 	res, err := c.API.GetBotVersionWithResponse(ctx)
 	return err == nil && res.StatusCode() == http.StatusOK
+}
+
+// UploadAttempts is how often Upload tries a file before giving up on it. A file is different
+// from a message: a chat must not stall for one large photo, so the bot records a failed
+// attachment instead of retrying forever (CORE-A9).
+const UploadAttempts = 3
+
+// Body is one attempt at reading a file.
+type Body struct {
+	Reader io.Reader
+	// Size is the exact number of bytes Reader will deliver.
+	Size int64
+	// Finish is called after the request. It reports whether the source turned out to be intact, for
+	// example an encrypted stream whose checksum only verifies at the end. Its error fails the upload
+	// even when Core accepted the bytes; the orphaned upload is removed by Core's janitor.
+	Finish func() error
+}
+
+// Source opens a file for one attempt. An error that is a *PermanentError is not retried.
+type Source func() (Body, error)
+
+// Upload stores a file for a linked chat user (BOT-6). The source is opened again for every
+// attempt, so a retry starts from the beginning.
+func (c *Client) Upload(ctx context.Context, id uuid.UUID, externalUser, filename, mediaType string, open Source) error {
+	params := &botclient.PutUploadParams{XExternalUser: externalUser, XFilename: url.PathEscape(filename)}
+	if mediaType != "" {
+		params.XMediaType = &mediaType
+	}
+	var lastErr error
+	for attempt := 1; attempt <= UploadAttempts; attempt++ {
+		body, err := open()
+		var perm *PermanentError
+		if errors.As(err, &perm) {
+			return err
+		}
+		if err == nil {
+			var status int
+			var code string
+			status, code, err = c.putUpload(ctx, id, params, body.Size, body.Reader)
+			if ferr := body.Finish(); ferr != nil && err == nil && status >= 200 && status < 300 {
+				return fmt.Errorf("source failed verification: %w", ferr)
+			}
+			switch {
+			case err == nil && status >= 200 && status < 300:
+				return nil
+			case err == nil && status >= 400 && status < 500 && status != http.StatusTooManyRequests && status != http.StatusRequestTimeout:
+				return &PermanentError{Status: status, Code: code}
+			case err == nil:
+				err = fmt.Errorf("core answered %d", status)
+			}
+		}
+		lastErr = err
+		if c.OnRetry != nil {
+			c.OnRetry("upload", attempt, err)
+		}
+		if attempt < UploadAttempts {
+			select {
+			case <-ctx.Done():
+				return errors.Join(ctx.Err(), err)
+			case <-time.After(c.backoff(attempt)):
+			}
+		}
+	}
+	return lastErr
+}
+
+func (c *Client) putUpload(ctx context.Context, id uuid.UUID, params *botclient.PutUploadParams, size int64, body io.Reader) (int, string, error) {
+	res, err := c.API.PutUploadWithBodyWithResponse(ctx, id, params, "application/octet-stream", body,
+		func(_ context.Context, req *http.Request) error { req.ContentLength = size; return nil })
+	if err != nil {
+		return 0, "", err
+	}
+	return res.StatusCode(), problemCode(res.ApplicationproblemJSONDefault), nil
+}
+
+// ClaimOutbox asks Core for messages to send to chats, waiting up to wait for one to appear
+// (BOT-12). It makes one attempt; the caller's loop owns the pacing.
+func (c *Client) ClaimOutbox(ctx context.Context, wait time.Duration, limit int) ([]botclient.OutboxItem, error) {
+	secs := int(wait / time.Second)
+	res, err := c.API.ClaimOutboxWithResponse(ctx, &botclient.ClaimOutboxParams{Wait: &secs, Limit: &limit})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, fmt.Errorf("claim outbox: core answered %d", res.StatusCode())
+	}
+	return res.JSON200.Items, nil
+}
+
+// ReportOutbox tells Core what happened to a claimed item, retrying until Core has heard it. A
+// 404 means the lease was lost meanwhile and the item belongs to someone else now: not an error.
+func (c *Client) ReportOutbox(ctx context.Context, id uuid.UUID, result botclient.OutboxResult) error {
+	err := c.do(ctx, "report outbox result", func() (int, string, error) {
+		res, err := c.API.PostOutboxResultWithResponse(ctx, id, result)
+		if err != nil {
+			return 0, "", err
+		}
+		return res.StatusCode(), problemCode(res.ApplicationproblemJSONDefault), nil
+	})
+	var perm *PermanentError
+	if errors.As(err, &perm) && perm.Status == http.StatusNotFound {
+		return nil
+	}
+	return err
 }

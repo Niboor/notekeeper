@@ -5,6 +5,8 @@ import "github.com/prometheus/client_golang/prometheus"
 type metrics struct {
 	events          *prometheus.CounterVec
 	decryptFailures prometheus.Counter
+	attachments     *prometheus.CounterVec
+	outbox          *prometheus.CounterVec
 	Registry        *prometheus.Registry
 }
 
@@ -16,9 +18,15 @@ func newMetrics() *metrics {
 		decryptFailures: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "nk_bot_decrypt_failures_total", Help: "Events the bot could not decrypt.",
 		}),
+		attachments: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "nk_bot_attachments_total", Help: "Files moved from chat to Core by result (ok or the failure reason).",
+		}, []string{"result"}),
+		outbox: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "nk_bot_outbox_total", Help: "Messages from Core sent to chats by kind and result.",
+		}, []string{"kind", "result"}),
 		Registry: prometheus.NewRegistry(),
 	}
-	m.Registry.MustRegister(m.events, m.decryptFailures)
+	m.Registry.MustRegister(m.events, m.decryptFailures, m.attachments, m.outbox)
 	return m
 }
 

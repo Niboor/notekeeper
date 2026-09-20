@@ -142,6 +142,7 @@ func TestRedactionBecomesADelete(t *testing.T) {
 	}
 }
 
+// (MX-4)
 func TestOtherMessageTypesAreNeverDropped(t *testing.T) {
 	r := Message(msg(&event.MessageEventContent{MsgType: event.MsgImage, Body: "cat.jpg", FileName: "cat.jpg"}))
 	if r.Kind != KindEvent {
@@ -154,5 +155,60 @@ func TestOtherMessageTypesAreNeverDropped(t *testing.T) {
 	loc := Message(msg(&event.MessageEventContent{MsgType: event.MsgLocation, Body: "Home", GeoURI: "geo:52.1,4.3"}))
 	if textOf(t, loc) != "Home geo:52.1,4.3" {
 		t.Fatalf("location: %q", textOf(t, loc))
+	}
+}
+
+// Files become attachment parts with the caption as a following text part; where the bytes are is
+// reported separately, and the sender's size claim is only carried, never trusted (MX-5, GRP-2).
+func TestFilesBecomeAttachmentsWithCaption(t *testing.T) {
+	c := &event.MessageEventContent{MsgType: event.MsgImage, Body: "Holiday at the beach", FileName: "beach.jpg",
+		URL: "mxc://example.org/abc", Info: &event.FileInfo{MimeType: "image/jpeg", Size: 4096}}
+	r := Message(msg(c))
+	parts := *r.Event.Parts
+	if len(parts) != 2 || string(parts[0].Type) != "attachment" || *parts[0].Filename != "beach.jpg" || *parts[0].MediaType != "image/jpeg" ||
+		*parts[0].Size != 4096 || string(parts[1].Type) != "text" || *parts[1].Text != "Holiday at the beach" {
+		t.Fatalf("parts: %+v", parts)
+	}
+	if len(r.Media) != 1 || r.Media[0].Part != 0 || r.Media[0].URL != "mxc://example.org/abc" || r.Media[0].File != nil {
+		t.Fatalf("media: %+v", r.Media)
+	}
+
+	// Older clients put the file name in body: that is not a caption.
+	old := Message(msg(&event.MessageEventContent{MsgType: event.MsgFile, Body: "report.pdf", URL: "mxc://example.org/x"}))
+	if p := *old.Event.Parts; len(p) != 1 || *p[0].Filename != "report.pdf" {
+		t.Fatalf("old-style file: %+v", p)
+	}
+
+	// Encrypted files carry their key material; the bot decrypts while streaming.
+	enc := Message(msg(&event.MessageEventContent{MsgType: event.MsgVideo, Body: "clip.mp4", File: &event.EncryptedFileInfo{URL: "mxc://example.org/enc"}}))
+	if len(enc.Media) != 1 || enc.Media[0].File == nil || enc.Media[0].URL != "mxc://example.org/enc" {
+		t.Fatalf("encrypted: %+v", enc.Media)
+	}
+
+	// A file that cannot be fetched is still kept, as an unsupported placeholder.
+	none := Message(msg(&event.MessageEventContent{MsgType: event.MsgImage, Body: "x.png"}))
+	if len(none.Media) != 0 || string((*none.Event.Parts)[0].Type) != "unsupported" {
+		t.Fatalf("no url: %+v", none)
+	}
+}
+
+// Editing the caption of a file sends only the new caption; the file is not sent again (EDT-1).
+// (MX-6)
+func TestEditingACaption(t *testing.T) {
+	c := &event.MessageEventContent{MsgType: event.MsgText, Body: "* new caption",
+		RelatesTo:  &event.RelatesTo{Type: event.RelReplace, EventID: "$orig"},
+		NewContent: &event.MessageEventContent{MsgType: event.MsgImage, Body: "new caption", FileName: "a.jpg", URL: "mxc://example.org/a"}}
+	r := Message(msg(c))
+	if r.Kind != KindEvent || string(r.Event.Kind) != "message_edited" || r.Event.MessageId != "$orig" || len(r.Media) != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if p := *r.Event.Parts; len(p) != 1 || string(p[0].Type) != "text" || *p[0].Text != "new caption" {
+		t.Fatalf("parts: %+v", p)
+	}
+	noCaption := &event.MessageEventContent{MsgType: event.MsgText, Body: "* a.jpg",
+		RelatesTo:  &event.RelatesTo{Type: event.RelReplace, EventID: "$orig"},
+		NewContent: &event.MessageEventContent{MsgType: event.MsgImage, Body: "a.jpg", FileName: "a.jpg", URL: "mxc://example.org/a"}}
+	if Message(msg(noCaption)).Kind != KindIgnore {
+		t.Fatal("an edit that changes nothing textual is ignored")
 	}
 }

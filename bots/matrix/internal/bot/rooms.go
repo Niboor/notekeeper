@@ -43,3 +43,9 @@ func (s *roomStore) markNotified(ctx context.Context, room id.RoomID) error {
 	_, err := s.db.Exec(ctx, `update nk_rooms set notified = true where room_id = $1`, room)
 	return err
 }
+
+// forget drops everything remembered about a room (a chat that was unlinked, MX-12).
+func (s *roomStore) forget(ctx context.Context, room id.RoomID) error {
+	_, err := s.db.Exec(ctx, `delete from nk_rooms where room_id = $1`, room)
+	return err
+}

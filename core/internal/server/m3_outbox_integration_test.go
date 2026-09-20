@@ -61,7 +61,7 @@ func (s *stack) instanceID(name string) string {
 }
 
 // Two workers polling at once never receive the same item; an unacknowledged item comes back after
-// its lease without using up an attempt; results move it on (BOT-12, BOT-13, CORE-R4).
+// its lease without using up an attempt; results move it on (BOT-11, BOT-12, BOT-13).
 func TestOutboxClaimLeaseAndResults(t *testing.T) {
 	s := newStack(t)
 	key := s.makeBot("m", "example.org")

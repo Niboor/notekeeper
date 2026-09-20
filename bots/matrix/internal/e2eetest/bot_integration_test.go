@@ -3,12 +3,14 @@
 package e2eetest
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -16,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -38,6 +42,15 @@ type fakeCore struct {
 	unavail   atomic.Bool // true: answer 503 (Core is down)
 	reply     map[string]string
 	heartbeat atomic.Int32
+
+	uploads []fakeUpload     // files the bot sent, by upload id
+	outbox  []map[string]any // items waiting to be claimed
+	results []map[string]any // what the bot reported about them
+}
+
+type fakeUpload struct {
+	id, user, filename, mediaType string
+	data                          []byte
 }
 
 func newFakeCore(t *testing.T) *fakeCore {
@@ -85,9 +98,70 @@ func newFakeCore(t *testing.T) *fakeCore {
 		}
 		respond(w, map[string]any{"ok": true, "feedback": fb})
 	})
+	mux.HandleFunc("PUT /bot/v1/uploads/{id}", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		name, _ := url.PathUnescape(r.Header.Get("X-Filename"))
+		f.mu.Lock()
+		f.uploads = append(f.uploads, fakeUpload{id: r.PathValue("id"), user: r.Header.Get("X-External-User"), filename: name, mediaType: r.Header.Get("X-Media-Type"), data: data})
+		f.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","filename":"x","media_type":"x","size":1}`))
+	})
+	mux.HandleFunc("GET /bot/v1/outbox", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		items := f.outbox
+		f.outbox = nil
+		f.mu.Unlock()
+		if items == nil {
+			time.Sleep(300 * time.Millisecond) // a short "long poll"
+			items = []map[string]any{}
+		}
+		respond(w, map[string]any{"items": items})
+	})
+	mux.HandleFunc("POST /bot/v1/outbox/{id}/result", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		body["id"] = r.PathValue("id")
+		f.mu.Lock()
+		f.results = append(f.results, body)
+		f.mu.Unlock()
+		w.WriteHeader(204)
+	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
 	return f
+}
+
+// queue adds an item for the bot to claim.
+func (f *fakeCore) queue(kind, room, text string) string {
+	id := uuid.NewString()
+	payload := map[string]any{"text": text}
+	if kind == "lifecycle" {
+		payload = map[string]any{"reason": text}
+	}
+	f.mu.Lock()
+	f.outbox = append(f.outbox, map[string]any{"id": id, "kind": kind, "external_user_id": "@x:x", "conversation_id": room, "payload": payload, "attempts": 0})
+	f.mu.Unlock()
+	return id
+}
+
+func (f *fakeCore) waitResult(t *testing.T, id string) map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		f.mu.Lock()
+		for _, r := range f.results {
+			if r["id"] == id {
+				f.mu.Unlock()
+				return r
+			}
+		}
+		f.mu.Unlock()
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("no result for outbox item %s", id)
+	return nil
 }
 
 func (f *fakeCore) eventTexts() []string {
@@ -133,7 +207,7 @@ type runningBot struct {
 func botConfig(hs, dbURL, coreURL, user string) config.Config {
 	return config.Config{
 		Homeserver: hs, User: user, Password: "pw-" + user, PickleKey: []byte("bot-pickle-key-0123456789abcdef!"),
-		DatabaseURL: dbURL, InstanceName: "matrix-test", CoreURL: coreURL, BotKey: "nkb.test.secret", HeartbeatEvery: 200 * time.Millisecond,
+		DatabaseURL: dbURL, InstanceName: "matrix-test", CoreURL: coreURL, BotKey: "nkb.test.secret", HeartbeatEvery: 200 * time.Millisecond, MaxAttachmentBytes: 25 << 20,
 	}
 }
 
@@ -156,6 +230,7 @@ func startBot(t *testing.T, cfg config.Config) *runningBot {
 	}
 	rb := &runningBot{t: t, b: b, cancel: cancel, done: make(chan error, 1)}
 	go b.Heartbeat(ctx)
+	go b.Outbox(ctx)
 	go func() { rb.done <- b.Sync(ctx) }()
 	t.Cleanup(rb.stop)
 	deadline := time.Now().Add(30 * time.Second)
@@ -421,5 +496,103 @@ func TestCoreOutageStallsInsteadOfLosingMessages(t *testing.T) {
 	got := core.eventTexts()
 	if len(got) != 2 || got[0] != "during outage" || got[1] != "killed mid-flight" {
 		t.Fatalf("messages after the outage: %v", got)
+	}
+}
+
+// TestBotMovesFilesAndSpeaksForCore is the M3 chain against a real homeserver, in an encrypted
+// room: an encrypted image with a caption reaches Core decrypted, a deleted message becomes a
+// deletion, Core's notices and reminders appear in the chat, and an unlink instruction makes the
+// bot leave (MX-3, MX-5, MX-6, MX-13, BOT-6, BOT-12, BOT-16).
+func TestBotMovesFilesAndSpeaksForCore(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	hs, pg := startSynapse(t), startPostgres(t)
+	core := newFakeCore(t)
+
+	registerUser(t, hs, "notekeeper4")
+	rb := startBot(t, botConfig(hs, pg.newDatabase(t, "bot_media"), core.srv.URL, "notekeeper4"))
+	alice := person(t, hs, pg, "alice_media")
+	room := createDM(t, alice, rb.b.UserID(), true)
+	waitMembership(t, alice.client, room, rb.b.UserID(), event.MembershipJoin, 30*time.Second)
+	time.Sleep(2 * time.Second)
+
+	// An encrypted image with a caption, sent the way Element does.
+	plain := make([]byte, 150_000)
+	for i := range plain {
+		plain[i] = byte(i * 7)
+	}
+	enc := attachment.NewEncryptedFile()
+	cipher := append([]byte(nil), plain...)
+	enc.EncryptInPlace(cipher)
+	up, err := alice.client.UploadBytes(ctx, cipher, "application/octet-stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent, err := alice.client.SendMessageEvent(ctx, room, event.EventMessage, &event.MessageEventContent{
+		MsgType: event.MsgImage, Body: "Holiday", FileName: "beach.png", Info: &event.FileInfo{MimeType: "image/png", Size: len(plain)},
+		File: &event.EncryptedFileInfo{EncryptedFile: *enc, URL: up.ContentURI.CUString()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	core.waitEvents(t, 1, 60*time.Second)
+	core.mu.Lock()
+	ev, uploads := core.events[0], append([]fakeUpload(nil), core.uploads...)
+	core.mu.Unlock()
+	if len(uploads) != 1 || !bytes.Equal(uploads[0].data, plain) || uploads[0].user != alice.client.UserID.String() ||
+		uploads[0].filename != "beach.png" || uploads[0].mediaType != "image/png" {
+		t.Fatalf("upload: %d files, first %+v", len(uploads), uploads)
+	}
+	parts, _ := ev["parts"].([]any)
+	first, _ := parts[0].(map[string]any)
+	second, _ := parts[1].(map[string]any)
+	if len(parts) != 2 || first["type"] != "attachment" || first["upload_id"] != uploads[0].id || second["type"] != "text" || second["text"] != "Holiday" {
+		t.Fatalf("event parts: %+v", parts)
+	}
+	waitReaction(t, alice, room, sent.EventID, "✅")
+
+	// Deleting the message tells Core (EDT-3).
+	if _, err := alice.client.RedactEvent(ctx, room, sent.EventID); err != nil {
+		t.Fatal(err)
+	}
+	core.waitEvents(t, 2, 60*time.Second)
+	core.mu.Lock()
+	del := core.events[1]
+	core.mu.Unlock()
+	if del["kind"] != "message_deleted" || del["message_id"] != sent.EventID.String() {
+		t.Fatalf("redaction: %+v", del)
+	}
+
+	// Core's notice and reminder appear in the encrypted chat, and Core is told they were delivered (BOT-12, BOT-13).
+	n := core.queue("notice", room.String(), "Your export is ready.")
+	waitNotice(t, alice, "Your export is ready.")
+	if r := core.waitResult(t, n); r["state"] != "delivered" {
+		t.Fatalf("notice result: %+v", r)
+	}
+	rem := core.queue("reminder", room.String(), "⏰ Call the dentist")
+	deadline := time.Now().Add(30 * time.Second)
+	for got := false; !got; {
+		if time.Now().After(deadline) {
+			t.Fatal("the reminder never arrived")
+		}
+		select {
+		case m := <-alice.messages:
+			if c := m.Content.AsMessage(); c != nil && c.MsgType == event.MsgText && strings.Contains(c.Body, "Call the dentist") {
+				got = true
+			}
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	res := core.waitResult(t, rem)
+	if ids, _ := res["message_ids"].([]any); res["state"] != "delivered" || len(ids) != 1 {
+		t.Fatalf("reminder result: %+v", res)
+	}
+
+	// An unlink instruction: the bot says goodbye, leaves and forgets the room (MX-12, BOT-16).
+	l := core.queue("lifecycle", room.String(), "unlinked")
+	waitNotice(t, alice, "no longer linked")
+	waitMembership(t, alice.client, room, rb.b.UserID(), event.MembershipLeave, 30*time.Second)
+	if r := core.waitResult(t, l); r["state"] != "delivered" {
+		t.Fatalf("lifecycle result: %+v", r)
 	}
 }

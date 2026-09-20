@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -27,6 +28,10 @@ type Config struct {
 	LogLevel   string
 
 	HeartbeatEvery time.Duration
+
+	// MaxAttachmentBytes is the largest file the bot downloads from chat; bigger ones are recorded as
+	// failed attachments without being fetched. Core enforces its own limit as well (CORE-A3).
+	MaxAttachmentBytes int64
 }
 
 // Load reads the configuration through getenv.
@@ -39,7 +44,14 @@ func Load(getenv func(string) string) (Config, error) {
 		PickleKey: []byte(getenv("MX_PICKLE_KEY")), DatabaseURL: getenv("NK_BOT_DATABASE_URL"),
 		InstanceName: def(getenv("NK_BOT_INSTANCE"), "matrix"), CoreURL: strings.TrimRight(getenv("NK_CORE_URL"), "/"),
 		BotKey: getenv("NK_BOT_KEY"), ListenAddr: def(getenv("NK_BOT_LISTEN"), ":9091"), LogLevel: def(getenv("NK_LOG_LEVEL"), "info"),
-		HeartbeatEvery: 30 * time.Second,
+		HeartbeatEvery: 30 * time.Second, MaxAttachmentBytes: 25 << 20,
+	}
+	if v := getenv("NK_MAX_ATTACHMENT_BYTES"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n <= 0 {
+			return Config{}, errors.New("NK_MAX_ATTACHMENT_BYTES must be a positive number")
+		}
+		c.MaxAttachmentBytes = n
 	}
 	var missing []string
 	for name, v := range map[string]string{

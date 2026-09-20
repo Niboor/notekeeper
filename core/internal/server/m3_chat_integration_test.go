@@ -241,7 +241,7 @@ func TestGroupingStaysWithinTheSenderAndConversation(t *testing.T) {
 }
 
 // Replies and threads join the note they refer to, whenever they arrive; a reply to a note in the
-// Trash starts a new note that remembers the relation (GRP-1, GRP-6, GRP-7).
+// Trash starts a new note that remembers the relation (GRP-1, GRP-6, GRP-7, BOT-5).
 func TestRepliesAndThreads(t *testing.T) {
 	s := newStack(t)
 	key := s.makeBot("m", "example.org")
@@ -281,7 +281,7 @@ func TestRepliesAndThreads(t *testing.T) {
 }
 
 // Chat edits update the note; the latest edit by the time it was made wins over the latest to
-// arrive; edits reach notes in the Trash; foreign or unknown messages are ignored (EDT-1..EDT-7).
+// arrive; edits reach notes in the Trash; foreign or unknown messages are ignored (EDT-1, EDT-2, EDT-3, EDT-5, EDT-6, EDT-7).
 func TestChatEdits(t *testing.T) {
 	s := newStack(t)
 	key := s.makeBot("m", "example.org")
@@ -343,7 +343,7 @@ func TestChatEdits(t *testing.T) {
 func (ch *chatter) get2(id string, into any) { ch.appUser.get("/api/v1/notes/"+id, into) }
 
 // A deleted chat message removes what it added; if that was everything, the note goes to the Trash
-// with its content, never silently disappears (EDT-3, EDT-4, decision 51).
+// with its content, never silently disappears; deletes of unknown messages are ignored (EDT-4, BOT-9, decision 51).
 func TestChatDeletes(t *testing.T) {
 	s := newStack(t)
 	key := s.makeBot("m", "example.org")

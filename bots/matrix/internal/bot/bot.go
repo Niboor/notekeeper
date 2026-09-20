@@ -189,6 +189,7 @@ func (b *Bot) handle(ctx context.Context, evt *event.Event, res normalise.Result
 	ctx = sdk.WithRequestID(ctx, requestID(evt.ID))
 	switch res.Kind {
 	case normalise.KindEvent:
+		b.fetchMedia(ctx, evt, &res)
 		out, err := b.core.PostEvent(ctx, *res.Event)
 		if b.failed(ctx, evt, "event", err) {
 			return

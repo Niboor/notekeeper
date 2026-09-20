@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 
 	"github.com/Niboor/notekeeper/bots/sdk/botclient"
 )
@@ -26,11 +27,23 @@ const (
 	KindCommand             // a chat command: Result.Command
 )
 
+// Media is a file that a part of the event refers to. Normalising stays pure, so it only says
+// where the file is; the bot downloads it and fills in the part's upload id (docs/design/06 section 6).
+type Media struct {
+	Part      int                      // index into Event.Parts of the attachment part
+	URL       id.ContentURIString      // where the bytes are
+	File      *event.EncryptedFileInfo // present when the file is end-to-end encrypted
+	Filename  string
+	MediaType string
+	Size      int64 // as claimed by the sender; only used to refuse early, never trusted
+}
+
 // Result is the outcome of normalising one Matrix event.
 type Result struct {
 	Kind    Kind
 	Event   *botclient.Event
 	Command *botclient.Command
+	Media   []Media
 }
 
 // Message normalises a decrypted m.room.message event.
@@ -48,7 +61,15 @@ func Message(evt *event.Event) Result {
 		if nc == nil {
 			return Result{}
 		}
-		parts := partsOf(nc, "")
+		var parts []botclient.EventPart
+		if nc.MsgType.IsMedia() {
+			// Only the caption of a file can change; the file itself cannot be edited.
+			if caption := strings.TrimSpace(nc.GetCaption()); caption != "" {
+				parts = []botclient.EventPart{textPart(caption)}
+			}
+		} else {
+			parts, _ = partsOf(nc, "")
+		}
 		if len(parts) == 0 {
 			return Result{}
 		}
@@ -81,7 +102,7 @@ func Message(evt *event.Event) Result {
 		}
 	}
 
-	parts := partsOf(content, body)
+	parts, media := partsOf(content, body)
 	if len(parts) == 0 {
 		return Result{}
 	}
@@ -101,7 +122,7 @@ func Message(evt *event.Event) Result {
 			e.RelatesTo.Thread = &thread
 		}
 	}
-	return Result{Kind: KindEvent, Event: e}
+	return Result{Kind: KindEvent, Event: e, Media: media}
 }
 
 // Redaction normalises a redaction (a deleted message) into a message_deleted event (EDT-4).
@@ -115,33 +136,68 @@ func Redaction(evt *event.Event) Result {
 	}}
 }
 
-func partsOf(content *event.MessageEventContent, body string) []botclient.EventPart {
+func textPart(s string) botclient.EventPart {
+	return botclient.EventPart{Type: botclient.Text, Text: &s}
+}
+
+// partsOf turns the content of one message into parts, and lists the files they refer to.
+// A file with a caption becomes an attachment part followed by a text part (GRP-2, MX-5).
+func partsOf(content *event.MessageEventContent, body string) ([]botclient.EventPart, []Media) {
 	if body == "" {
 		body = content.Body
-	}
-	text := func(s string) botclient.EventPart {
-		return botclient.EventPart{Type: botclient.Text, Text: &s}
 	}
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, "":
 		if strings.TrimSpace(body) == "" {
-			return nil
+			return nil, nil
 		}
-		return []botclient.EventPart{text(strings.TrimRight(body, " \t\r\n"))}
+		return []botclient.EventPart{textPart(strings.TrimRight(body, " \t\r\n"))}, nil
 	case event.MsgLocation:
 		s := strings.TrimSpace(body)
 		if content.GeoURI != "" {
 			s = strings.TrimSpace(s + " " + content.GeoURI)
 		}
 		if s == "" {
-			return nil
+			return nil, nil
 		}
-		return []botclient.EventPart{text(s)}
+		return []botclient.EventPart{textPart(s)}, nil
+	case event.MsgImage, event.MsgFile, event.MsgAudio, event.MsgVideo:
+		m := Media{Part: 0, Filename: content.GetFileName(), Size: 0}
+		switch {
+		case content.File != nil && content.File.URL != "":
+			m.URL, m.File = content.File.URL, content.File
+		case content.URL != "":
+			m.URL = content.URL
+		default:
+			return unsupported(content), nil // no way to fetch it
+		}
+		if info := content.Info; info != nil {
+			m.MediaType, m.Size = info.MimeType, int64(info.Size)
+		}
+		if m.Filename == "" {
+			m.Filename = "file"
+		}
+		part := botclient.EventPart{Type: botclient.Attachment, Filename: &m.Filename}
+		if m.MediaType != "" {
+			part.MediaType = &m.MediaType
+		}
+		if m.Size > 0 {
+			size := m.Size
+			part.Size = &size
+		}
+		parts := []botclient.EventPart{part}
+		if caption := strings.TrimSpace(content.GetCaption()); caption != "" {
+			parts = append(parts, textPart(caption))
+		}
+		return parts, []Media{m}
 	default:
-		// Attachments arrive with milestone M3; until then nothing is dropped silently (MX-5).
-		desc := unsupportedDescription(content)
-		return []botclient.EventPart{{Type: botclient.Unsupported, Description: &desc}}
+		return unsupported(content), nil
 	}
+}
+
+func unsupported(c *event.MessageEventContent) []botclient.EventPart {
+	desc := unsupportedDescription(c)
+	return []botclient.EventPart{{Type: botclient.Unsupported, Description: &desc}}
 }
 
 func unsupportedDescription(c *event.MessageEventContent) string {

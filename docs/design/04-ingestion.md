@@ -59,20 +59,22 @@ Everything for one event runs in **one transaction that first locks the user's r
 
 **Failed attachments (CORE-A9).** A bot reports `attachment_failed` when the platform-side download failed or the size exceeded the limit before upload; Core itself records the same part when an upload was rejected for quota or size. A message consisting only of failed attachments still creates a note holding the failed part(s). Text is never dropped because an attachment failed. The feedback carries the reason so the bot can tell the user.
 
+**Replays.** The event id is the idempotency key per bot instance *and user*: an event id already used for another user's message is refused (400, decision 52) and never answered with that user's outcome. A `message_created` whose `ingest_events` row has expired is recognised by the source reference of its parts and answered as created (BOT-7).
+
 **Feedback:** `created` or `appended` → `react: "ok"`; a rejection → `reply_text`.
 
 ### 2.2 `message_edited`
 
 1. Find the part(s) by `(bot, conversation, message_id, part_index)`; none → `ignored` (EDT-6). The sender must be the identity that created the part, otherwise `ignored` (SEC-BOT-1).
-2. For each text part in the new content, compare `event.timestamp` with the part's `text_edited_at` (null counts as older than any edit):
+2. The text parts of that message written by this identity, in message order, are matched with the text parts of the new content: the k-th new text replaces the k-th old text (for a file with a caption the caption is the only text, at part index 1). For each pair, compare `event.timestamp` with the part's `text_edited_at` (null counts as older than any edit):
    - **Newer** than the last edit: replace the text, set `text_edited_at`, insert a `note_part_versions` row with `origin = 'chat', applied = true`.
    - **Older** (a delayed chat edit that lost to an app edit): insert the version with `applied = false` only. **Latest edit wins by edit time, not arrival time** (EDT-5).
 3. If the note changed, bump `notes.version` and `updated_at` and write a change. The note stays wherever it is, including in the Trash (EDT-7).
-4. Attachment changes (EDT-8, Should): when the new content replaces an attachment, the part's `attachment_id` is replaced and the old attachment deleted if unreferenced.
+4. Attachment changes (EDT-8, Should) are not applied in v1: Matrix cannot replace the file of a message, and only captions are editable. The bot sends only the new caption for an edit of a file message, and an edit with no text is ignored.
 
 ### 2.3 `message_deleted`
 
-Delete all parts with that source message (and their attachments when unreferenced). If the note has no parts left, **dismiss the note** (`state = 'deleted'`, never a permanent delete, EDT-4). Unknown message → `ignored`.
+Delete all parts with that source message written by this identity (and their attachments when unreferenced). If those were **all** the note's parts, the parts are kept and the **note is dismissed** instead (`state = 'deleted'`, never a permanent delete, EDT-4, decision 51): the Trash is the undo, and a restored note then has its content. A message Core has not stored, or that belongs to another identity → `ignored`.
 
 ## 3. Commands (`POST /bot/v1/commands`)
 

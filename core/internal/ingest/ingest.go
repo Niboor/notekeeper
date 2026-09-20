@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -462,32 +463,43 @@ func (s *Service) edited(ctx context.Context, tx *store.UserTx, bot *bots.Princi
 	if err != nil {
 		return Outcome{}, err
 	}
+	// The text parts this identity wrote in that message, in message order. A message has one text
+	// (its body, or the caption of a file), so the k-th new text replaces the k-th old text.
+	var olds []dbq.PartsBySourceMessageRow
+	for _, old := range parts {
+		if old.Kind == "text" && old.SourceIdentityID.Valid && old.SourceIdentityID.UUID == ident.ID && old.SourcePartIndex.Valid { // SEC-BOT-1
+			olds = append(olds, old)
+		}
+	}
+	slices.SortFunc(olds, func(a, b dbq.PartsBySourceMessageRow) int {
+		return int(a.SourcePartIndex.Int16) - int(b.SourcePartIndex.Int16)
+	})
 	changed := map[uuid.UUID]bool{}
 	seen := false
+	k := 0
 	for _, np := range ev.Parts {
 		if np.Type != PartText {
 			continue
 		}
-		for _, old := range parts {
-			// Only the identity that wrote the message may change it (SEC-BOT-1); the text part is index 0.
-			if old.Kind != "text" || !old.SourceIdentityID.Valid || old.SourceIdentityID.UUID != ident.ID || !old.SourcePartIndex.Valid || old.SourcePartIndex.Int16 != 0 {
-				continue
-			}
-			seen = true
-			applied := old.TextEditedAt == nil || ev.Timestamp.After(*old.TextEditedAt)
-			vid, _ := uuid.NewV7()
-			evID := ev.EventID
-			if err := tx.Q.InsertPartVersion(ctx, dbq.InsertPartVersionParams{ID: vid, UserID: tx.UserID, PartID: old.ID, Text: np.Text,
-				Origin: "chat", EditedAt: ev.Timestamp, Applied: applied, SourceEventID: &evID}); err != nil {
+		if k >= len(olds) {
+			break
+		}
+		old := olds[k]
+		k++
+		seen = true
+		applied := old.TextEditedAt == nil || ev.Timestamp.After(*old.TextEditedAt)
+		vid, _ := uuid.NewV7()
+		evID := ev.EventID
+		if err := tx.Q.InsertPartVersion(ctx, dbq.InsertPartVersionParams{ID: vid, UserID: tx.UserID, PartID: old.ID, Text: np.Text,
+			Origin: "chat", EditedAt: ev.Timestamp, Applied: applied, SourceEventID: &evID}); err != nil {
+			return Outcome{}, err
+		}
+		if applied && (old.Text == nil || *old.Text != np.Text) {
+			at := ev.Timestamp
+			if err := tx.Q.UpdatePartText(ctx, dbq.UpdatePartTextParams{ID: old.ID, Text: &np.Text, TextEditedAt: &at}); err != nil {
 				return Outcome{}, err
 			}
-			if applied && (old.Text == nil || *old.Text != np.Text) {
-				at := ev.Timestamp
-				if err := tx.Q.UpdatePartText(ctx, dbq.UpdatePartTextParams{ID: old.ID, Text: &np.Text, TextEditedAt: &at}); err != nil {
-					return Outcome{}, err
-				}
-				changed[old.NoteID] = true
-			}
+			changed[old.NoteID] = true
 		}
 	}
 	if !seen {

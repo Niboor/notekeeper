@@ -12,13 +12,13 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 |---|---|---|---|---|---|
 | CORE-A1 | Must | fully tested | 02 §1.3; 01 §6 | Authz matrix | 2 |
 | CORE-A2 | Must | implemented | 01 §6, §6.1 | Integration | 0 |
-| CORE-A3 | Must | fully tested | 01 §6.2 | Integration | 1 |
+| CORE-A3 | Must | fully tested | 01 §6.2 | Integration | 2 |
 | CORE-A4 | Must | implemented | 02 §1.3 (no processing) | Review | 1 |
 | CORE-A5 | Should | fully tested | 01 §6.3 | Integration | 1 |
 | CORE-A6 | Should | fully tested | 01 §6.1; 02 §4 | Integration (streaming memory test) | 2 |
 | CORE-A7 | Should | unimplemented | 01 §6.3 | Integration | 0 |
 | CORE-A8 | Must | fully tested | 01 §6, §6.1 | Integration | 1 |
-| CORE-A9 | Must | unimplemented | 04 §2.1 | Integration | 0 |
+| CORE-A9 | Must | fully tested | 04 §2.1 | Integration | 2 |
 | CORE-N1 | Must | implemented | 04 §2.1; 02 §1.2 | Integration | 1 |
 | CORE-N2 | Must | fully tested | 04 §2.1; 01 §4.1 | Integration, E2E | 1 |
 | CORE-N3 | Must | fully tested | 02 §1.2; 01 §4.1, §7 | Integration, E2E | 1 |
@@ -30,11 +30,11 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-N9 | Must | fully tested | 01 §4.1; 02 §1.2; 07 §4 | Integration, E2E | 1 |
 | CORE-N10 | Must | fully tested | 02 §1.2; 01 §6.2 | Integration | 1 |
 | CORE-N11 | Must | implemented | 01 §13 (no purge job exists) | Review | 0 |
-| CORE-N13 | Must | fully tested | 01 §8; 02 §1.2 | Integration | 2 |
+| CORE-N13 | Must | fully tested | 01 §8; 02 §1.2 | Integration | 3 |
 | CORE-N14 | Should | unimplemented | 02 §1.2 | Integration | 0 |
 | CORE-N15 | Could | unimplemented | deferred: batch endpoints can be added to 02 §1.2 | - | 0 |
 | CORE-N17 | Should | fully tested | 07 §5; 01 §4.2 (history coalescing) | Unit, E2E | 4 |
-| CORE-N18 | Must | fully tested | 04 §2.1; 01 §4.1 | Unit, Integration | 2 |
+| CORE-N18 | Must | fully tested | 04 §2.1; 01 §4.1 | Unit, Integration | 3 |
 | CORE-P1 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
 | CORE-P2 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
 | CORE-P3 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
@@ -50,7 +50,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | CORE-R6 | Should | unimplemented | 05 §5.3; 06 §7 | E2E | 0 |
 | CORE-R7 | Should | unimplemented | 05 §5.2 | Integration | 0 |
 | CORE-R8 | Should | unimplemented | 05 §5.4; 02 §1.4 | Integration | 0 |
-| CORE-R9 | Should | unimplemented | 05 §5; 07 §4 | E2E | 0 |
+| CORE-R9 | Should | unimplemented | 05 §5; 07 §4 | E2E | 1 |
 | CORE-R10 | Should | unimplemented | 05 §5.1 | Integration | 0 |
 | CORE-R11 | Should | unimplemented | 04 §3 | Integration, E2E | 0 |
 | CORE-R13 | Should | unimplemented | 04 §3.1 | Unit | 0 |
@@ -117,42 +117,42 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-2 | Must | fully tested | 02 §2; 03 §5.3 | Integration | 1 |
 | BOT-3 | Must | implemented | 04 §1 | Integration | 0 |
 | BOT-4 | Must | implemented | 04 §1 | Integration | 0 |
-| BOT-5 | Must | unimplemented | 04 §1 | Integration | 0 |
-| BOT-6 | Must | unimplemented | 02 §2; 01 §6.2 | Integration | 0 |
-| BOT-7 | Must | implemented | 04 §2; 01 §11 | Integration | 3 |
+| BOT-5 | Must | fully tested | 04 §1 | Integration | 1 |
+| BOT-6 | Must | fully tested | 02 §2; 01 §6.2 | Integration | 3 |
+| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 4 |
 | BOT-8 | Must | implemented | 02 §2 (feedback object) | Integration | 0 |
-| BOT-9 | Must | implemented | 04 §2; README §3 (user lock) | Integration | 0 |
-| BOT-10 | Should | unimplemented | 02 §2 (`/conversations/{id}/cursor`); 01 §4.2 (index) | Integration | 0 |
-| BOT-11 | Must | unimplemented | 05 §4.2; 02 §2 | Integration | 0 |
-| BOT-12 | Should | unimplemented | 01 §3; 05 §4.1 | Integration | 0 |
-| BOT-13 | Should | unimplemented | 05 §4.3; 06 §7 | Integration, E2E | 0 |
+| BOT-9 | Must | fully tested | 04 §2; README §3 (user lock) | Integration | 1 |
+| BOT-10 | Should | fully tested | 02 §2 (`/conversations/{id}/cursor`); 01 §4.2 (index) | Integration | 1 |
+| BOT-11 | Must | fully tested | 05 §4.2; 02 §2 | Integration | 2 |
+| BOT-12 | Should | fully tested | 01 §3; 05 §4.1 | Integration | 2 |
+| BOT-13 | Should | fully tested | 05 §4.3; 06 §7 | Integration, E2E | 3 |
 | BOT-14 | Should | unimplemented | 04 §3; 02 §2 | Integration | 0 |
 | BOT-15 | Should | unimplemented | 05 §5.3; 02 §2 | Authz matrix, Integration | 0 |
-| BOT-16 | Must | unimplemented | 05 §4.1; 03 §4.3 | Integration, E2E | 1 |
+| BOT-16 | Must | implemented | 05 §4.1; 03 §4.3 | Integration, E2E | 2 |
 | BOT-B1 | Must | implemented | 04; 06 (bots contain platform logic only) | Review | 0 |
 | BOT-B2 | Must | fully tested | 06 §3; 04 §2 | E2E | 1 |
-| BOT-B3 | Must | fully tested | 06 §6 | E2E | 1 |
-| BOT-B4 | Must | fully tested | 06 §3; 04 §2 | E2E | 1 |
+| BOT-B3 | Must | fully tested | 06 §6 | E2E | 2 |
+| BOT-B4 | Must | fully tested | 06 §3; 04 §2 | E2E | 2 |
 | BOT-B5 | Must | fully tested | 06 §1; 01 §12 | E2E | 3 |
 | BOT-B6 | Should | implemented | 06 §9 | Integration | 0 |
 | BOT-B7 | Must | unimplemented | 06 §7; 05 §4.1 | E2E | 0 |
-| EDT-1 | Must | unimplemented | 01 §4.2; 04 §2.1 | Integration | 0 |
-| EDT-2 | Must | unimplemented | 04 §2.2 | Unit, Integration | 0 |
-| EDT-3 | Must | implemented | 01 §4.2; 04 §2.2 | Integration | 1 |
-| EDT-4 | Must | unimplemented | 04 §2.3 | Integration | 0 |
-| EDT-5 | Must | unimplemented | 04 §2.2 | Unit, Integration | 1 |
-| EDT-6 | Must | unimplemented | 04 §2.2 | Unit, Integration | 0 |
-| EDT-7 | Must | unimplemented | 04 §2.2 | Unit, Integration | 0 |
+| EDT-1 | Must | fully tested | 01 §4.2; 04 §2.1 | Integration | 2 |
+| EDT-2 | Must | fully tested | 04 §2.2 | Unit, Integration | 1 |
+| EDT-3 | Must | fully tested | 01 §4.2; 04 §2.2 | Integration | 3 |
+| EDT-4 | Must | fully tested | 04 §2.3 | Integration | 1 |
+| EDT-5 | Must | fully tested | 04 §2.2 | Unit, Integration | 2 |
+| EDT-6 | Must | fully tested | 04 §2.2 | Unit, Integration | 1 |
+| EDT-7 | Must | fully tested | 04 §2.2 | Unit, Integration | 1 |
 | EDT-8 | Should | unimplemented | 04 §2.2 | Integration | 0 |
-| GRP-1 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-2 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-3 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-4 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-5 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-6 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-7 | Must | unimplemented | 04 §2.1, §4 | Unit, Integration | 0 |
-| GRP-8 | Must | unimplemented | 01 §4.2 (`attach_reason`) | Unit | 0 |
-| GRP-9 | Should | unimplemented | 04 §5 | Unit | 0 |
+| GRP-1 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-2 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-3 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-4 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-5 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-6 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 1 |
+| GRP-7 | Must | fully tested | 04 §2.1, §4 | Unit, Integration | 2 |
+| GRP-8 | Must | fully tested | 01 §4.2 (`attach_reason`) | Unit | 2 |
+| GRP-9 | Should | fully tested | 04 §5 | Unit | 1 |
 | GRP-10 | Should | unimplemented | 02 §1.2 (merge, split) | Integration | 0 |
 | GRP-11 | Could | unimplemented | deferred (Could) | - | 0 |
 
@@ -162,17 +162,17 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 |---|---|---|---|---|---|
 | MX-1 | Must | fully tested | 06 §4 | E2E | 1 |
 | MX-2 | Must | fully tested | 06 §4 | E2E | 2 |
-| MX-3 | Must | fully tested | 06 §2, §8 | E2E | 1 |
-| MX-4 | Must | implemented | 06 §5 | Unit, E2E | 1 |
-| MX-5 | Must | implemented | 06 §5 | Unit, E2E | 0 |
-| MX-6 | Must | unimplemented | 06 §5 | Unit, E2E | 0 |
+| MX-3 | Must | fully tested | 06 §2, §8 | E2E | 3 |
+| MX-4 | Must | fully tested | 06 §5 | Unit, E2E | 2 |
+| MX-5 | Must | fully tested | 06 §5 | Unit, E2E | 3 |
+| MX-6 | Must | fully tested | 06 §5 | Unit, E2E | 3 |
 | MX-7 | Must | fully tested | 06 §6 | E2E | 1 |
 | MX-8 | Must | implemented | 06 §6 | E2E | 2 |
 | MX-9 | Must | fully tested | 06 §3 | E2E | 1 |
 | MX-10 | Must | fully tested | 01 §3; 04 §2 | Integration | 1 |
 | MX-11 | Could | unimplemented | deferred (Could) | - | 0 |
-| MX-12 | Should | unimplemented | 06 §7; 05 §5.3 | E2E | 0 |
-| MX-13 | Should | unimplemented | 06 §7 | E2E | 0 |
+| MX-12 | Should | unimplemented | 06 §7; 05 §5.3 | E2E | 1 |
+| MX-13 | Should | fully tested | 06 §7 | E2E | 1 |
 | MX-N1 | Must | fully tested | 06 §1, §2, §8 | E2E | 2 |
 | MX-N2 | Must | fully tested | 06 §2 | E2E | 1 |
 | MX-N3 | Must | implemented | 06 §10 (Synapse is the reference server) | E2E | 0 |
@@ -247,7 +247,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | NFR-P2 | Must | unimplemented | 01 (indexes); 02 §1.2 | Integration | 0 |
 | NFR-P3 | Must | unimplemented | README §3; 01 | Review | 0 |
 | NFR-P4 | Should | unimplemented | README §3 (pagination) | Integration | 0 |
-| NFR-Q1 | Must | unimplemented | 04 §4; 08 §5 | Unit | 0 |
+| NFR-Q1 | Must | unimplemented | 04 §4; 08 §5 | Unit | 1 |
 | NFR-Q2 | Must | unimplemented | 08 §5 | CI check | 0 |
 | NFR-Q3 | Should | unimplemented | 07 §9 | Review | 0 |
 | NFR-Q4 | Should | unimplemented | documentation deliverable (bot-writing guide, deployment, backup) | Review | 0 |
@@ -309,7 +309,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-BASE-3 | Must | unimplemented | 08 §1 | CI check | 0 |
 | SEC-BASE-4 | Should | unimplemented | 08 §3 (key ids, credential rotation) | Review | 0 |
 | SEC-BASE-5 | Must | implemented | 08 §3 | Review | 0 |
-| SEC-BOT-1 | Must | implemented | 03 §5.1; README §2 | Authz matrix | 1 |
+| SEC-BOT-1 | Must | implemented | 03 §5.1; README §2 | Authz matrix | 3 |
 | SEC-BOT-2 | Must | fully tested | 03 §5.1; README §2 | Authz matrix | 1 |
 | SEC-BOT-3 | Must | unimplemented | 03 §5.3; 05 §5.3 | Authz matrix, Integration | 1 |
 | SEC-BOT-4 | Must | fully tested | 03 §5.2 | Integration | 1 |
@@ -321,7 +321,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-BOT-10 | Must | unimplemented | README §3 (rate limits) | Integration | 0 |
 | SEC-BOT-11 | Must | unimplemented | 01 §3; 04 §2 | Integration | 0 |
 | SEC-BOT-12 | Must | fully tested | 04 §3; 06 §6 | Unit, E2E | 1 |
-| SEC-BOT-13 | Must | implemented | 03 §4.3; 05 §4.2 | Integration | 1 |
+| SEC-BOT-13 | Must | fully tested | 03 §4.3; 05 §4.2 | Integration | 2 |
 | SEC-CNT-1 | Must | implemented | 07 §5 | Unit, E2E | 1 |
 | SEC-CNT-2 | Must | fully tested | 07 §5 | Unit, E2E | 1 |
 | SEC-CNT-3 | Must | fully tested | 02 §1.3 | Integration | 1 |
@@ -339,7 +339,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-DATA-6 | Must | fully tested | 02 §1.3; 07 §8 | Integration | 1 |
 | SEC-DATA-7 | Should | unimplemented | 08 §4 | Review | 0 |
 | SEC-DATA-8 | Must | unimplemented | 02 §5 | Integration | 0 |
-| SEC-ISO-1 | Must | fully tested | 08 §5 (generated matrix); README §3 | Authz matrix | 2 |
+| SEC-ISO-1 | Must | fully tested | 08 §5 (generated matrix); README §3 | Authz matrix | 3 |
 | SEC-ISO-2 | Must | fully tested | 01 §1 (composite keys); README §3 | Authz matrix, Integration | 3 |
 | SEC-ISO-3 | Must | fully tested | 01 §1 (composite keys); README §3 | Authz matrix, Integration | 4 |
 | SEC-ISO-4 | Must | fully tested | 01 §1 (composite keys); README §3 | Authz matrix, Integration | 3 |
@@ -349,7 +349,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-ISO-8 | Must | unimplemented | README §3 (idempotency scoped per caller) | Integration | 0 |
 | SEC-ISO-9 | Must | fully tested | 01 §6.3 | Integration | 1 |
 | SEC-ISO-10 | Should | fully tested | README §3 (RLS) | Integration | 1 |
-| SEC-MX-1 | Must | fully tested | 06 §4 | E2E | 1 |
+| SEC-MX-1 | Must | fully tested | 06 §4 | E2E | 2 |
 | SEC-MX-2 | Must | unimplemented | 06 §7 | E2E | 0 |
 | SEC-MX-3 | Must | implemented | 06 §8; 06 §1 | Integration (log scan) | 0 |
 | SEC-MX-4 | Must | fully tested | 06 §2 | E2E | 1 |

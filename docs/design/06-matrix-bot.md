@@ -59,7 +59,7 @@ Events are handled in arrival order, which for one room is the platform order Co
 | redaction | `message_deleted` |
 | `m.in_reply_to`, `m.thread` | `relates_to.reply_to` and `.thread` |
 
-Encrypted media (`file` with `key`, `iv`, `hashes`) is downloaded from the configured homeserver via its `mxc://` URI only (SEC-CNT-8) and decrypted. The size is checked against `info.size` and Core's limit **before** downloading: too large → an `attachment_failed` part with reason `too_large`, no download. The decrypted stream is written to Core with `PUT /uploads/{id}` using mautrix's `DecryptStream`, so bot memory does not depend on file size beyond the homeserver download itself. Two library details verified in the M0 spike: call `PrepareForDecryption()` **before** `DecryptStream` (the cipher is built eagerly and panics on an unprepared file), and the file's SHA-256 is only verified when the stream is **closed**, so the bot must check the error from `Close()` and abort the Core upload (a short or cancelled request leaves an incomplete blob that the janitor removes) when it fails.
+Encrypted media (`file` with `key`, `iv`, `hashes`) is downloaded from the configured homeserver via its `mxc://` URI only (SEC-CNT-8) and decrypted. The size is checked against `info.size` and Core's limit **before** downloading: too large → an `attachment_failed` part with reason `too_large`, no download. The sender's `info.size` is only used to refuse early and is never trusted: the request length is the `Content-Length` of the homeserver's answer (a download without one is refused, reason `size_unknown`), which for the AES-CTR encryption used by Matrix equals the plaintext length, and it is checked against the limit again. The decrypted stream is written to Core with `PUT /uploads/{id}` using mautrix's `DecryptStream`, so bot memory does not depend on file size beyond the homeserver download itself. The upload id is derived from the Matrix event id and part index, so a retry or replay reuses it. A file is tried three times (`sdk.UploadAttempts`); a chat is never stalled by one file, unlike a message, which is retried until Core answers (NFR-R1). Whatever fails becomes an `attachment_failed` part with a reason (`too_large`, `download_failed`, `size_unknown`, `corrupt`, `unsupported_encryption`, `quota_exceeded`, `upload_failed`), and the message's text still lands (CORE-A9). The maximum is `NK_MAX_ATTACHMENT_BYTES` (default 25 MiB, as in Core). Two library details verified in the M0 spike: call `PrepareForDecryption()` **before** `DecryptStream` (the cipher is built eagerly and panics on an unprepared file), and the file's SHA-256 is only verified when the stream is **closed**, so the bot must check the error from `Close()` and abort the Core upload (a short or cancelled request leaves an incomplete blob that the janitor removes) when it fails.
 
 ## 6. Commands and feedback
 
@@ -70,12 +70,12 @@ A command is recognised only when the message body **begins with** `!` and a kno
 
 ## 7. Outbox loop (reminders, notices, lifecycle)
 
-A goroutine long-polls `GET /outbox?wait=25` and processes items sequentially per conversation:
+A goroutine long-polls `GET /outbox?wait=20` (shorter than the HTTP client timeout) and processes items sequentially per conversation:
 
 | Kind | Bot action |
 |---|---|
 | `reminder`, `notice` | **Re-check the room** immediately before sending: exactly two joined members, the bot and the linked user, and not flagged ignored; otherwise report `failed_permanent` (SEC-MX-2). Send the text as `m.notice`/`m.text` with a Matrix transaction id derived from the outbox item id (idempotent, BOT-13). For reminders, then download each attachment through the outbox attachment endpoint and send it as Matrix media (encrypted upload in encrypted rooms); if that fails, the text already names the file and links to the note (MX-12, CORE-R6). Report `delivered` with the event ids |
-| `lifecycle` | Leave and forget the room (MX-13), delete the room's rows and the identity's mapping from the bot's tables, drop the room's Megolm sessions where the store API allows, then report `delivered` (BOT-B7) |
+| `lifecycle` | For an unlink, first a short goodbye notice; then leave and forget the room (MX-13), delete the room's rows and the identity's mapping from the bot's tables, drop the room's Megolm sessions where the store API allows, then report `delivered` (BOT-B7) |
 
 Send failures that look transient (network, homeserver 5xx, rate limit `M_LIMIT_EXCEEDED` with its retry hint) report `failed_transient`; a missing room, a departed user or a forbidden send report `failed_permanent`.
 

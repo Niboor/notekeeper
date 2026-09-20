@@ -115,6 +115,7 @@ func serve() error {
 	syncCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go b.Heartbeat(syncCtx)
+	go b.Outbox(syncCtx)
 	go func() {
 		// A process that may have lost the lock must not keep syncing.
 		select {
