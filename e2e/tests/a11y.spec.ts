@@ -4,6 +4,7 @@ import { createNote, openFreshBoard } from './helpers'
 
 // WEB-N4: the main views have no serious accessibility violations, in the light and the dark theme.
 for (const scheme of ['light', 'dark'] as const) {
+  // WEB-N4 (see above)
   test(`main views pass axe in the ${scheme} theme`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme })
     const fx = await openFreshBoard(page)

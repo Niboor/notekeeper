@@ -434,11 +434,6 @@ create table unlinked_senders (                      -- rate-limits the "please 
   bot_instance_id uuid not null, external_user_id text not null, last_notice_at timestamptz not null,
   primary key (bot_instance_id, external_user_id)
 );
-create table idempotency_keys (
-  scope text not null, key text not null, request_hash bytea not null,
-  response jsonb not null, created_at timestamptz not null default now(),
-  primary key (scope, key)
-);
 create table audit_log (                             -- SEC-AUD-1, SEC-AUD-2
   id bigserial primary key, at timestamptz not null default now(),
   actor_kind text not null, actor_id uuid, action text not null,
@@ -466,7 +461,6 @@ Migrations are forward-only and backwards-compatible across one release (add col
 |---|---|
 | Change log | 30 days |
 | Ingest events | 90 days (bounds how long a replay after bot downtime is recognised; permanent duplicate protection for creations is the unique index `parts_source`) |
-| Idempotency keys | 24 hours |
 | Expired share links | 7 days after expiry |
 | Expired and revoked sessions | 30 days (for the session list and audit) |
 | Notifications | 90 days after being read, any notification after 365 days |

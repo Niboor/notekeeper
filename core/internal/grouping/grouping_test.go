@@ -30,6 +30,7 @@ func noteWith(lastPart time.Time, hasText bool) *Candidate {
 	return &Candidate{NoteID: noteA, LastPartAt: lastPart, HasText: hasText}
 }
 
+// Decide is one pure function, tested without any I/O (GRP-9, NFR-Q1).
 func TestDecide(t *testing.T) {
 	cases := []struct {
 		name    string

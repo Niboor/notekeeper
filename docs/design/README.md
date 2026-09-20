@@ -74,7 +74,7 @@ Each listener has its own router containing only its own routes. Authentication 
 
 **Concurrency (CORE-S4).** Every mutable entity has an integer `version`. Text edits carry `base_version`: they are always applied (latest wins, EDT-5); the response reports `stale: true` if the base was out of date so the client can say the note changed, and the overwritten text remains in history. Structural operations (move, reorder, dismiss, restore) take no version and never conflict across different notes.
 
-**Idempotency (CORE-S5, BOT-7).** Creations take a client-generated `id`; repeating a creation with the same owner and identical content returns the existing resource, with different content returns `409`. Side-effecting actions (create share link, create pairing code, admin actions) accept an `Idempotency-Key` header, recorded per caller for 24 hours. Bot events are deduplicated by `(bot instance, event id)`.
+**Idempotency (CORE-S5, BOT-7).** Creations take a client-generated `id`; repeating a creation with the same owner and identical content returns the existing resource, with different content returns `409`. There is no `Idempotency-Key` header (decision 62): a retried creation of a share link or a pairing code makes a second one, which is harmless (both are limited, listed and revocable), and every state-changing chat command is applied once per message (BOT-7). Bot events are deduplicated by `(bot instance, event id)`.
 
 **Pagination.** `limit` (default 50, maximum 200) and opaque `cursor`; responses are `{items, next_cursor}`.
 

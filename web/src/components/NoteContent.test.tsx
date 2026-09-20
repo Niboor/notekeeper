@@ -44,6 +44,7 @@ const CORPUS = [
   String.fromCharCode(0x202e) + '<script>alert(1)</script>',
 ]
 
+// The corpus must render as inert content (SEC-CNT-1, SEC-CNT-2, WEB-N5).
 describe('NoteContent XSS corpus', () => {
   it.each(CORPUS)('renders %j inertly', (text) => {
     const { container, unmount } = render(<NoteContent text={text} />)

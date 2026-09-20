@@ -50,7 +50,7 @@ If that is not acceptable for something, do not send it to the bot.
 * **✕** dismisses a note into the **Trash** with an *Undo*; from the Trash you can restore it or delete it for good.
 * Tick checklist items right on the card. Edit a note from its menu. **Merge** two notes, or **split** a part
   out, to repair how the bot grouped things.
-* **Search** (press **/**) looks through everything, including the Trash if you ask, and finds parts of words.
+* **Search** (press **/**) looks through everything, including the Trash if you ask, and finds whole words first and, when there are none, parts of words (from three characters).
 
 ## Reminders
 

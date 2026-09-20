@@ -76,6 +76,11 @@ func (s *Service) CreateInstance(ctx context.Context, actor Actor, in CreateInst
 	if in.Type == "" || in.Name == "" || len(in.Name) > 64 || len(in.Type) > 32 {
 		return dbq.BotInstance{}, fmt.Errorf("%w: type and name are required", ErrInvalidInput)
 	}
+	if in.Type == "matrix" && in.IdentityDomain == "" {
+		// The domain is what limits which chat identities the bot may assert (SEC-BOT-5): without it a
+		// stolen bot key could name any user of any homeserver.
+		return dbq.BotInstance{}, fmt.Errorf("%w: a Matrix bot needs the homeserver domain of its users", ErrInvalidInput)
+	}
 	id, _ := uuid.NewV7()
 	var out dbq.BotInstance
 	err := s.St.InTx(ctx, func(q *dbq.Queries) error {

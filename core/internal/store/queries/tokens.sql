@@ -52,8 +52,6 @@ select id from users order by id;
 -- name: PurgeThrottle :execrows
 delete from auth_throttle where updated_at < $1;
 
--- name: PurgeIdempotency :execrows
-delete from idempotency_keys where created_at < $1;
 
 -- name: PurgeIngestEvents :execrows
 delete from ingest_events where received_at < $1;

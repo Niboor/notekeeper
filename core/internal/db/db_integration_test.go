@@ -39,7 +39,7 @@ func startPostgres(t *testing.T, image string) string {
 	return url
 }
 
-// Also demonstrates: NFR-D4.
+// Also demonstrates: NFR-D4. It runs on PostgreSQL 16, the supported floor, and on the newest release (NFR-D8).
 func TestMigrateAndReadiness(t *testing.T) {
 	for _, image := range pgImages() {
 		t.Run(image, func(t *testing.T) {

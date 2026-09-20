@@ -30,7 +30,6 @@ import (
 const (
 	retainChanges       = 30 * 24 * time.Hour
 	retainIngestEvents  = 90 * 24 * time.Hour
-	retainIdempotency   = 24 * time.Hour
 	retainSessions      = 30 * 24 * time.Hour
 	retainNotifications = 90 * 24 * time.Hour // read ones
 	retainAnyNotice     = 365 * 24 * time.Hour
@@ -94,9 +93,6 @@ func Purge(ctx context.Context, d Deps) error {
 		return err
 	}
 	if _, err := q.PurgeThrottle(ctx, now.Add(-retainThrottle)); err != nil {
-		return err
-	}
-	if _, err := q.PurgeIdempotency(ctx, now.Add(-retainIdempotency)); err != nil {
 		return err
 	}
 	if _, err := q.PurgeIngestEvents(ctx, now.Add(-retainIngestEvents)); err != nil {

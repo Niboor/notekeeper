@@ -60,7 +60,7 @@ Environment variables; safe defaults; every one is documented in [configuration.
 | Variable | Default | Purpose |
 |---|---|---|
 | `NK_DATABASE_URL` | none | Core runtime role (`nk_app`, no DDL rights) |
-| `NK_MIGRATE_DATABASE_URL` | `NK_DATABASE_URL` | Used only by `core migrate`: the schema-owning role |
+| `NK_MIGRATE_DATABASE_URL` | none | Used only by `core migrate`, which needs nothing else: the schema-owning role. Kept in a Secret that only the migration Job reads; a serving process logs a warning if it holds it (SEC-OPS-5) |
 | `NK_APP_URL`, `NK_SHARE_URL` | none | Public hostnames (host checks, links) |
 | `NK_TOKEN_KEYS` | none | `kid:base64key` list for token MACs (each at least 32 bytes); first signs, all verify. Core refuses to start without it or with a `change-me` placeholder |
 | `NK_ACCESS_TOKEN_TTL` | 15m | |

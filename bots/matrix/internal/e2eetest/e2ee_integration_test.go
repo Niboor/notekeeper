@@ -196,6 +196,7 @@ func dm(t *testing.T, ctx context.Context, hs string, pg *postgresDB, suffix str
 	return alice, bot, resp.RoomID
 }
 
+// The bot is tested against a real homeserver, with the encrypted device state in PostgreSQL (NFR-Q2, MX-3).
 func TestEncryptedDirectMessageRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()

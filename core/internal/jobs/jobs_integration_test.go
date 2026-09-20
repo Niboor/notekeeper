@@ -90,7 +90,6 @@ func TestPurgeAppliesRetention(t *testing.T) {
 	// Operational tables: an old and a fresh row each.
 	for _, q := range []string{
 		`insert into auth_throttle (key, failures, updated_at) values ('old', 1, now() - interval '3 hours'), ('fresh', 1, now())`,
-		`insert into idempotency_keys (scope, key, request_hash, response, created_at) values ('s','old','\x00','{}', now() - interval '2 days'), ('s','fresh','\x00','{}', now())`,
 		`insert into sessions (id, user_id, client_kind, label, expires_at, absolute_expires_at, revoked_at)
 		   values (gen_random_uuid(), '` + a.String() + `', 'web', 'old', now(), now(), now() - interval '60 days'),
 		          (gen_random_uuid(), '` + a.String() + `', 'web', 'fresh', now() + interval '1 day', now() + interval '1 day', null)`,
@@ -115,9 +114,6 @@ func TestPurgeAppliesRetention(t *testing.T) {
 	}
 	if n := count(`select count(*) from auth_throttle`); n != 1 {
 		t.Errorf("auth_throttle: %d", n)
-	}
-	if n := count(`select count(*) from idempotency_keys`); n != 1 {
-		t.Errorf("idempotency_keys: %d", n)
 	}
 	if n := count(`select count(*) from sessions`); n != 1 {
 		t.Errorf("sessions: %d (an old revoked session must go, an active one must stay)", n)

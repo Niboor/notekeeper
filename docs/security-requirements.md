@@ -99,16 +99,16 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 | SEC-ISO-5 | Must | fully tested | Subscribing to another user's realtime stream or change-feed cursor, or receiving events after revocation: streams are authenticated at connect and re-validated when the token expires or is revoked. | CORE-S1, CORE-S3 |
 | SEC-ISO-6 | Must | fully tested | Setting server-controlled fields from a client request (owner, admin flag, state, version, timestamps, source reference, storage backend, quota): mass assignment. | — |
 | SEC-ISO-7 | Must | fully tested | Obtaining admin capability by any means other than being the bootstrapped admin: the role is never derived from data a user can influence. | AUTH-U7 |
-| SEC-ISO-8 | Must | fully tested | Using an idempotency key to replay or read another user's cached response; keys are scoped per user (and per bot instance). | CORE-S5 |
+| SEC-ISO-8 | Must | fully tested | Using a client-chosen id or a platform event id to replay, overwrite or read another user's resource: ids are unique per user (creating under an id that exists for someone else behaves as if it were free) and platform event ids are scoped per bot instance and user (decisions 48, 52). | CORE-S5 |
 | SEC-ISO-9 | Must | fully tested | Proving that another user holds a given file: content-hash deduplication is strictly per user, and a client can never obtain a blob by claiming its hash without providing the content. | CORE-A5 |
-| SEC-ISO-10 | Should | fully tested | Bypassing tenant filters through an application bug: PostgreSQL row-level security (or equivalent) acts as a second, independent barrier. | NFR-S3 |
+| SEC-ISO-10 | Should | fully tested | Bypassing tenant filters through an application bug: PostgreSQL row-level security acts as a second, independent barrier on the content tables (pages, categories, notes, parts, history, search, attachments, blobs, reminders, notifications, changes). The tables outside it (sessions, share links, identities, outbox and similar) are protected by per-user predicates in every query, and the GUC that carries the user is set by the application, so RLS defends against a forgotten filter, not against arbitrary SQL (decision 63). | NFR-S3 |
 
 ### 4.3 Admin boundary (SEC-ADM)
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
 | SEC-ADM-1 | Must | fully tested | The admin reading other users' notes, attachments, history or share-link content through any application feature or API. Admin endpoints return metadata only (username, status, quota use). | AUTH-U6 |
-| SEC-ADM-2 | Must | fully tested | The admin logging in as a user or choosing a user's password: there is no "log in as" feature, and passwords are only ever set by the user through the activation flow. Issuing an activation link revokes the user's sessions and is audit-logged, and the user gets a security notice (AUTH-U11). | AUTH-U8 |
+| SEC-ADM-2 | Must | fully tested | The admin logging in as a user or choosing a user's password: there is no "log in as" feature, and passwords are only ever set through the activation flow. The admin who issues an activation link holds it and could use it before the user does (accepted risk R1), which is why issuing one revokes the user's sessions, is audit-logged, and gives the user a security notice (AUTH-U11). | AUTH-U8 |
 | SEC-ADM-3 | Must | fully tested | An admin action leaving no trace: every admin action is written to the audit log. | AUTH-B8, NFR-S6 |
 | SEC-ADM-4 | Must | fully tested | Admin functions being reachable by a non-admin, by a bot credential, or through a share link. | SEC-ISO-1 |
 
@@ -214,7 +214,7 @@ Format: **ID | Priority | State | What must not be possible | Related**.
 
 | ID | Pri | State | Must not be possible | Related |
 |---|---|---|---|---|
-| SEC-AUD-1 | Must | fully tested | Security-relevant events going unrecorded: failed and successful logins, activation, password changes, session revocation, link/unlink, bot credential creation/rotation/disabling, admin actions, share-link creation/revocation, and rejected bot requests. | AUTH-B8, NFR-S6 |
+| SEC-AUD-1 | Must | fully tested | Security-relevant events going unrecorded: failed and successful logins, activation, password changes, session revocation, link/unlink, bot credential creation/rotation/disabling, admin actions, share-link creation/revocation, and rejected bot requests (the last are counted in `nk_bot_requests_rejected_total`, not written as audit rows, decision 63). | AUTH-B8, NFR-S6 |
 | SEC-AUD-2 | Must | fully tested | The audit log containing note content or secrets, or being modifiable through the application: it is append-only from the application's point of view. | SEC-DATA-1 |
 | SEC-AUD-3 | Should | fully tested | An attack pattern going unnoticed: metrics and example alerts for spikes in failed logins, rejected bot requests, share-link 404s and rate-limit hits. | NFR-O2 |
 | SEC-AUD-4 | Should | fully tested | Sensitive account events happening without the user being told: new sign-ins, password changes or activation links, chat link changes and share-link creation produce a security notice in chat and in the app. | AUTH-U11 |
@@ -239,7 +239,7 @@ These are known limits. They are stated so that nobody assumes otherwise.
 | SEC-BASE-1 | Must | fully tested | Password hashing uses argon2id with parameters documented and tunable, and re-hashing on login when parameters are raised. |
 | SEC-BASE-2 | Must | fully tested | All random secrets (tokens, codes, session identifiers) come from a cryptographically secure random source; pairing codes are at least 40 bits of entropy, all other tokens at least 128. |
 | SEC-BASE-3 | Must | fully tested | TLS 1.2 or higher only, for all client-facing traffic. |
-| SEC-BASE-4 | Should | fully tested | Every secret (bot credentials, database passwords, encryption key for Matrix state) can be rotated without data loss; the procedure is documented. |
+| SEC-BASE-4 | Should | implemented | Every secret (bot credentials, database passwords, token keys, the Matrix account password) can be rotated without data loss; the procedure is documented. The one exception is the key that encrypts the bot's Matrix device state (`MX_PICKLE_KEY`): changing it makes the bot create a new device, which is documented in operations.md (decision 63). |
 | SEC-BASE-5 | Must | fully tested | Security-relevant limits are configuration, not code: token and session lifetimes (idle and absolute), rate limits, share-link maximum lifetime, size limits. Defaults are the safe ones. |
 
 ## 7. Relationship to other requirements

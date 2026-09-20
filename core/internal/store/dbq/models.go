@@ -129,14 +129,6 @@ type ExternalIdentity struct {
 	LinkedAt       time.Time
 }
 
-type IdempotencyKey struct {
-	Scope       string
-	Key         string
-	RequestHash []byte
-	Response    []byte
-	CreatedAt   time.Time
-}
-
 type IngestEvent struct {
 	BotInstanceID uuid.UUID
 	EventID       string

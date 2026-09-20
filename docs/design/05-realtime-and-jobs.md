@@ -35,7 +35,7 @@ River (a Postgres-backed queue built on `SKIP LOCKED`) runs inside Core. Jobs ar
 | `ExpireOutbox` | every 5 min | Expire undelivered items older than 7 days; make an in-app notification (§4.4) |
 | `ReleaseStaleUploads` | every 10 min | Release quota reservations and delete incomplete blobs and unlinked attachments older than 1 hour |
 | `PurgeShareLinks` | hourly | Delete links expired more than 7 days ago |
-| `PurgeSessions` | daily | Delete sessions expired or revoked more than 30 days ago; old `auth_throttle`, `idempotency_keys`, `ingest_events`, `changes`, `unlinked_senders`, read notifications (retention table in [01](01-data-model.md) §13) |
+| `PurgeSessions` | daily | Delete sessions expired or revoked more than 30 days ago; old `auth_throttle`, `ingest_events`, `changes`, `unlinked_senders`, read notifications (retention table in [01](01-data-model.md) §13) |
 | `DeleteUser` | on request | Complete user deletion ([03](03-auth.md) §4.3) |
 
 Each job is idempotent and bounded (batches), and exports Prometheus metrics for duration, failures and lag (NFR-O2).
@@ -118,7 +118,7 @@ A failing reminder does not hold the others back: `FireDue` carries on with the 
 
 1. Build the delivery content once: note text excerpt (first 300 characters), note link, attachment list, `late = now() − due_at > 5 minutes`.
 2. For each **reminder-target identity** (CORE-R3) insert a `reminder` outbox item; insert an in-app notification; if there is no target identity, only the notification.
-3. One-off: set `state = 'fired'` and `last_fired_at = now()` (it stays visible on the note as "reminded …", CORE-R8; the user may snooze or mark it done). Recurring: compute the next occurrence **after now** from `rrule` in the user's profile time zone (the reminder's `tz` records the zone it was created in and is informational; a recurring reminder follows the profile, decision 63) (missed occurrences collapse into this one late delivery, CORE-R10), set `due_at` to it, keep `pending`, set `last_fired_at`.
+3. One-off: set `state = 'fired'` and `last_fired_at = now()` (it stays visible on the note as "reminded …", CORE-R8; the user may snooze or mark it done). Recurring: compute the next occurrence **after now** from `rrule` in the user's profile time zone (the reminder's `tz` records the zone it was created in and is informational; a recurring reminder follows the profile, decision 67) (missed occurrences collapse into this one late delivery, CORE-R10), set `due_at` to it, keep `pending`, set `last_fired_at`.
 
 ### 5.2 Dismissal and restore (CORE-R7)
 

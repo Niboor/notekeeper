@@ -119,7 +119,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-4 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-5 | Must | fully tested | 04 §1 | Integration | 1 |
 | BOT-6 | Must | fully tested | 02 §2; 01 §6.2 | Integration | 3 |
-| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 6 |
+| BOT-7 | Must | fully tested | 04 §2; 01 §11 | Integration | 4 |
 | BOT-8 | Must | fully tested | 02 §2 (feedback object) | Integration | 1 |
 | BOT-9 | Must | fully tested | 04 §2; README §3 (user lock) | Integration | 1 |
 | BOT-10 | Should | fully tested | 02 §2 (`/conversations/{id}/cursor`); 01 §4.2 (index) | Integration | 1 |
@@ -133,7 +133,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | BOT-B2 | Must | fully tested | 06 §3; 04 §2 | E2E | 2 |
 | BOT-B3 | Must | fully tested | 06 §6 | E2E | 2 |
 | BOT-B4 | Must | fully tested | 06 §3; 04 §2 | E2E | 2 |
-| BOT-B5 | Must | fully tested | 06 §1; 01 §12 | E2E | 3 |
+| BOT-B5 | Must | fully tested | 06 §1; 01 §12 | E2E | 2 |
 | BOT-B6 | Should | implemented | 06 §9 | Integration | 0 |
 | BOT-B7 | Must | fully tested | 06 §7; 05 §4.1 | E2E | 1 |
 | EDT-1 | Must | fully tested | 01 §4.2; 04 §2.1 | Integration | 2 |
@@ -161,7 +161,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | ID | Pri | State | Implemented in | Verified by | Tests citing it |
 |---|---|---|---|---|---|
 | MX-1 | Must | fully tested | 06 §4 | E2E | 1 |
-| MX-2 | Must | fully tested | 06 §4 | E2E | 2 |
+| MX-2 | Must | fully tested | 06 §4 | E2E | 1 |
 | MX-3 | Must | fully tested | 06 §2, §8 | E2E | 3 |
 | MX-4 | Must | fully tested | 06 §5 | Unit, E2E | 2 |
 | MX-5 | Must | fully tested | 06 §5 | Unit, E2E | 3 |
@@ -173,7 +173,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | MX-11 | Could | unimplemented | deferred (Could) | - | 0 |
 | MX-12 | Should | fully tested | 06 §7; 05 §5.3 | E2E | 1 |
 | MX-13 | Should | fully tested | 06 §7 | E2E | 1 |
-| MX-N1 | Must | fully tested | 06 §1, §2, §8 | E2E | 3 |
+| MX-N1 | Must | fully tested | 06 §1, §2, §8 | E2E | 2 |
 | MX-N2 | Must | fully tested | 06 §2 | E2E | 1 |
 | MX-N3 | Must | implemented | 06 §10 (Synapse is the reference server) | E2E | 0 |
 
@@ -307,7 +307,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-BASE-1 | Must | fully tested | 03 §3 | Unit | 1 |
 | SEC-BASE-2 | Must | fully tested | 03 §2, §5.2, §6 | Unit | 1 |
 | SEC-BASE-3 | Must | fully tested | 08 §1 | CI check | 1 |
-| SEC-BASE-4 | Should | fully tested | 08 §3 (key ids, credential rotation) | Review | 1 |
+| SEC-BASE-4 | Should | implemented | 08 §3 (key ids, credential rotation) | Review | 1 |
 | SEC-BASE-5 | Must | fully tested | 08 §3 | Review | 2 |
 | SEC-BOT-1 | Must | fully tested | 03 §5.1; README §2 | Authz matrix | 4 |
 | SEC-BOT-2 | Must | fully tested | 03 §5.1; README §2 | Authz matrix | 1 |
@@ -350,7 +350,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-ISO-9 | Must | fully tested | 01 §6.3 | Integration | 1 |
 | SEC-ISO-10 | Should | fully tested | README §3 (RLS) | Integration | 1 |
 | SEC-MX-1 | Must | fully tested | 06 §4 | E2E | 2 |
-| SEC-MX-2 | Must | fully tested | 06 §7 | E2E | 2 |
+| SEC-MX-2 | Must | fully tested | 06 §7 | E2E | 1 |
 | SEC-MX-3 | Must | fully tested | 06 §8; 06 §1 | Integration (log scan) | 1 |
 | SEC-MX-4 | Must | fully tested | 06 §2 | E2E | 1 |
 | SEC-MX-5 | Must | fully tested | 06 §8 | Review | 1 |
@@ -359,7 +359,7 @@ Requirements: 329 (248 Must, 63 Should, 10 Could, 8 without priority). Deferred 
 | SEC-OPS-2 | Must | fully tested | 08 §2, §1 | CI check | 1 |
 | SEC-OPS-3 | Must | fully tested | 08 §2, §1 | CI check | 1 |
 | SEC-OPS-4 | Must | fully tested | README §2; 08 §1 | CI check | 2 |
-| SEC-OPS-5 | Must | fully tested | 01 §12 | Integration | 4 |
+| SEC-OPS-5 | Must | fully tested | 01 §12 | Integration | 3 |
 | SEC-OPS-6 | Must | implemented | 08 §6 | CI check | 1 |
 | SEC-OPS-7 | Must | fully tested | 08 §2 | CI check | 2 |
 | SEC-OPS-8 | Should | fully tested | 08 §2, §1 | CI check | 1 |

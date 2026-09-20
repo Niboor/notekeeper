@@ -206,18 +206,6 @@ func (q *Queries) PurgeChanges(ctx context.Context, arg PurgeChangesParams) (int
 	return result.RowsAffected(), nil
 }
 
-const purgeIdempotency = `-- name: PurgeIdempotency :execrows
-delete from idempotency_keys where created_at < $1
-`
-
-func (q *Queries) PurgeIdempotency(ctx context.Context, createdAt time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, purgeIdempotency, createdAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const purgeIngestEvents = `-- name: PurgeIngestEvents :execrows
 delete from ingest_events where received_at < $1
 `

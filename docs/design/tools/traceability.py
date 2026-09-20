@@ -340,17 +340,42 @@ def test_files():
                 yield f
 
 
+DECLARATION = re.compile(r"^\s*(?:func Test\w+|(?:test|it|describe)(?:\.\w+)?\(|t\.Run\()")
+COMMENT = re.compile(r"^\s*(?://|#|\*|/\*)")
+
+
 def citations(ids):
-    """requirement id -> number of test files that mention it (in a comment, name or message)."""
+    """requirement id -> number of test files that cite it where it counts: in a test's name or title, in the
+    comment block directly above it, or inside its body (comments and assertion messages). An ID that only
+    appears in a file-level comment or in a helper is not evidence that a test checks it."""
     counts = {i: 0 for i in ids}
     alternation = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
     pattern = re.compile(r"(?<![A-Za-z0-9-])(" + alternation + r")(?![A-Za-z0-9-])")
     for f in test_files():
         try:
-            text = f.read_text()
+            lines = f.read_text().splitlines()
         except (UnicodeDecodeError, OSError):
             continue
-        for i in set(pattern.findall(text)):
+        found = set()
+        block = []
+        in_test = False
+        for line in lines:
+            if line.startswith("func "):  # a Go function: inside a test only when it is one
+                in_test = line.startswith("func Test")
+            elif not line.startswith(("\t", " ", "}", ")", "//", "#", "/*", "*")) and line.strip():
+                in_test = in_test and f.suffix in (".ts", ".tsx")
+            if COMMENT.match(line):
+                block.append(line)
+                if in_test:
+                    found.update(pattern.findall(line))
+                continue
+            if DECLARATION.match(line):
+                in_test = in_test or not line.lstrip().startswith("func ")
+                found.update(pattern.findall("\n".join(block + [line])))
+            elif in_test:
+                found.update(pattern.findall(line))  # assertions and their messages inside a test
+            block = []
+        for i in found:
             counts[i] += 1
     return counts
 
