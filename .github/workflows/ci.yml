@@ -48,3 +48,36 @@ jobs:
       # generation drift, traceability, secret scan and vulnerability scans.
       - name: make check
         run: make check
+
+  e2e:
+    name: make test-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            core/go.sum
+            bots/matrix/go.sum
+            bots/sdk/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install web dependencies
+        run: make web-install
+
+      # Browsers and their system libraries; the tests then drive the built web app and a real Core.
+      - name: Install Playwright browser
+        run: cd e2e && npm ci && npx playwright install --with-deps chromium
+
+      - name: Browser end-to-end tests
+        run: e2e/run.sh
