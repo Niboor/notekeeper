@@ -3,7 +3,7 @@
 // without a browser. The mutation hooks apply them with `setQueryData` before the server answers
 // and roll back when it refuses.
 import type { InfiniteData } from '@tanstack/react-query'
-import { INBOX, type Board, type Note, type NotePage } from './types'
+import { INBOX, type Board, type BoardCategory, type Note, type NotePage } from './types'
 
 export type InboxData = InfiniteData<NotePage, string | undefined>
 
@@ -89,6 +89,26 @@ export function replaceOnBoard(board: Board, note: Note): Board {
 export function replaceInInbox(data: InboxData | undefined, note: Note): InboxData | undefined {
   if (!data) return data
   return { ...data, pages: data.pages.map((p) => ({ ...p, items: p.items.map((n) => (n.id === note.id ? note : n)) })) }
+}
+
+// ---- columns ---------------------------------------------------------------------------------
+
+/** Removes a column (with its notes) from a board. */
+export function removeColumn(board: Board, id: string): Board {
+  if (!board.categories.some((c) => c.category.id === id)) return board
+  return { ...board, categories: board.categories.filter((c) => c.category.id !== id) }
+}
+
+/** Puts a column at an index (clamped) among the others of a board, whether it was on the board or not. */
+export function placeColumn(board: Board, column: BoardCategory, index: number): Board {
+  const others = board.categories.filter((c) => c.category.id !== column.category.id)
+  others.splice(Math.max(0, Math.min(index, others.length)), 0, { ...column, category: { ...column.category, page_id: board.page.id } })
+  return { ...board, categories: others }
+}
+
+/** Finds a column on a board. */
+export function findColumn(board: Board, id: string): BoardCategory | undefined {
+  return board.categories.find((c) => c.category.id === id)
 }
 
 /** Neighbours of an index within a list of ids: the note it should follow and the one it should precede. */

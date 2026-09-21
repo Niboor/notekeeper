@@ -159,3 +159,15 @@ button.file { font: inherit; cursor: pointer; text-align: left; }
 
 .history-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .history-text { white-space: pre-wrap; word-break: break-word; margin: 4px 0; font-family: var(--font-note); background: var(--field); padding: 6px 8px; border-radius: var(--radius-sm); }
+
+/* ---- moving columns ---- */
+.lane { position: relative; }
+.lane-grip { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.lane-grip.can-drag { cursor: grab; }
+.lane.is-column-dragged { opacity: .4; }
+/* where a dragged column would land: a bar in the gap before or after the column it is over */
+.lane.col-drop-before::before, .lane.col-drop-after::after { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; border-radius: 2px; background: var(--accent); z-index: 2; }
+.lane.col-drop-before::before { left: -12px; }
+.lane.col-drop-after::after { right: -12px; }
+.column-preview { width: var(--lane-w, 292px); padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-lift); font-family: var(--font-note); font-size: 16px; cursor: grabbing; }
+.column-preview .count { font-family: var(--font-meta); font-size: 12px; color: var(--muted); }

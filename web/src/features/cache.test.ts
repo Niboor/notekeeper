@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findOnBoard, insertIntoBoard, insertIntoInbox, neighbours, removeFromBoard, removeFromInbox, replaceOnBoard, type InboxData } from './cache'
+import { findColumn, findOnBoard, insertIntoBoard, placeColumn, removeColumn, insertIntoInbox, neighbours, removeFromBoard, removeFromInbox, replaceOnBoard, type InboxData } from './cache'
 import type { Board, Note } from './types'
 
 const note = (id: string, created = '2026-01-01T00:00:00Z', text = id): Note => ({
@@ -78,5 +78,43 @@ describe('inbox order with timestamps of different precision (CR-056)', () => {
     const data = inbox(note('half', '2026-05-01T10:00:00.5Z'), note('whole', '2026-05-01T10:00:00Z'))
     const out = insertIntoInbox(data, note('new', '2026-05-01T10:00:00.250Z'))!
     expect(out.pages[0]!.items.map((n) => n.id)).toEqual(['half', 'new', 'whole'])
+  })
+})
+
+describe('column helpers', () => {
+  const ids = (b: Board) => b.categories.map((c) => c.category.id)
+  const three = (): Board => ({
+    ...board(),
+    categories: [...board().categories, { category: { id: 'c', page_id: 'p', name: 'C', version: 1 }, notes: [], total: 0 }],
+  })
+
+  it('reorders a column on its own page', () => {
+    const b = three()
+    expect(ids(placeColumn(b, findColumn(b, 'a')!, 2))).toEqual(['b', 'c', 'a'])
+    expect(ids(placeColumn(b, findColumn(b, 'c')!, 0))).toEqual(['c', 'a', 'b'])
+    expect(ids(placeColumn(b, findColumn(b, 'b')!, 1))).toEqual(['a', 'b', 'c'])
+  })
+
+  it('clamps the index', () => {
+    const b = three()
+    expect(ids(placeColumn(b, findColumn(b, 'a')!, 99))).toEqual(['b', 'c', 'a'])
+    expect(ids(placeColumn(b, findColumn(b, 'c')!, -3))).toEqual(['c', 'a', 'b'])
+  })
+
+  it('takes a column, with its notes, off one board and onto another, which becomes its page', () => {
+    const source = three()
+    const target: Board = { page: { id: 'q', name: 'Q', version: 1 }, inbox_total: 2, categories: [] }
+    const column = findColumn(source, 'a')!
+    expect(ids(removeColumn(source, 'a'))).toEqual(['b', 'c'])
+    const placed = placeColumn(target, column, 0)
+    expect(ids(placed)).toEqual(['a'])
+    expect(placed.categories[0]!.category.page_id).toBe('q')
+    expect(placed.categories[0]!.notes.map((n) => n.id)).toEqual(['n1', 'n2'])
+  })
+
+  it('leaves the board alone when the column is not on it', () => {
+    const b = three()
+    expect(removeColumn(b, 'zzz')).toBe(b)
+    expect(findColumn(b, 'zzz')).toBeUndefined()
   })
 })
