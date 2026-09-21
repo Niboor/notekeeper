@@ -1,4 +1,4 @@
-import { useDroppable } from '@dnd-kit/core'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
@@ -9,7 +9,7 @@ import { t, tn } from '../../i18n'
 import { Composer } from '../notes/Composer'
 import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
-import { laneDropId } from './dnd'
+import { colDragId, colZoneId, laneDropId } from './dnd'
 
 function SortableNote({ note, laneId, lifted, onKeyDown, siblings }: { note: Note; laneId: string; lifted: boolean; onKeyDown?: (e: React.KeyboardEvent, n: Note) => void; siblings: Note[] }) {
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
@@ -52,18 +52,33 @@ interface Props {
   onShowMore?: () => void
   onRename?: (name: string) => void
   onDelete?: () => void
+  /** What the column's menu offers for moving it: a step left or right (absent at the ends) and the other pages. */
+  columnMoves?: { left?: () => void; right?: () => void; pages: { id: string; name: string }[]; toPage: (page: string) => void }
+  /** While a column is dragged over this one: on which side of it the dragged column would land. */
+  dropSide?: 'before' | 'after'
+  /** This column is the one being dragged. */
+  columnDragged?: boolean
 }
 
 /** One column: the Inbox or a category. Notes are draggable; an empty lane still accepts drops. */
-export function Lane({ id, name, notes, total, current, liftedId, onNoteKeyDown, composerOpen, onOpenComposer, onCloseComposer, hasMore, onShowMore, onRename, onDelete }: Props) {
+export function Lane({
+  id, name, notes, total, current, liftedId, onNoteKeyDown, composerOpen, onOpenComposer, onCloseComposer, hasMore, onShowMore, onRename, onDelete, columnMoves, dropSide, columnDragged,
+}: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: laneDropId(id) })
   const [renaming, setRenaming] = useState(false)
   const isInbox = id === INBOX
+  // A column is dragged by its title (the Inbox stays where it is) and is dropped before or after another column.
+  const grip = useDraggable({ id: colDragId(id), disabled: isInbox || renaming })
+  const zone = useDroppable({ id: colZoneId(id), disabled: isInbox })
 
   return (
     <section
-      ref={setNodeRef}
-      className={`lane${isInbox ? ' inbox' : ''}${current ? ' is-current' : ''}${isOver ? ' is-drop-target' : ''}`}
+      ref={(el) => {
+        setNodeRef(el)
+        zone.setNodeRef(el)
+        grip.setNodeRef(el)
+      }}
+      className={`lane${isInbox ? ' inbox' : ''}${current ? ' is-current' : ''}${isOver ? ' is-drop-target' : ''}${columnDragged ? ' is-column-dragged' : ''}${dropSide ? ` col-drop-${dropSide}` : ''}`}
       data-lane={id}
       aria-label={name}
     >
@@ -71,20 +86,30 @@ export function Lane({ id, name, notes, total, current, liftedId, onNoteKeyDown,
         {renaming ? (
           <InlineName initial={name} placeholder={t('lane.columnPlaceholder')} onCancel={() => setRenaming(false)} onSubmit={(n) => (onRename?.(n), setRenaming(false))} />
         ) : (
-          <h2>
-            {isInbox && <Icon name="inbox" />}
-            {name}
-          </h2>
+          <div className={`lane-grip${isInbox ? '' : ' can-drag'}`} ref={isInbox ? undefined : grip.setActivatorNodeRef} {...(isInbox ? {} : grip.listeners)}>
+            <h2>
+              {isInbox && <Icon name="inbox" />}
+              {name}
+            </h2>
+            <span className="count" aria-label={tn('lane.count', total)}>
+              {total}
+            </span>
+          </div>
         )}
-        <span className="count" aria-label={tn('lane.count', total)}>
-          {total}
-        </span>
         {!isInbox && !renaming && (
           <Menu
             label={`${name}: ${t('nav.moreForPage')}`}
             className="lane-menu"
             items={[
               { label: t('lane.rename'), onSelect: () => setRenaming(true) },
+              ...(columnMoves?.left ? [{ label: t('lane.moveLeft'), onSelect: columnMoves.left }] : []),
+              ...(columnMoves?.right ? [{ label: t('lane.moveRight'), onSelect: columnMoves.right }] : []),
+              ...(columnMoves && columnMoves.pages.length > 0
+                ? [
+                    { label: t('lane.moveToPage'), heading: true, onSelect: () => {} },
+                    ...columnMoves.pages.map((p) => ({ label: p.name, onSelect: () => columnMoves.toPage(p.id) })),
+                  ]
+                : []),
               { label: t('lane.delete'), danger: true, onSelect: () => onDelete?.() },
             ]}
           >

@@ -5,10 +5,10 @@ import { CLIENT_HEADER, refreshSession } from '../api/session'
 import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import {
-  insertIntoBoard, insertIntoInbox, removeFromBoard, removeFromInbox, replaceInInbox, replaceOnBoard, withInboxTotal,
+  findColumn, insertIntoBoard, insertIntoInbox, placeColumn, removeColumn, removeFromBoard, removeFromInbox, replaceInInbox, replaceOnBoard, withInboxTotal,
   type InboxData,
 } from './cache'
-import type { Board, Note } from './types'
+import type { Board, BoardCategory, Note } from './types'
 
 // ---- queries --------------------------------------------------------------------------------
 
@@ -208,6 +208,59 @@ export function useMoveNote() {
       ),
     apply: applyMove,
   })
+}
+
+// ---- moving columns --------------------------------------------------------------------------
+
+export interface MoveColumnVars {
+  categoryId: string
+  name: string
+  fromPage: string
+  toPage: string
+  /** The name of the page it goes to, for the message. */
+  toPageName?: string
+  /** Where among the other columns of the target page it lands, for the optimistic view. */
+  index: number
+  afterId?: string | null
+  beforeId?: string | null
+  /** How to put it back, offered as Undo after a move to another page. */
+  undo?: MoveColumnVars
+}
+
+function applyColumnMove(qc: QueryClient, v: MoveColumnVars) {
+  let column: BoardCategory | undefined
+  for (const [, data] of qc.getQueriesData<Board>(boardsOnly)) column ??= data && findColumn(data, v.categoryId)
+  if (!column) return
+  const moving = column
+  mapBoards(qc, (b) => {
+    if (b.page.id === v.toPage) return placeColumn(b, moving, v.index)
+    if (b.page.id === v.fromPage) return removeColumn(b, v.categoryId)
+    return b
+  })
+}
+
+/** Moves a column within its page or to another page, at once on screen (WEB-22, CORE-P2, CORE-P3). */
+export function useMoveColumn() {
+  const { toast } = useToast()
+  const move = useOptimistic<MoveColumnVars, unknown>({
+    mutationFn: async (v) =>
+      unwrap(
+        await api.PATCH('/api/v1/categories/{id}', {
+          params: { path: { id: v.categoryId } },
+          body: { ...(v.toPage !== v.fromPage ? { page_id: v.toPage } : {}), after_id: v.afterId ?? null, before_id: v.beforeId ?? null },
+        }),
+      ),
+    apply: applyColumnMove,
+    onSuccess: (_d, v) => {
+      if (v.toPage === v.fromPage || !v.undo) return
+      const undo = v.undo
+      toast({
+        message: t('toast.columnMoved', { name: v.name, page: v.toPageName ?? '' }),
+        action: { label: t('toast.undo'), onClick: () => move.mutate(undo) },
+      })
+    },
+  })
+  return move
 }
 
 // ---- dismiss, restore, delete ---------------------------------------------------------------

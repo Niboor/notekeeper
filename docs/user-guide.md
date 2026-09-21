@@ -47,6 +47,9 @@ If that is not acceptable for something, do not send it to the bot.
 * **Pages** are boards, each with **columns** (categories). The **Inbox** is where new notes land; drag a note
   into a column, or use the **⋯** menu → *Move to*, which also works on a phone. With the keyboard: focus a note,
   press **Space**, move with the arrow keys, **Space** to drop, **Escape** to cancel.
+* Drag a column by its title to put it elsewhere on the page, or onto another page's tab to move it there (hold it
+  over the tab to open that page and drop it between its columns). The column's **⋯** menu does the same with
+  *Move left*, *Move right* and *Move to page*.
 * **✕** dismisses a note into the **Trash** with an *Undo*; from the Trash you can restore it or delete it for good.
 * Tick checklist items right on the card. Edit a note from its menu. **Merge** two notes, or **split** a part
   out, to repair how the bot grouped things.

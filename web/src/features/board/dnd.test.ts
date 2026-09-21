@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { announceMoved, findLane, insertIndex, isUnchanged, keyboardStep, moveAcross, placementOf, rebase, reorder } from './dnd'
+import {
+  announceMoved, colDragId, colOf, colZoneId, columnDrop, columnPlace, columnUnchanged, findLane, insertIndex, isColDrag, isColZone, isLaneDrop, isUnchanged, keyboardStep, moveAcross,
+  placementOf, rebase, reorder, withoutColumn,
+} from './dnd'
 
 const arr = () => ({ inbox: ['i1', 'i2'], todo: ['a', 'b', 'c'], done: [] as string[] })
 
@@ -72,5 +75,38 @@ describe('drag arrangement', () => {
   it('announces positions in words a screen reader can use', () => {
     expect(announceMoved('over', 'This week', 2, 4)).toBe('Moved to This week, position 3 of 4.')
     expect(announceMoved('drop', 'Done', 0, 1)).toBe('Dropped in Done, position 1 of 1.')
+  })
+})
+
+describe('column drops', () => {
+  const order = ['a', 'b', 'c', 'd']
+  const others = withoutColumn(order, 'b') // a c d
+
+  it('lands before or after the column it is over', () => {
+    expect(columnDrop(others, 'c', false)).toEqual({ index: 1, afterId: 'a', beforeId: 'c' })
+    expect(columnDrop(others, 'c', true)).toEqual({ index: 2, afterId: 'c', beforeId: 'd' })
+    expect(columnDrop(others, 'a', false)).toEqual({ index: 0, afterId: null, beforeId: 'a' })
+    expect(columnDrop(others, 'd', true)).toEqual({ index: 3, afterId: 'd', beforeId: null })
+  })
+
+  it('goes to the end when what it is over is not among the columns, and clamps places', () => {
+    expect(columnDrop(others, 'zzz', false)).toEqual({ index: 3, afterId: 'd', beforeId: null })
+    expect(columnPlace(others, 99).index).toBe(3)
+    expect(columnPlace([], 0)).toEqual({ index: 0, afterId: null, beforeId: null })
+  })
+
+  it('knows a drop that changes nothing', () => {
+    expect(columnUnchanged('p', 1, 'p', columnDrop(others, 'c', false))).toBe(true) // back where b was
+    expect(columnUnchanged('p', 1, 'p', columnDrop(others, 'c', true))).toBe(false)
+    expect(columnUnchanged('p', 1, 'q', columnDrop(others, 'c', false))).toBe(false) // another page is always a move
+  })
+
+  it('tells the kinds of ids apart', () => {
+    expect(isColDrag(colDragId('x'))).toBe(true)
+    expect(isColDrag(colZoneId('x'))).toBe(false)
+    expect(isColZone(colZoneId('x'))).toBe(true)
+    expect(isLaneDrop(colZoneId('x'))).toBe(false)
+    expect(colOf(colDragId('x'))).toBe('x')
+    expect(colOf(colZoneId('x'))).toBe('x')
   })
 })

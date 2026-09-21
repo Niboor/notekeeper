@@ -108,3 +108,39 @@ export function announceMoved(kind: 'over' | 'drop', laneName: string, index: nu
 }
 
 export const laneTitle = (lane: string, names: Record<string, string>) => (lane === INBOX ? t('inbox.title') : (names[lane] ?? ''))
+
+// ---- columns ------------------------------------------------------------------------------------
+
+/** A column is dragged by its header; it can be dropped on another column (before or after it) or on a page tab. */
+export const colDragId = (column: string) => `col:${column}`
+export const colZoneId = (column: string) => `colzone:${column}`
+export const isColDrag = (id: string) => id.startsWith('col:')
+export const isColZone = (id: string) => id.startsWith('colzone:')
+export const colOf = (id: string) => id.slice(id.indexOf(':') + 1)
+
+export interface ColumnDrop {
+  /** The index among the columns of the page it lands on, not counting the moved column itself. */
+  index: number
+  afterId: string | null
+  beforeId: string | null
+}
+
+/** The place at the insertion index `index` among `others` (the columns of the page, without the moved one). */
+export function columnPlace(others: readonly string[], index: number): ColumnDrop {
+  const i = Math.max(0, Math.min(index, others.length))
+  return { index: i, afterId: others[i - 1] ?? null, beforeId: others[i] ?? null }
+}
+
+/** Where a column dropped on the left half (`after` false) or right half of the column `over` lands. */
+export function columnDrop(others: readonly string[], over: string, after: boolean): ColumnDrop {
+  const i = others.indexOf(over)
+  return columnPlace(others, i < 0 ? others.length : i + (after ? 1 : 0))
+}
+
+/** The column ids of a page in display order, without `column`. */
+export const withoutColumn = (order: readonly string[], column: string) => order.filter((id) => id !== column)
+
+/** True when a drop puts the column where it already is. */
+export function columnUnchanged(originPage: string, originIndex: number, page: string, drop: ColumnDrop): boolean {
+  return originPage === page && originIndex === drop.index
+}
