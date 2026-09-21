@@ -143,7 +143,9 @@ button.file { font: inherit; cursor: pointer; text-align: left; }
 .reminder-chip.fired { opacity: .75; }
 .check { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
 .remind-custom { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.remind-custom input[type=datetime-local] { grid-column: 1 / -1; }
+.remind-custom .when { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.remind-custom .when input[type=date] { flex: 1 1 160px; min-width: 0; }
+.remind-custom .time { display: flex; align-items: center; gap: 4px; }
 .remind-custom .repeat { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .remind-custom .repeat select { flex: 1; min-width: 0; }
 
