@@ -8,6 +8,9 @@ import {
   at, inMinutes, isPast, quickOptions, repeatWord, toLocalInput, useCompleteReminder, useCreateReminder, useDeleteReminder, useSnoozeReminder, type Reminder,
 } from './hooks'
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+
 const RULES = { none: undefined, daily: 'FREQ=DAILY', weekly: 'FREQ=WEEKLY', monthly: 'FREQ=MONTHLY' } as const
 
 function status(r: Reminder): string {
@@ -32,7 +35,11 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
   const complete = useCompleteReminder()
   const clear = useDeleteReminder()
   const ref = useRef<HTMLDialogElement>(null)
-  const [custom, setCustom] = useState(() => toLocalInput(at(9, 1)))
+  // A custom time is a date and a time of day, chosen apart: emptying the date field keeps the time.
+  const [start] = useState(() => toLocalInput(at(9, 1)))
+  const [day, setDay] = useState(start.slice(0, 10))
+  const [hour, setHour] = useState(start.slice(11, 13))
+  const [minute, setMinute] = useState(start.slice(14, 16))
   const [repeat, setRepeat] = useState<keyof typeof RULES>('none')
   const [error, setError] = useState<string | null>(null)
 
@@ -119,7 +126,22 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
       </div>
       <h3>{t('remind.custom')}</h3>
       <div className="remind-custom">
-        <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} aria-label={t('remind.custom')} />
+        <div className="when" role="group" aria-label={t('remind.custom')}>
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={t('remind.date')} />
+          <span className="time">
+            <select value={hour} onChange={(e) => setHour(e.target.value)} aria-label={t('remind.hour')}>
+              {HOURS.map((h) => (
+                <option key={h}>{h}</option>
+              ))}
+            </select>
+            <span aria-hidden="true">:</span>
+            <select value={minute} onChange={(e) => setMinute(e.target.value)} aria-label={t('remind.minute')}>
+              {MINUTES.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          </span>
+        </div>
         <div className="repeat">
           <label htmlFor="remind-repeat" className="sub">
             {t('remind.repeat')}
@@ -132,7 +154,7 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
             ))}
           </select>
         </div>
-        <button className="btn primary" onClick={() => add(new Date(custom))} disabled={!custom}>
+        <button className="btn primary" onClick={() => add(new Date(`${day}T${hour}:${minute}`))} disabled={!day}>
           {t('remind.set')}
         </button>
       </div>

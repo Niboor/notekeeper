@@ -70,12 +70,55 @@ describe('ReminderDialog', () => {
     vi.stubGlobal('fetch', f)
     renderApp(<ReminderDialog note={note()} onClose={() => undefined} />)
     const user = userEvent.setup()
-    const field = screen.getByLabelText('Or pick a time')
-    await user.clear(field)
-    await user.type(field, '2020-01-01T09:00')
+    const day = screen.getByLabelText('Date')
+    await user.clear(day)
+    await user.type(day, '2020-01-01')
     await user.click(screen.getByRole('button', { name: 'Set reminder' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('future')
     expect(f.calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+  })
+
+  // WEB-18: the date and the time of a custom reminder are chosen separately, to the minute.
+  it('sets a reminder at the date, hour and minute that were picked', async () => {
+    const bodies: unknown[] = []
+    vi.stubGlobal(
+      'fetch',
+      fakeFetch([
+        {
+          method: 'POST',
+          path: '/api/v1/notes/n1/reminders',
+          status: 201,
+          handler: async (req) => {
+            bodies.push(await req.json())
+            return { id: 'r1', note_id: 'n1', due_at: '2030-01-01T09:00:00Z', tz: 'UTC', state: 'pending', version: 1 }
+          },
+        },
+      ]),
+    )
+    renderApp(<ReminderDialog note={note()} onClose={() => undefined} />)
+    const user = userEvent.setup()
+    const day = screen.getByLabelText('Date')
+    await user.clear(day)
+    await user.type(day, '2031-07-04')
+    await user.selectOptions(screen.getByLabelText('Hour'), '17')
+    await user.selectOptions(screen.getByLabelText('Minute'), '45')
+    await user.click(screen.getByRole('button', { name: 'Set reminder' }))
+    await vi.waitFor(() => expect(bodies).toHaveLength(1))
+    expect(new Date((bodies[0] as { due_at: string }).due_at)).toEqual(new Date(2031, 6, 4, 17, 45))
+  })
+
+  it('starts on tomorrow at 9:00, and keeps the time when the date changes', async () => {
+    vi.stubGlobal('fetch', fakeFetch([]))
+    renderApp(<ReminderDialog note={note()} onClose={() => undefined} />)
+    const user = userEvent.setup()
+    expect(screen.getByLabelText('Date')).toHaveValue(toLocalInput(at(9, 1)).slice(0, 10))
+    expect(screen.getByLabelText('Hour')).toHaveValue('09')
+    expect(screen.getByLabelText('Minute')).toHaveValue('00')
+    await user.selectOptions(screen.getByLabelText('Hour'), '14')
+    const day = screen.getByLabelText('Date')
+    await user.clear(day)
+    await user.type(day, '2031-07-04')
+    expect(screen.getByLabelText('Hour')).toHaveValue('14')
   })
 
   it('lists existing reminders with snooze, done and clear', async () => {
