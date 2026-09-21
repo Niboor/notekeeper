@@ -60,6 +60,7 @@ const menu = async (name: string) => {
   return screen.getByRole('menu')
 }
 
+// WEB-22, WEB-5: moving columns through the menu.
 describe('moving columns through the menu', () => {
   it('offers only the moves that are possible', async () => {
     vi.stubGlobal('fetch', server())

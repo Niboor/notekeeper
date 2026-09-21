@@ -36,8 +36,8 @@ Requirements: 330 (248 Must, 64 Should, 10 Could, 8 without priority). Deferred 
 | CORE-N17 | Should | fully tested | 07 §5; 01 §4.2 (history coalescing) | Unit, E2E | 4 |
 | CORE-N18 | Must | fully tested | 04 §2.1; 01 §4.1 | Unit, Integration | 3 |
 | CORE-P1 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
-| CORE-P2 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
-| CORE-P3 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 1 |
+| CORE-P2 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 2 |
+| CORE-P3 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 2 |
 | CORE-P4 | Must | fully tested | 01 §4.1 (FK set null); 02 §1.2 | Integration | 1 |
 | CORE-P5 | Must | fully tested | 02 §1.2; 01 §4.1 | Integration, E2E | 2 |
 | CORE-P6 | Could | implemented | 01 §4.1 (`pages.archived_at`) | Integration | 0 |
@@ -185,7 +185,7 @@ Requirements: 330 (248 Must, 64 Should, 10 Could, 8 without priority). Deferred 
 | WEB-2 | Must | fully tested | 07 §2 | E2E | 1 |
 | WEB-3 | Must | fully tested | 07 §4, §6 | E2E | 1 |
 | WEB-4 | Must | fully tested | 07 §6; 02 §1.2 | E2E | 1 |
-| WEB-5 | Must | fully tested | 07 §4, §6 | E2E | 3 |
+| WEB-5 | Must | fully tested | 07 §4, §6 | E2E | 5 |
 | WEB-6 | Must | fully tested | 07 §4 | E2E | 2 |
 | WEB-7 | Must | fully tested | 07 §4 | E2E | 1 |
 | WEB-8 | Must | fully tested | 07 §2, §5 | Unit, E2E | 2 |
@@ -202,7 +202,7 @@ Requirements: 330 (248 Must, 64 Should, 10 Could, 8 without priority). Deferred 
 | WEB-19 | Must | fully tested | 02 §1.6; 07 §1 | E2E | 1 |
 | WEB-20 | Should | fully tested | 07 §5 | E2E | 1 |
 | WEB-21 | Must | fully tested | 02 §1.4; 03 §6 | E2E | 2 |
-| WEB-22 | Should | fully tested | **MISSING** | - | 0 |
+| WEB-22 | Should | fully tested | 07 §2, §11; 02 §1.2 | Unit, E2E | 2 |
 | WEB-N1 | Must | fully tested | 07 §2 | E2E | 2 |
 | WEB-N2 | Must | fully tested | 02 §1; 07 §1 | Review | 1 |
 | WEB-N3 | Must | fully tested | 07 §9; 02 §1.2 (board endpoint) | E2E | 1 |

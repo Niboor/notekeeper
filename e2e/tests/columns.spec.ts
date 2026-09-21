@@ -32,6 +32,7 @@ async function inColumn(page: Page, name: string, side: 'left' | 'right') {
   return { x: b.x + (side === 'left' ? b.width * 0.2 : b.width * 0.8), y: b.y + 120 }
 }
 
+// WEB-22, CORE-P2: dragging by the title, before or after another column.
 test('drag a column to another place on its page @cross', async ({ page }) => {
   const fx = await openFreshBoard(page, ['A', 'B', 'C'])
   await createNote(page, 'note in A', fx.columns.A)
@@ -128,6 +129,7 @@ test('a column can be dropped on a page that has none', async ({ page }) => {
   await expect.poll(() => serverOrder(page, fx.pageId)).toEqual(['A'])
 })
 
+// WEB-22, WEB-5, CORE-P3: the non-drag way.
 test('the column menu moves a column left and right, and to another page @cross', async ({ page }) => {
   const fx = await openFreshBoard(page, ['A', 'B', 'C'])
   const name = unique('Elsewhere')
