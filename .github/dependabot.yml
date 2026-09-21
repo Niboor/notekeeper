@@ -14,10 +14,24 @@ updates:
     groups:
       go-modules: {patterns: ['*'], update-types: [minor, patch]}
   - package-ecosystem: npm
-    directories: [/web, /e2e]
+    directory: /web
+    schedule: {interval: weekly}
+    groups:
+      npm-packages: {patterns: ['*'], update-types: [minor, patch]}
+    ignore:
+      # openapi-typescript accepts only TypeScript 5 and typescript-eslint only versions below 6.1, so the web
+      # app stays on 5.9 until both move (docs/tech-stack.md section 11). The e2e package has no such tie.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+  - package-ecosystem: npm
+    directory: /e2e
     schedule: {interval: weekly}
     groups:
       npm-packages: {patterns: ['*'], update-types: [minor, patch]}
   - package-ecosystem: docker
     directory: /deploy/docker
     schedule: {interval: weekly}
+    ignore:
+      # Odd Node versions are short-lived and never become LTS; the images follow the even ones.
+      - dependency-name: node
+        versions: ['25.*', '27.*', '29.*']
