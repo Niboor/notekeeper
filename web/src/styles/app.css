@@ -171,3 +171,12 @@ button.file { font: inherit; cursor: pointer; text-align: left; }
 .lane.col-drop-after::after { right: -12px; }
 .column-preview { width: var(--lane-w, 292px); padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-lift); font-family: var(--font-note); font-size: 16px; cursor: grabbing; }
 .column-preview .count { font-family: var(--font-meta); font-size: 12px; color: var(--muted); }
+
+/* ---- moving pages ---- */
+.page { position: relative; }
+.page.is-page-dragged { opacity: .4; }
+/* where a dragged tab would land: a bar at the edge of the tab it is over */
+.page.page-drop-before::before, .page.page-drop-after::after { content: ''; position: absolute; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: var(--accent); }
+.page.page-drop-before::before { left: 0; }
+.page.page-drop-after::after { right: 0; }
+.page-preview { transform: translateY(26px); /* hangs below the tab row, so the bar at the edge of the target tab stays visible */ padding: 5px 14px; border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-lift); cursor: grabbing; white-space: nowrap; }

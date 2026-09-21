@@ -111,6 +111,21 @@ export function findColumn(board: Board, id: string): BoardCategory | undefined 
   return board.categories.find((c) => c.category.id === id)
 }
 
+/**
+ * Puts the item `id` of a list after `afterId`, or else before `beforeId` (the two neighbours the server is told
+ * about), or last when neither is in the list. The other items keep their order.
+ */
+export function placeAfter<T extends { id: string }>(items: readonly T[], id: string, afterId: string | null, beforeId: string | null): T[] {
+  const moving = items.find((i) => i.id === id)
+  if (!moving) return [...items]
+  const rest = items.filter((i) => i.id !== id)
+  const after = afterId ? rest.findIndex((i) => i.id === afterId) : -1
+  const before = beforeId ? rest.findIndex((i) => i.id === beforeId) : -1
+  const at = after >= 0 ? after + 1 : before >= 0 ? before : rest.length
+  rest.splice(at, 0, moving)
+  return rest
+}
+
 /** Neighbours of an index within a list of ids: the note it should follow and the one it should precede. */
 export function neighbours(ids: readonly string[], index: number): { afterId: string | null; beforeId: string | null } {
   return { afterId: ids[index - 1] ?? null, beforeId: ids[index + 1] ?? null }

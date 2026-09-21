@@ -21,7 +21,7 @@ a { color: inherit; }
 .pages { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 /* The tabs scroll sideways without a scrollbar; the edges fade where more of them are hidden. The
    page menu and "new page" sit outside the strip so they are always in reach. */
-.page-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; overflow-anchor: none; /* a tab that grows (the hold-to-open hint) must not scroll the strip from under a dragged note or column */ }
+.page-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .page-tabs::-webkit-scrollbar { display: none; }
 .page-tabs[data-fade-start=true] { mask-image: linear-gradient(to right, transparent, #000 22px); }
 .page-tabs[data-fade-end=true] { mask-image: linear-gradient(to left, transparent, #000 22px); }

@@ -13,12 +13,12 @@ import { InlineName } from '../../components/InlineName'
 import { useToast } from '../../components/Toast'
 import { t, tn } from '../../i18n'
 import { neighbours } from '../cache'
-import { useBoard, useInbox, useMoreNotes, useMoveColumn, useMoveNote, usePages, type MoveColumnVars } from '../hooks'
+import { useBoard, useInbox, useMoreNotes, useMoveColumn, useMoveNote, useMovePage, usePages, type MoveColumnVars } from '../hooks'
 import { NoteCard } from '../notes/NoteCard'
 import { INBOX, type Note } from '../types'
 import {
-  colOf, colZoneId, columnDrop, columnPlace, columnUnchanged, findLane, insertIndex, isColDrag, isColZone, isLaneDrop, isPageDrop, isUnchanged, keyboardStep, laneOf,
-  moveAcross, pageOf, placementOf, rebase, reorder, withoutColumn, type Arrangement, type ColumnDrop,
+  colOf, colZoneId, columnDrop, columnPlace, columnUnchanged, findLane, insertIndex, isColDrag, isColZone, isLaneDrop, isPageDrop, isPageTabDrag, isUnchanged, keyboardStep,
+  laneOf, moveAcross, pageOf, pageTabOf, placementOf, rebase, reorder, withoutColumn, type Arrangement, type ColumnDrop,
 } from './dnd'
 import { Lane } from './Lane'
 import { PageTabs } from './PageTabs'
@@ -52,6 +52,7 @@ export function BoardShell() {
   const inbox = useInbox()
   const move = useMoveNote()
   const moveColumn = useMoveColumn()
+  const movePage = useMovePage()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { toast } = useToast()
@@ -94,6 +95,8 @@ export function BoardShell() {
   const [lift, setLift] = useState<{ note: Note; origin: ReturnType<typeof placementOf>; arrangement: Arrangement } | null>(null)
   const [announcement, setAnnouncement] = useState('')
   // A column being dragged by its title: where it came from and which column it is over, on which side.
+  // A page tab being dragged to another place among the tabs, and over which tab, on which side.
+  const [pageDrag, setPageDrag] = useState<{ id: string; name: string; originIndex: number; target: { over: string; after: boolean } | null } | null>(null)
   const [colDrag, setColDrag] = useState<{ id: string; name: string; total: number; originPage: string; originIndex: number; target: { over: string; after: boolean } | null } | null>(null)
   const arrangement = drag ? rebase(drag.arrangement, served, drag.note.id) : lift ? rebase(lift.arrangement, served, lift.note.id) : served
   const [overPage, setOverPage] = useState<string | null>(null)
@@ -116,6 +119,14 @@ export function BoardShell() {
   const collision: CollisionDetection = useCallback(
     (args) => {
       const pointer = pointerWithin(args)
+      if (isPageTabDrag(String(args.active.id))) {
+        // A tab goes before or after another tab (the nearest one when the pointer is not over any).
+        const tabs = args.droppableContainers.filter((c) => isPageDrop(String(c.id)))
+        const tab = pointer.find((h) => isPageDrop(String(h.id))) ?? closestCenter({ ...args, droppableContainers: tabs })[0]
+        if (!tab) return lastOver.current ? [{ id: lastOver.current }] : []
+        lastOver.current = String(tab.id)
+        return [{ id: tab.id }]
+      }
       if (isColDrag(String(args.active.id))) {
         // A column goes on a page tab, or before or after a column (the nearest one when the pointer is between them).
         const tab = pointer.find((h) => isPageDrop(String(h.id)))
@@ -161,6 +172,7 @@ export function BoardShell() {
   }
 
   // ---- columns: the ids of this page's columns in order, and moving one (by drag or by the menu) ----------
+  const tabIds = useMemo(() => (pages.data ?? []).filter((p) => !p.archived).map((p) => p.id), [pages.data])
   const columnIds = useMemo(() => lanes.filter((l) => l.id !== INBOX).map((l) => l.id), [lanes])
   const pageName = (id: string) => pages.data?.find((p) => p.id === id)?.name ?? ''
   /** Puts a column at a place on a page. `from` says where it was, for the message's Undo. */
@@ -189,6 +201,12 @@ export function BoardShell() {
   }
 
   const onDragStart = (e: DragStartEvent) => {
+    if (isPageTabDrag(String(e.active.id))) {
+      const id = pageTabOf(String(e.active.id))
+      const page = pages.data?.find((p) => p.id === id)
+      if (page) setPageDrag({ id, name: page.name, originIndex: tabIds.indexOf(id), target: null })
+      return
+    }
     if (isColDrag(String(e.active.id))) {
       const id = colOf(String(e.active.id))
       const lane = lanes.find((l) => l.id === id)
@@ -200,6 +218,7 @@ export function BoardShell() {
   }
 
   const onDragOver = (e: DragOverEvent) => {
+    if (pageDrag) return
     if (colDrag) {
       if (!e.over) return
       const overId = String(e.over.id)
@@ -237,15 +256,32 @@ export function BoardShell() {
 
   /** While a column is dragged over another: on which side of it it would land, followed as the pointer moves. */
   const onDragMove = (e: DragMoveEvent) => {
+    if (pageDrag) {
+      const overId = e.over ? String(e.over.id) : ''
+      const next = isPageDrop(overId) && pageOf(overId) !== pageDrag.id ? { over: pageOf(overId), after: isRightHalf(pointerX(e), document.querySelector(`a.page[data-page="${CSS.escape(pageOf(overId))}"]`)) } : null
+      if (pageDrag.target?.over !== next?.over || pageDrag.target?.after !== next?.after) setPageDrag({ ...pageDrag, target: next })
+      return
+    }
     if (!colDrag) return
     const overId = e.over ? String(e.over.id) : ''
-    const next = isColZone(overId) && colOf(overId) !== colDrag.id ? { over: colOf(overId), after: isRightHalf(pointerX(e), colOf(overId)) } : null
+    const next = isColZone(overId) && colOf(overId) !== colDrag.id ? { over: colOf(overId), after: isRightHalf(pointerX(e), columnElement(colOf(overId))) } : null
     if (colDrag.target?.over !== next?.over || colDrag.target?.after !== next?.after) setColDrag({ ...colDrag, target: next })
   }
 
   const onDragEnd = (e: DragEndEvent) => {
     clearHold()
     lastOver.current = null
+    if (pageDrag) {
+      const dragged = pageDrag
+      setPageDrag(null)
+      swallowNextClick()
+      const overId = e.over ? String(e.over.id) : ''
+      if (!isPageDrop(overId) || pageOf(overId) === dragged.id) return
+      const others = withoutColumn(tabIds, dragged.id)
+      const drop = columnDrop(others, pageOf(overId), isRightHalf(pointerX(e), document.querySelector(`a.page[data-page="${CSS.escape(pageOf(overId))}"]`)))
+      if (drop.index !== dragged.originIndex) movePage.mutate({ id: dragged.id, afterId: drop.afterId, beforeId: drop.beforeId })
+      return
+    }
     if (colDrag) {
       const dragged = colDrag
       setColDrag(null)
@@ -258,7 +294,7 @@ export function BoardShell() {
       }
       if (!isColZone(overId) || colOf(overId) === dragged.id) return
       const others = withoutColumn(columnIds, dragged.id)
-      placeColumnOn(dragged, activePageId, columnDrop(others, colOf(overId), isRightHalf(pointerX(e), colOf(overId))))
+      placeColumnOn(dragged, activePageId, columnDrop(others, colOf(overId), isRightHalf(pointerX(e), columnElement(colOf(overId)))))
       return
     }
     if (!drag) return
@@ -281,6 +317,7 @@ export function BoardShell() {
     lastOver.current = null
     setDrag(null)
     setColDrag(null)
+    setPageDrag(null)
   }
   useEffect(() => () => clearTimeout(holdTimer.current), [])
 
@@ -443,8 +480,8 @@ export function BoardShell() {
       onDragMove={onDragMove}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
-      // Auto-scrolling belongs to the board and its columns; the page tabs stay where they are while a note or column is held over one.
-      autoScroll={{ canScroll: (el) => !el.closest('.topbar') }}
+      // Auto-scrolling belongs to the board and its columns; the page tabs stay where they are while a note or column is held over one (only a tab being dragged itself scrolls them).
+      autoScroll={{ canScroll: (el) => !el.closest('.topbar') || (!!pageDrag && !!el.closest('.page-tabs')) }}
       accessibility={{ screenReaderInstructions: { draggable: t('dnd.instructions') } }}
     >
       <div className="sr-only" role="status" aria-live="assertive" aria-atomic="true" data-testid="dnd-announcer">
@@ -454,7 +491,7 @@ export function BoardShell() {
         {t('dnd.instructions')}
       </div>
       <BoardTopbar>
-        <PageTabs currentId={activePageId} overPageId={overPage} />
+        <PageTabs currentId={activePageId} overPageId={overPage} draggedPageId={pageDrag?.id} pageDrop={pageDrag?.target} />
       </BoardTopbar>
       <div className="tabs" role="tablist" aria-label={t('nav.pages')}>
         {lanes.map((l) => (
@@ -492,8 +529,11 @@ export function BoardShell() {
       <button className="fab" aria-label={t('nav.newNote')} onClick={() => setComposerLane(currentMobile)}>
         <Icon name="plus" />
       </button>
-      <DragOverlay>
-        {colDrag ? (
+      {/* The overlay must not catch the pointer: while it animates back into place after a drop it would sit over the next thing to be dragged. */}
+      <DragOverlay style={{ pointerEvents: 'none' }}>
+        {pageDrag ? (
+          <div className="page-preview">{pageDrag.name}</div>
+        ) : colDrag ? (
           <div className="column-preview">
             <strong>{colDrag.name}</strong> <span className="count">{colDrag.total}</span>
           </div>
@@ -521,11 +561,25 @@ function pointerX(e: { activatorEvent: Event; delta: { x: number } }): number {
 }
 
 /**
- * True when the pointer is in the right half of the column (or the end tile) it is over. The column is measured
- * now, not when the drag began: the board scrolls sideways during a drag, and a rect taken at the start is then stale.
+ * Cancels the click that some browsers (Firefox) deliver to the tab a drag started on, right after the drop. The drag
+ * library stops such a click from reaching the page's handlers but not from following the link, which would load
+ * the page from scratch and abandon the request that moves the tab.
  */
-function isRightHalf(pointer: number, column: string): boolean {
-  const el = document.querySelector(column === END_ZONE ? '.add-lane' : `section[data-lane="${CSS.escape(column)}"]`)
+function swallowNextClick() {
+  const cancel = (e: Event) => e.preventDefault()
+  window.addEventListener('click', cancel, { capture: true, once: true })
+  setTimeout(() => window.removeEventListener('click', cancel, { capture: true }), 250)
+}
+
+/** The column's section, or the tile after the last column. */
+const columnElement = (column: string) => document.querySelector(column === END_ZONE ? '.add-lane' : `section[data-lane="${CSS.escape(column)}"]`)
+
+/**
+ * True when the pointer is in the right half of the element (a column, the end tile or a page tab) it is over. The
+ * element is measured now, not when the drag began: the board and the tab strip scroll sideways during a drag, and
+ * a rect taken at the start is then stale.
+ */
+function isRightHalf(pointer: number, el: Element | null): boolean {
   const box = el?.getBoundingClientRect()
   return !!box && pointer > box.left + box.width / 2
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findColumn, findOnBoard, insertIntoBoard, placeColumn, removeColumn, insertIntoInbox, neighbours, removeFromBoard, removeFromInbox, replaceOnBoard, type InboxData } from './cache'
+import { findColumn, findOnBoard, insertIntoBoard, placeAfter, placeColumn, removeColumn, insertIntoInbox, neighbours, removeFromBoard, removeFromInbox, replaceOnBoard, type InboxData } from './cache'
 import type { Board, Note } from './types'
 
 const note = (id: string, created = '2026-01-01T00:00:00Z', text = id): Note => ({
@@ -116,5 +116,28 @@ describe('column helpers', () => {
     const b = three()
     expect(removeColumn(b, 'zzz')).toBe(b)
     expect(findColumn(b, 'zzz')).toBeUndefined()
+  })
+})
+
+describe('placeAfter', () => {
+  const list = ['a', 'b', 'c', 'd'].map((id) => ({ id }))
+  const ids = (items: { id: string }[]) => items.map((i) => i.id)
+
+  it('puts an item after or before its neighbours', () => {
+    expect(ids(placeAfter(list, 'a', 'c', 'd'))).toEqual(['b', 'c', 'a', 'd'])
+    expect(ids(placeAfter(list, 'd', null, 'a'))).toEqual(['d', 'a', 'b', 'c'])
+    expect(ids(placeAfter(list, 'b', 'd', null))).toEqual(['a', 'c', 'd', 'b'])
+  })
+
+  it('puts it last when there is no neighbour to go by, and ignores what is not in the list', () => {
+    expect(ids(placeAfter(list, 'a', null, null))).toEqual(['b', 'c', 'd', 'a'])
+    expect(ids(placeAfter(list, 'a', 'zzz', 'yyy'))).toEqual(['b', 'c', 'd', 'a'])
+    expect(ids(placeAfter(list, 'zzz', 'a', null))).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('does not touch the list it was given', () => {
+    const copy = ids(list)
+    placeAfter(list, 'a', 'd', null)
+    expect(ids(list)).toEqual(copy)
   })
 })
