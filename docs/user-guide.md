@@ -59,7 +59,7 @@ If that is not acceptable for something, do not send it to the bot.
 
 ## Reminders
 
-Set a reminder from a note's menu (*Remind me…*): pick a quick time, or a date with an hour and minute of your choice, once or repeating. It
+Set a reminder from a note's menu (*Remind me…*): pick a quick time, or choose a date and time yourself (with shortcuts for today, tomorrow, next week and the usual hours, and a line that says when it will arrive), once or repeating. It
 arrives in the chat you chose in *Settings → Chats* (with the note text, its files and a link) and in the bell.
 From the chat, in English:
 

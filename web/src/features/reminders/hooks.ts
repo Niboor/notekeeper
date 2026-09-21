@@ -105,6 +105,12 @@ export function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+/** How many calendar days `d` is from `from` (0 for today, 1 for tomorrow), in the browser's zone. */
+export function daysAway(d: Date, from: Date = new Date()): number {
+  const day = (x: Date) => Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())
+  return Math.round((day(d) - day(from)) / 86_400_000)
+}
+
 export function repeatWord(rrule: string | null | undefined): 'daily' | 'weekly' | 'monthly' | 'other' | null {
   if (!rrule) return null
   const freq = /FREQ=(\w+)/.exec(rrule)?.[1]

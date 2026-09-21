@@ -146,6 +146,10 @@ button.file { font: inherit; cursor: pointer; text-align: left; }
 .remind-custom .when { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .remind-custom .when input[type=date] { flex: 1 1 160px; min-width: 0; }
 .remind-custom .time { display: flex; align-items: center; gap: 4px; }
+.remind-custom .shortcuts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.remind-custom .when-preview { grid-column: 1 / -1; margin: 0; min-height: 1.4em; font-size: 14px; color: var(--muted); }
+.remind-custom .when-preview.is-past { color: var(--danger); }
+.btn[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 .remind-custom .repeat { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .remind-custom .repeat select { flex: 1; min-width: 0; }
 

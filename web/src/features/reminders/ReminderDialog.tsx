@@ -5,11 +5,23 @@ import { t, type MessageKey } from '../../i18n'
 import { formatWhen } from '../share/ShareDialog'
 import type { Note } from '../types'
 import {
-  at, inMinutes, isPast, quickOptions, repeatWord, toLocalInput, useCompleteReminder, useCreateReminder, useDeleteReminder, useSnoozeReminder, type Reminder,
+  at, daysAway, inMinutes, isPast, quickOptions, repeatWord, toLocalInput, useCompleteReminder, useCreateReminder, useDeleteReminder, useSnoozeReminder, type Reminder,
 } from './hooks'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
+const DAY_SHORTCUTS = [
+  { key: 'today', days: 0 },
+  { key: 'tomorrow', days: 1 },
+  { key: 'week', days: 7 },
+] as const
+const TIME_SHORTCUTS = [
+  ['09', '00'],
+  ['12', '00'],
+  ['15', '00'],
+  ['18', '00'],
+] as const
+const dayOf = (days: number) => toLocalInput(at(9, days)).slice(0, 10)
 
 const RULES = { none: undefined, daily: 'FREQ=DAILY', weekly: 'FREQ=WEEKLY', monthly: 'FREQ=MONTHLY' } as const
 
@@ -50,6 +62,18 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
       else d.setAttribute('open', '')
     }
   }, [])
+
+  const chosen = day ? new Date(`${day}T${hour}:${minute}`) : null
+  const past = chosen !== null && isPast(chosen)
+  const away = chosen ? daysAway(chosen) : 0
+  const preview = chosen
+    ? past
+      ? t('remind.past')
+      : t('remind.preview', {
+          when: chosen.toLocaleString(undefined, { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+          away: away === 0 ? t('remind.in.today') : away === 1 ? t('remind.in.tomorrow') : t('remind.in.days', { n: String(away) }),
+        })
+    : ''
 
   const add = (when: Date) => {
     setError(null)
@@ -142,6 +166,23 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
             </select>
           </span>
         </div>
+        <div className="shortcuts" role="group" aria-label={t('remind.days')}>
+          {DAY_SHORTCUTS.map((d) => (
+            <button key={d.key} type="button" className="btn small" aria-pressed={day === dayOf(d.days)} onClick={() => setDay(dayOf(d.days))}>
+              {t(`remind.day.${d.key}` as MessageKey)}
+            </button>
+          ))}
+        </div>
+        <div className="shortcuts" role="group" aria-label={t('remind.times')}>
+          {TIME_SHORTCUTS.map(([h, m]) => (
+            <button key={h} type="button" className="btn small" aria-pressed={hour === h && minute === m} onClick={() => (setHour(h), setMinute(m))}>
+              {Number(h)}:{m}
+            </button>
+          ))}
+        </div>
+        <p className={`when-preview${past ? ' is-past' : ''}`} aria-live="polite">
+          {preview}
+        </p>
         <div className="repeat">
           <label htmlFor="remind-repeat" className="sub">
             {t('remind.repeat')}
@@ -154,7 +195,7 @@ export function ReminderDialog({ note, onClose }: { note: Note; onClose: () => v
             ))}
           </select>
         </div>
-        <button className="btn primary" onClick={() => add(new Date(`${day}T${hour}:${minute}`))} disabled={!day}>
+        <button className="btn primary" onClick={() => chosen && add(chosen)} disabled={!chosen || past}>
           {t('remind.set')}
         </button>
       </div>

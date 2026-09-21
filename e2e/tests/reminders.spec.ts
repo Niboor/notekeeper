@@ -74,3 +74,37 @@ test('pick the date, hour and minute of a reminder @cross', async ({ page }) => 
   const mine = upcoming.body.items.find((r) => r.note_id === noteId)
   expect(mine && new Date(mine.due_at).toISOString()).toBe(expected)
 })
+
+// WEB-18: the day and time shortcuts fill the fields, and the line under them says when the reminder is due.
+test('day and time shortcuts set a reminder, and the dialog says when it is due @cross', async ({ page }) => {
+  const fx = await openFreshBoard(page)
+  const noteId = await createNote(page, 'book the dentist', fx.columns.Todo)
+  await page.reload()
+  const note = card(lane(page, 'Todo'), 'book the dentist')
+  await note.hover()
+  await note.getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: 'Remind me…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Reminders' })
+
+  await dialog.getByRole('button', { name: 'In a week' }).click()
+  await dialog.getByRole('button', { name: '18:00', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: '18:00', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.getByText(/18:00 · in 7 days$/)).toBeVisible()
+  await dialog.getByRole('button', { name: 'Set reminder' }).click()
+  await expect(dialog.getByText(/^Due /)).toBeVisible()
+
+  const expected = await page.evaluate(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    d.setHours(18, 0, 0, 0)
+    return d.toISOString()
+  })
+  const upcoming = await api<{ items: { note_id: string; due_at: string }[] }>(page, 'GET', '/api/v1/reminders')
+  const mine = upcoming.body.items.find((r) => r.note_id === noteId)
+  expect(mine && new Date(mine.due_at).toISOString()).toBe(expected)
+
+  // A day that is already over cannot be set: the line says so and the button is off.
+  await dialog.getByLabel('Date').fill('2020-01-01')
+  await expect(dialog.getByText('Choose a time in the future.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Set reminder' })).toBeDisabled()
+})
