@@ -5,7 +5,7 @@ import { fakeFetch, renderApp } from '../../test/helpers'
 import type { Note } from '../types'
 import { NotificationsBell } from './NotificationsBell'
 import { ReminderDialog } from './ReminderDialog'
-import { at, nextMonday, quickOptions, repeatWord, toLocalInput } from './hooks'
+import { at, daysAway, nextMonday, quickOptions, repeatWord, toLocalInput } from './hooks'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -22,6 +22,9 @@ describe('quick times', () => {
     expect(nextMonday(new Date(2026, 2, 16, 8, 0))).toEqual(new Date(2026, 2, 23, 9, 0)) // on a Monday: the next one
     expect(at(9, 1, new Date(2026, 2, 31, 12, 0))).toEqual(new Date(2026, 3, 1, 9, 0)) // month boundary
     expect(toLocalInput(new Date(2026, 0, 5, 7, 3))).toBe('2026-01-05T07:03')
+    expect(daysAway(new Date(2026, 2, 12, 0, 5), new Date(2026, 2, 11, 23, 55))).toBe(1) // by calendar day, not by 24 hours
+    expect(daysAway(new Date(2026, 3, 1, 9, 0), new Date(2026, 2, 31, 12, 0))).toBe(1) // month boundary
+    expect(daysAway(new Date(2026, 2, 11, 23, 0), new Date(2026, 2, 11, 8, 0))).toBe(0)
   })
 
   it('names simple repeats and calls the rest "repeats"', () => {
@@ -65,7 +68,7 @@ describe('ReminderDialog', () => {
     expect(new Date(sent.due_at).getTime()).toBeGreaterThan(Date.now())
   })
 
-  it('refuses a time in the past without asking the server', async () => {
+  it('says a time in the past is past, and does not offer to set it', async () => {
     const f = fakeFetch([])
     vi.stubGlobal('fetch', f)
     renderApp(<ReminderDialog note={note()} onClose={() => undefined} />)
@@ -73,8 +76,10 @@ describe('ReminderDialog', () => {
     const day = screen.getByLabelText('Date')
     await user.clear(day)
     await user.type(day, '2020-01-01')
-    await user.click(screen.getByRole('button', { name: 'Set reminder' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('future')
+    expect(screen.getByText('Choose a time in the future.')).toBeInTheDocument()
+    const set = screen.getByRole('button', { name: 'Set reminder' })
+    expect(set).toBeDisabled()
+    await user.click(set)
     expect(f.calls.filter((c) => c.method === 'POST')).toHaveLength(0)
   })
 
@@ -105,6 +110,26 @@ describe('ReminderDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Set reminder' }))
     await vi.waitFor(() => expect(bodies).toHaveLength(1))
     expect(new Date((bodies[0] as { due_at: string }).due_at)).toEqual(new Date(2031, 6, 4, 17, 45))
+  })
+
+  // WEB-18: day and time shortcuts fill the fields, the fields show which one is chosen, and a line says in words when the reminder is due.
+  it('fills the date and time from the shortcuts and says when the reminder is due', async () => {
+    vi.stubGlobal('fetch', fakeFetch([]))
+    renderApp(<ReminderDialog note={note()} onClose={() => undefined} />)
+    const user = userEvent.setup()
+    expect(screen.getByRole('button', { name: 'Tomorrow' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '9:00' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/· tomorrow$/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'In a week' }))
+    await user.click(screen.getByRole('button', { name: '18:00' }))
+    expect(screen.getByLabelText('Date')).toHaveValue(toLocalInput(at(9, 7)).slice(0, 10))
+    expect(screen.getByLabelText('Hour')).toHaveValue('18')
+    expect(screen.getByLabelText('Minute')).toHaveValue('00')
+    expect(screen.getByRole('button', { name: '18:00' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '9:00' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText(/· in 7 days$/)).toBeInTheDocument()
+    // The minute list moves in steps of five.
+    expect(screen.getByLabelText('Minute').querySelectorAll('option')).toHaveLength(12)
   })
 
   it('starts on tomorrow at 9:00, and keeps the time when the date changes', async () => {
