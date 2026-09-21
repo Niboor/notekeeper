@@ -404,6 +404,7 @@ Goal: what the user perceives as *one* piece of information becomes *one* note, 
 | WEB-20 | Should | fully tested | Checklist checkboxes on cards can be toggled directly, without entering edit mode (CORE-N17). |
 | WEB-21 | Must | fully tested | **Sharing UI.** A "Share" action on every note: choose an expiry, create the link, copy it (and use the device share sheet where the browser offers one), see existing links for the note and revoke them. A settings view lists all active links (CORE-SH3). Notes with an active link show an indicator. |
 | WEB-22 | Should | fully tested | **Columns can be moved.** A column is dragged by its title to another place on its page, or to another page (dropped on that page's tab, which puts it last, or held over the tab until the page opens and dropped between its columns). The column menu does the same without dragging: one step left or right, or to another page. The change shows at once, moving to another page can be undone, and other open windows follow (CORE-P2, CORE-P3, WEB-5). |
+| WEB-23 | Should | fully tested | **Pages can be reordered.** A page tab is dragged to another place among the tabs (the tab strip scrolls while it is held near an edge), or moved with the page menu: one step left or right. The change shows at once and other open windows follow (CORE-P1, WEB-5). |
 
 ### 8.2 Web app non-functional requirements
 

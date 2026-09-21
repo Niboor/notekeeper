@@ -86,6 +86,8 @@ export const en = {
   'nav.moreForPage': 'Page options',
   'nav.reminders': 'Reminders',
 
+  'page.moveLeft': 'Move left',
+  'page.moveRight': 'Move right',
   'page.rename': 'Rename page',
   'page.delete': 'Delete page',
   'page.deleteConfirm': 'Delete the page "{name}"? Its columns go, and their notes return to the Inbox.',

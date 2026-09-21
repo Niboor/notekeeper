@@ -144,3 +144,10 @@ export const withoutColumn = (order: readonly string[], column: string) => order
 export function columnUnchanged(originPage: string, originIndex: number, page: string, drop: ColumnDrop): boolean {
   return originPage === page && originIndex === drop.index
 }
+
+// ---- page tabs ----------------------------------------------------------------------------------
+
+/** A page tab is dragged to another place among the tabs; `columnDrop` and `columnPlace` above serve for it too. */
+export const pageTabDragId = (page: string) => `pagetab:${page}`
+export const isPageTabDrag = (id: string) => id.startsWith('pagetab:')
+export const pageTabOf = (id: string) => id.slice('pagetab:'.length)

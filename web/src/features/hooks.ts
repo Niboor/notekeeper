@@ -5,10 +5,10 @@ import { CLIENT_HEADER, refreshSession } from '../api/session'
 import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import {
-  findColumn, insertIntoBoard, insertIntoInbox, placeColumn, removeColumn, removeFromBoard, removeFromInbox, replaceInInbox, replaceOnBoard, withInboxTotal,
+  findColumn, insertIntoBoard, placeAfter, insertIntoInbox, placeColumn, removeColumn, removeFromBoard, removeFromInbox, replaceInInbox, replaceOnBoard, withInboxTotal,
   type InboxData,
 } from './cache'
-import type { Board, BoardCategory, Note } from './types'
+import type { Board, BoardCategory, Note, Page } from './types'
 
 // ---- queries --------------------------------------------------------------------------------
 
@@ -261,6 +261,35 @@ export function useMoveColumn() {
     },
   })
   return move
+}
+
+// ---- moving pages ----------------------------------------------------------------------------
+
+export interface MovePageVars {
+  id: string
+  /** The pages it goes between (null at either end), as the server is told. */
+  afterId: string | null
+  beforeId: string | null
+}
+
+/** Puts a page elsewhere among the tabs, at once on screen, and back when the server refuses (WEB-23, CORE-P1). */
+export function useMovePage() {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  return useMutation<unknown, Error, MovePageVars, { before: Page[] | undefined }>({
+    mutationFn: async (v) => unwrap(await api.PATCH('/api/v1/pages/{id}', { params: { path: { id: v.id } }, body: { after_id: v.afterId, before_id: v.beforeId } })),
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: ['pages'] })
+      const before = qc.getQueryData<Page[]>(['pages'])
+      qc.setQueryData<Page[] | undefined>(['pages'], (pages) => pages && placeAfter(pages, v.id, v.afterId, v.beforeId))
+      return { before }
+    },
+    onError: (_e, _v, ctx) => {
+      qc.setQueryData(['pages'], ctx?.before)
+      toast({ message: t('toast.failed') })
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['pages'] }),
+  })
 }
 
 // ---- dismiss, restore, delete ---------------------------------------------------------------

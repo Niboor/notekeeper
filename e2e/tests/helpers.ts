@@ -53,10 +53,21 @@ export interface Fixture {
   columns: Record<string, string> // name → id
 }
 
+/**
+ * The tests share one account, and an account holds at most 100 pages: when it gets crowded the oldest pages
+ * are deleted (their notes go to the Inbox), so that a test can always make the pages it needs.
+ */
+export async function prunePages(page: Page, keep = 30): Promise<void> {
+  const pages = (await api<{ items: { id: string }[] }>(page, 'GET', '/api/v1/pages')).body.items
+  if (pages.length <= 60) return
+  for (const p of pages.slice(0, pages.length - keep)) await api(page, 'DELETE', `/api/v1/pages/${p.id}`)
+}
+
 /** Creates a page with columns through the API and opens it. */
 export async function openFreshBoard(page: Page, columns: string[] = ['Todo', 'Done']): Promise<Fixture> {
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'New note' })).toBeVisible()
+  await prunePages(page)
   const pageName = `P${Math.random().toString(36).slice(2, 8)}`
   const created = await api<{ id: string }>(page, 'POST', '/api/v1/pages', { name: pageName })
   expect(created.status, `creating a page answered ${JSON.stringify(created.body)}`).toBe(201)

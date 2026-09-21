@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { api, card, createNote, lane, openFreshBoard } from './helpers'
+import { api, card, createNote, lane, openFreshBoard, prunePages } from './helpers'
 
 // WEB-22, CORE-P2, CORE-P3, WEB-5: columns are moved by dragging their title, within a page and to another page, and
 // through the column menu (WEB-5).
@@ -165,5 +165,88 @@ test('other browsers see a moved column at once', async ({ page, browser }) => {
   await expect(lane(view, 'C')).toBeVisible()
   await dragColumn(page, 'A', await inColumn(page, 'C', 'right'))
   await expect.poll(() => shownOrder(view), { timeout: 10_000 }).toEqual(['B', 'C', 'A'])
+  await second.close()
+})
+
+// ---- pages: the tabs are reordered the same way (WEB-23, CORE-P1) ----
+
+const tag = () => `Tab${Math.random().toString(36).slice(2, 6)}`
+
+/** Three pages named `<tag> A`, `<tag> B`, `<tag> C`, opened on the last so that all of them are in view. */
+async function threePages(page: Page) {
+  await page.goto('/')
+  await prunePages(page)
+  const prefix = tag()
+  const ids: string[] = []
+  for (const letter of ['A', 'B', 'C']) ids.push((await api<{ id: string }>(page, 'POST', '/api/v1/pages', { name: `${prefix} ${letter}` })).body.id)
+  await page.goto(`/p/${ids[2]}`)
+  const mine = (names: string[]) => names.filter((n) => n.startsWith(prefix)).map((n) => n.slice(-1))
+  const tab = (letter: string) => page.locator(`.page-tabs a.page[title="${prefix} ${letter}"]`)
+  await expect(tab('A')).toBeVisible()
+  // The three are side by side: centre the middle one, so that all of them are inside the strip (its width and the tabs' vary by browser).
+  await tab('B').evaluate((el) => el.scrollIntoView({ inline: 'center', block: 'nearest' }))
+  return {
+    prefix, ids, tab,
+    onServer: async () => mine((await api<{ items: { name: string }[] }>(page, 'GET', '/api/v1/pages')).body.items.map((p) => p.name)),
+    shown: async () => mine(await page.locator('.page-tabs a.page').evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? ''))),
+  }
+}
+
+/** Drags a tab with real mouse events onto the left or right part of another tab. */
+async function dragTab(page: Page, from: Locator, onto: Locator, side: 'left' | 'right') {
+  const a = (await from.boundingBox())!
+  const b = (await onto.boundingBox())!
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 4, { steps: 4 })
+  await page.mouse.move(b.x + b.width * (side === 'left' ? 0.2 : 0.8), b.y + b.height / 2, { steps: 20 })
+  await page.mouse.up()
+}
+
+// WEB-23, CORE-P1: dragging a page tab.
+test('drag a page tab to another place among the tabs @cross', async ({ page }) => {
+  const p = await threePages(page)
+  expect(await p.shown()).toEqual(['A', 'B', 'C'])
+  await dragTab(page, p.tab('A'), p.tab('C'), 'right') // after C
+  await expect.poll(p.shown).toEqual(['B', 'C', 'A'])
+  await expect.poll(p.onServer).toEqual(['B', 'C', 'A'])
+  await dragTab(page, p.tab('C'), p.tab('B'), 'left') // before B
+  await expect.poll(p.onServer).toEqual(['C', 'B', 'A'])
+  await page.reload()
+  await expect.poll(p.shown).toEqual(['C', 'B', 'A'])
+})
+
+test('a tab dropped where it was, or simply clicked, stays and opens', async ({ page }) => {
+  const p = await threePages(page)
+  await dragTab(page, p.tab('B'), p.tab('B'), 'right') // over itself
+  await page.waitForTimeout(400)
+  expect(await p.onServer()).toEqual(['A', 'B', 'C'])
+  await expect(page).toHaveURL(new RegExp(`/p/${p.ids[2]}$`)) // a drag did not open the page it ended on
+  await p.tab('A').click()
+  await expect(page).toHaveURL(new RegExp(`/p/${p.ids[0]}$`))
+})
+
+test('the page menu moves the page left and right', async ({ page }) => {
+  const p = await threePages(page)
+  await page.getByRole('button', { name: 'Page options', exact: true }).click() // the page is C, the last
+  await expect(page.getByRole('menuitem', { name: 'Move right' })).toHaveCount(0)
+  await page.getByRole('menuitem', { name: 'Move left' }).click()
+  await expect.poll(p.onServer).toEqual(['A', 'C', 'B'])
+  await expect.poll(p.shown).toEqual(['A', 'C', 'B'])
+  await page.getByRole('button', { name: 'Page options', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Move left' }).click()
+  await expect.poll(p.onServer).toEqual(['C', 'A', 'B'])
+})
+
+test('other windows see the pages in their new order', async ({ page, browser }) => {
+  const p = await threePages(page)
+  const second = await browser.newContext({ storageState: 'auth.json' })
+  const view = await second.newPage()
+  await view.goto(`/p/${p.ids[2]}`)
+  await expect(view.locator(`.page-tabs a.page[title="${p.prefix} A"]`)).toBeVisible()
+  await dragTab(page, p.tab('A'), p.tab('C'), 'right')
+  await expect
+    .poll(async () => (await view.locator('.page-tabs a.page').evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? ''))).filter((n) => n.startsWith(p.prefix)).map((n) => n.slice(-1)), { timeout: 10_000 })
+    .toEqual(['B', 'C', 'A'])
   await second.close()
 })
