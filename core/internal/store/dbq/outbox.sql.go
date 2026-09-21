@@ -312,6 +312,18 @@ func (q *Queries) OutboxDepth(ctx context.Context) ([]OutboxDepthRow, error) {
 	return items, nil
 }
 
+const outboxOldestWaiting = `-- name: OutboxOldestWaiting :one
+select coalesce(extract(epoch from now() - min(created_at)), 0)::float8 as seconds from bot_outbox where state in ('queued', 'claimed')
+`
+
+// How long the item that has waited longest for a bot has been waiting, in seconds; 0 when nothing waits.
+func (q *Queries) OutboxOldestWaiting(ctx context.Context) (float64, error) {
+	row := q.db.QueryRow(ctx, outboxOldestWaiting)
+	var seconds float64
+	err := row.Scan(&seconds)
+	return seconds, err
+}
+
 const purgeOutbox = `-- name: PurgeOutbox :execrows
 delete from bot_outbox where id in (
   select o.id from bot_outbox o where o.state in ('delivered', 'failed', 'expired') and o.finished_at < $1 limit 5000)

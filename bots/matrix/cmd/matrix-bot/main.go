@@ -66,10 +66,12 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	b := bot.New(cfg, log, core)
+	b.RegisterBuildInfo(Version)
 	core.OnRetry = func(op string, attempt int, err error) {
+		b.CoreRetried(op)
 		log.Warn("core unavailable; retrying", "operation", op, "attempt", attempt, "error", err)
 	}
-	b := bot.New(cfg, log, core)
 
 	// Health and metrics come up first so Kubernetes can see "alive, not ready" while we wait for the lock.
 	var leading, started atomic.Bool
@@ -104,6 +106,7 @@ func serve() error {
 	}
 	defer lock.Close()
 	leading.Store(true)
+	b.SetLeader(true)
 	log.Info("acquired the single-instance lock")
 
 	if err := b.Start(ctx); err != nil {

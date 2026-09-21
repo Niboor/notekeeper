@@ -285,23 +285,47 @@ func TestIngressEnforcesModernTLS(t *testing.T) {
 	}
 }
 
+// exportedMetrics is every metric name the components define, read from the source files that register them.
+// A histogram also exports its _bucket, _sum and _count series.
+func exportedMetrics(t *testing.T) map[string]bool {
+	t.Helper()
+	code := ""
+	for _, f := range []string{"core/internal/obs/obs.go", "core/internal/obs/collectors.go", "core/internal/server/limits.go", "core/internal/httpx/middleware.go",
+		"bots/matrix/internal/bot/metrics.go", "bots/matrix/internal/bot/bot.go"} {
+		code += repoFile(t, filepath.FromSlash(f))
+	}
+	names := map[string]bool{}
+	for _, m := range regexp.MustCompile(`"(nk_[a-z_]+)"`).FindAllStringSubmatch(code, -1) {
+		names[m[1]] = true
+	}
+	return names
+}
+
+// checkMetricNames fails for every nk_ series in text that the exporters do not define.
+func checkMetricNames(t *testing.T, what, text string) {
+	t.Helper()
+	exported := exportedMetrics(t)
+	used := regexp.MustCompile(`\bnk_[a-z_]+`).FindAllString(text, -1)
+	if len(used) < 8 {
+		t.Fatalf("%s: only %d metrics referenced", what, len(used))
+	}
+	for _, m := range used {
+		base := m
+		for _, suffix := range []string{"_bucket", "_sum", "_count"} {
+			if strings.HasSuffix(m, suffix) && exported[strings.TrimSuffix(m, suffix)] {
+				base = strings.TrimSuffix(m, suffix)
+			}
+		}
+		if !exported[base] {
+			t.Errorf("%s uses %s, which nothing exports", what, m)
+		}
+	}
+}
+
 // The example alerts only refer to metrics that exist, so an alert cannot silently never fire (SEC-AUD-3).
 func TestAlertsUseRealMetrics(t *testing.T) {
 	rules := repoFile(t, "deploy", "k8s", "base", "prometheusrule.yaml")
-	code := ""
-	for _, f := range []string{"core/internal/obs/obs.go", "core/internal/obs/collectors.go", "core/internal/server/limits.go", "bots/matrix/internal/bot/metrics.go", "bots/matrix/internal/bot/bot.go"} {
-		code += repoFile(t, filepath.FromSlash(f))
-	}
-	exprs := regexp.MustCompile(`\bnk_[a-z_]+`).FindAllString(rules, -1)
-	if len(exprs) < 8 {
-		t.Fatalf("only %d metrics referenced", len(exprs))
-	}
-	for _, m := range exprs {
-		base := strings.TrimSuffix(strings.TrimSuffix(m, "_bucket"), "_total")
-		if !strings.Contains(code, `"`+m+`"`) && !strings.Contains(code, `"`+base+`"`) && !strings.Contains(code, `"`+base+`_total"`) && !strings.Contains(code, `"`+base+`_seconds"`) {
-			t.Errorf("an alert uses %s, which nothing exports", m)
-		}
-	}
+	checkMetricNames(t, "an alert", rules)
 	for _, need := range []string{"failed", "rejected", "not_found", "rate_limited"} {
 		if !strings.Contains(rules, need) {
 			t.Errorf("no alert for %s", need)

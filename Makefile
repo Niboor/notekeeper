@@ -63,7 +63,7 @@ test-perf: ## Latency at the documented size: 50 000 notes for one user (NFR-P1.
 
 ##@ Build and generate
 .PHONY: generate
-generate: ## Regenerate code from the OpenAPI specs and SQL queries (Go server, bot client, sqlc, TypeScript types)
+generate: ## Regenerate code from the OpenAPI specs and SQL queries (Go server, bot client, sqlc, TypeScript types) and the Grafana dashboards
 	cd core && sqlc generate
 	oapi-codegen -config api/gen-config/userapi.yaml api/user.yaml
 	oapi-codegen -config api/gen-config/botapi.yaml api/bot.yaml
@@ -71,10 +71,11 @@ generate: ## Regenerate code from the OpenAPI specs and SQL queries (Go server, 
 	oapi-codegen -config api/gen-config/botclient.yaml api/bot.yaml
 	cd web && npx --no-install openapi-typescript ../api/user.yaml -o src/api/user.schema.ts
 	cd web && npx --no-install openapi-typescript ../api/public.yaml -o src/api/public.schema.ts
+	python3 deploy/grafana/build.py
 
 .PHONY: generate-check
 generate-check: generate ## Fail if regenerating changes committed files
-	git diff --exit-code -- core/internal/gen core/internal/store/dbq bots/sdk/botclient web/src/api
+	git diff --exit-code -- core/internal/gen core/internal/store/dbq bots/sdk/botclient web/src/api deploy/grafana
 
 .PHONY: build
 build: check-libolm ## Build Core, the Matrix bot and the web app

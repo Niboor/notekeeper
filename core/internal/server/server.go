@@ -183,7 +183,7 @@ func NewRouters(d Deps) (Routers, error) {
 				out[r.State] += r.N
 			}
 			return out, nil
-		}))
+		}, func(ctx context.Context) (float64, error) { return d.Store.Q().OutboxOldestWaiting(ctx) }))
 	}
 	return Routers{User: user, Bot: bot, Public: public, Ops: opsRouter(prometheus.Gatherers{reg, obs.Registry}, d.Ready), hub: d.Hub}, nil
 }

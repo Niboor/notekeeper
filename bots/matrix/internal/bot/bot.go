@@ -210,6 +210,9 @@ func (b *Bot) onRedaction(ctx context.Context, evt *event.Event) {
 // when Core has answered, the request was refused for good, or the context ended.
 func (b *Bot) handle(ctx context.Context, evt *event.Event, res normalise.Result) {
 	ctx = sdk.WithRequestID(ctx, requestID(evt.ID))
+	if res.Kind == normalise.KindEvent || res.Kind == normalise.KindCommand {
+		b.met.observeAge(time.UnixMilli(evt.Timestamp))
+	}
 	switch res.Kind {
 	case normalise.KindEvent:
 		b.fetchMedia(ctx, evt, &res)
