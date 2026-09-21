@@ -105,7 +105,7 @@ Send failures that look transient (network, homeserver 5xx, rate limit `M_LIMIT_
 
 ## 9. Operations
 
-`/healthz` (process up), `/readyz` (leader lock held, last sync succeeded within 2 minutes, Core reachable), `/metrics` (sync lag, events by result, outbox items by outcome, decryption failures; BOT-B6, NFR-O2). Structured logs contain room and event identifiers only, never message text or filenames (SEC-DATA-1).
+`/healthz` (process up), `/readyz` (leader lock held, last sync succeeded within 2 minutes, Core reachable), `/metrics` (sync lag, the age of messages when they are handled, events by result, outbox items by outcome, decryption failures, retried calls to Core, whether this replica is the active one, the Go runtime and process, the build version; BOT-B6, NFR-O2). Structured logs contain room and event identifiers only, never message text or filenames (SEC-DATA-1).
 
 ## 10. Testing
 

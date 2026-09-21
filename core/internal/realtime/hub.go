@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 )
 
@@ -90,6 +91,7 @@ func (h *Hub) Subscribe(user, session uuid.UUID) (*Stream, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.streams[user]) >= MaxStreamsPerUser {
+		obs.StreamsRefused.Inc()
 		return nil, ErrTooManyStreams
 	}
 	s := &Stream{UserID: user, SessionID: session, Wake: make(chan struct{}, 1), done: make(chan struct{})}

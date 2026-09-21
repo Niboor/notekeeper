@@ -40,12 +40,19 @@ const (
 	retainThrottle      = time.Hour
 )
 
-// failed counts a failing job run, for alerts (SEC-AUD-3, NFR-O2).
-func failed(job string, err error) error {
+// failed records one run of a job, for dashboards and alerts (SEC-AUD-3, NFR-O2): that it ran and how it
+// ended, how long it took, when it last worked, and on failure the failure itself. Call it with the time
+// the run started: `return failed("purge", start, Purge(ctx, w.D))`.
+func failed(task string, start time.Time, err error) error {
+	obs.JobDuration.WithLabelValues(task).Observe(time.Since(start).Seconds())
 	if err != nil {
-		obs.JobFailures.WithLabelValues(job).Inc()
+		obs.JobFailures.WithLabelValues(task).Inc()
+		obs.JobRuns.WithLabelValues(task, "error").Inc()
+		return err
 	}
-	return err
+	obs.JobRuns.WithLabelValues(task, "ok").Inc()
+	obs.JobLastSuccess.WithLabelValues(task).SetToCurrentTime()
+	return nil
 }
 
 // Deps are what workers need.
@@ -81,7 +88,8 @@ type PurgeWorker struct {
 
 // Work deletes expired rows in bounded steps. Everything here is idempotent.
 func (w *PurgeWorker) Work(ctx context.Context, _ *river.Job[PurgeArgs]) error {
-	return failed("purge", Purge(ctx, w.D))
+	start := time.Now()
+	return failed("purge", start, Purge(ctx, w.D))
 }
 
 // Purge applies the retention rules.
@@ -153,7 +161,8 @@ type ReleaseStaleUploadsWorker struct {
 
 // Work runs the janitor for every user.
 func (w *ReleaseStaleUploadsWorker) Work(ctx context.Context, _ *river.Job[ReleaseStaleUploadsArgs]) error {
-	return failed("release_stale_uploads", ReleaseStaleUploads(ctx, w.D))
+	start := time.Now()
+	return failed("release_stale_uploads", start, ReleaseStaleUploads(ctx, w.D))
 }
 
 // ReleaseStaleUploads is the body of the janitor job.
@@ -185,7 +194,8 @@ type ExpireOutboxWorker struct {
 
 // Work expires stale items.
 func (w *ExpireOutboxWorker) Work(ctx context.Context, _ *river.Job[ExpireOutboxArgs]) error {
-	return failed("expire_outbox", w.D.Outbox.Expire(ctx))
+	start := time.Now()
+	return failed("expire_outbox", start, w.D.Outbox.Expire(ctx))
 }
 
 // DeleteUsersArgs removes the data of accounts that are being deleted (AUTH-U9).
@@ -202,8 +212,9 @@ type DeleteUsersWorker struct {
 
 // Work finishes pending deletions; it can run again after a crash and continues where it stopped.
 func (w *DeleteUsersWorker) Work(ctx context.Context, _ *river.Job[DeleteUsersArgs]) error {
+	start := time.Now()
 	_, err := w.D.Accounts.ProcessDeletions(ctx)
-	return failed("delete_users", err)
+	return failed("delete_users", start, err)
 }
 
 // FireDueRemindersArgs fires reminders that are due (docs/design/05 section 5.1).
@@ -220,8 +231,9 @@ type FireDueRemindersWorker struct {
 
 // Work fires what is due.
 func (w *FireDueRemindersWorker) Work(ctx context.Context, _ *river.Job[FireDueRemindersArgs]) error {
+	start := time.Now()
 	_, err := w.D.Reminders.FireDue(ctx)
-	return failed("fire_due_reminders", err)
+	return failed("fire_due_reminders", start, err)
 }
 
 // PurgeShareLinksArgs deletes links that ended more than a week ago (docs/design/05 section 3).
@@ -238,8 +250,9 @@ type PurgeShareLinksWorker struct {
 
 // Work purges old links.
 func (w *PurgeShareLinksWorker) Work(ctx context.Context, _ *river.Job[PurgeShareLinksArgs]) error {
+	start := time.Now()
 	_, err := w.D.Shares.Purge(ctx, 7*24*time.Hour)
-	return failed("purge_share_links", err)
+	return failed("purge_share_links", start, err)
 }
 
 // New builds the River client. Call Start on it in the serving process; tests and insert-only

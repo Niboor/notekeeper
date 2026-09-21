@@ -64,3 +64,7 @@ insert into notifications (id, user_id, kind, payload) values ($1, $2, $3, $4);
 
 -- name: OutboxDepth :many
 select bot_instance_id, state, count(*)::bigint as n from bot_outbox group by bot_instance_id, state;
+
+-- name: OutboxOldestWaiting :one
+-- How long the item that has waited longest for a bot has been waiting, in seconds; 0 when nothing waits.
+select coalesce(extract(epoch from now() - min(created_at)), 0)::float8 as seconds from bot_outbox where state in ('queued', 'claimed');

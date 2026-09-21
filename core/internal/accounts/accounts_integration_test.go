@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/Niboor/notekeeper/core/internal/accounts"
 	"github.com/Niboor/notekeeper/core/internal/auth"
+	"github.com/Niboor/notekeeper/core/internal/obs"
 	"github.com/Niboor/notekeeper/core/internal/store"
 	"github.com/Niboor/notekeeper/core/internal/testdb"
 )
@@ -376,8 +378,13 @@ func TestRefreshRotationAndGraceWindow(t *testing.T) {
 
 	// The old token after the grace window is a replay: the session is revoked (SEC-AUTH-7).
 	e.clk.Advance(2 * time.Minute)
+	reuses := func() float64 { return testutil.ToFloat64(obs.AuthEvents.WithLabelValues("refresh_reuse")) }
+	reusesBefore := reuses()
 	if _, err := e.svc.Refresh(ctx, tok.Refresh); !errors.Is(err, accounts.ErrUnauthenticated) {
 		t.Fatalf("reuse: %v", err)
+	}
+	if got := reuses() - reusesBefore; got != 1 { // NFR-O2, SEC-AUD-3: a replayed token shows in the metrics
+		t.Fatalf("refresh_reuse counted %v times, want 1", got)
 	}
 	if _, err := e.svc.Authenticate(ctx, first.Access); !errors.Is(err, accounts.ErrUnauthenticated) {
 		t.Fatalf("session must be revoked after reuse: %v", err)

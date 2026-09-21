@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"math"
@@ -69,10 +70,20 @@ func mapError(err error) *httpx.Error {
 
 // errorHandler renders errors returned by strict handlers. Unknown errors are logged with the
 // request id and answered with a generic 500.
+// StatusClientClosedRequest is the status recorded when the client went away before the answer (the code nginx uses).
+const StatusClientClosedRequest = 499
+
 func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if he := mapError(err); he != nil {
 			httpx.WriteError(w, r, he)
+			return
+		}
+		// The browser closed the connection (a tab navigated away, a request was replaced by a newer one) while
+		// the request was running. That is not a failure of the server: it is not logged as one, and it counts
+		// with the client errors, so the 5xx metric and its alert stay about real failures (NFR-O2).
+		if errors.Is(err, context.Canceled) && r.Context().Err() != nil {
+			w.WriteHeader(StatusClientClosedRequest)
 			return
 		}
 		log.Error("request failed", "request_id", httpx.RequestIDFrom(r.Context()), "error", err)

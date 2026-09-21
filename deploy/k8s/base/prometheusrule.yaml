@@ -37,6 +37,16 @@ spec:
           for: 10m
           labels: {severity: warning}
           annotations: {summary: "Requests are being refused by rate limits at a high rate"}
+        - alert: NotekeeperRefreshTokenReuse
+          expr: sum(increase(nk_auth_events_total{event="refresh_reuse"}[1h])) > 5
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "Sessions were ended because an old refresh token was used again, which is either a stolen token or a client that does not renew its session correctly"}
+        - alert: NotekeeperStreamsRefused
+          expr: sum(increase(nk_realtime_streams_refused_total[15m])) > 20
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "Live-update streams are refused because a user has too many open, which points at a client that never closes its old ones"}
     - name: notekeeper-health
       rules:
         - alert: NotekeeperCoreDown
@@ -65,9 +75,34 @@ spec:
           labels: {severity: warning}
           annotations: {summary: "Reminders fire more than a minute after they are due (target CORE-R5)"}
         - alert: NotekeeperJobFailures
-          expr: sum(increase(nk_job_failures_total[30m])) > 3
+          expr: sum by (task) (increase(nk_job_failures_total[30m])) > 3
           labels: {severity: warning}
           annotations: {summary: "Background jobs are failing"}
+        - alert: NotekeeperServerErrors
+          expr: sum(rate(nk_http_requests_total{status="5xx"}[5m])) / sum(rate(nk_http_requests_total[5m])) > 0.05
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "More than one request in twenty fails with a server error"}
+        - alert: NotekeeperReminderJobStalled
+          expr: time() - max(nk_job_last_success_timestamp_seconds{task="fire_due_reminders"}) > 300
+          for: 5m
+          labels: {severity: critical}
+          annotations: {summary: "The job that fires reminders has not completed successfully for five minutes, so reminders are not going out (a stopped job counts no failures, so this is the alert that sees it)"}
+        - alert: NotekeeperOutboxOldItem
+          expr: max(nk_outbox_oldest_wait_seconds) > 300
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "A reminder or notice has been waiting more than five minutes for a bot to send it"}
+        - alert: NotekeeperBotCannotReachCore
+          expr: sum(increase(nk_bot_outbox_claim_failures_total[10m])) > 5 or sum(increase(nk_bot_core_retries_total[10m])) > 20
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "The bot keeps failing to call Core, so chat messages and reminders are delayed"}
+        - alert: NotekeeperDatabasePoolWaits
+          expr: sum(rate(nk_db_pool_acquire_wait_seconds_total[5m])) / clamp_min(sum(rate(nk_db_pool_acquires_total[5m])), 0.001) > 0.1
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "Requests wait more than a tenth of a second on average for a database connection"}
         - alert: NotekeeperDatabasePoolSaturated
           expr: max(nk_db_pool_connections - nk_db_pool_idle_connections) >= max(nk_db_pool_max_connections)
           for: 10m

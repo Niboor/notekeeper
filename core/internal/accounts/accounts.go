@@ -341,6 +341,7 @@ func (s *Service) Refresh(ctx context.Context, refresh string) (Tokens, error) {
 		return Tokens{}, err
 	}
 	if reuse {
+		obs.AuthEvents.WithLabelValues("refresh_reuse").Inc()
 		return Tokens{}, ErrUnauthenticated
 	}
 	return out, nil

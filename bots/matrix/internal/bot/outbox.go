@@ -31,6 +31,7 @@ func (b *Bot) Outbox(ctx context.Context) {
 				return
 			}
 			failures++
+			b.met.claimFailures.Inc()
 			b.log.Warn("could not claim outbox items", "error", err)
 			sleep(ctx, min(time.Second<<min(failures, 5), 30*time.Second))
 			continue

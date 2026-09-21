@@ -138,7 +138,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		}, []string{"listener", "route", "status"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name: "nk_http_request_duration_seconds", Help: "HTTP request duration by listener and route.",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60}, // up to a minute: uploads and downloads take long
 		}, []string{"listener", "route"}),
 	}
 	reg.MustRegister(m.requests, m.duration)
@@ -160,7 +160,10 @@ func Observe(listener string, log *slog.Logger, m *Metrics) func(http.Handler) h
 			elapsed := time.Since(start)
 			if m != nil {
 				m.requests.WithLabelValues(listener, route, statusClass(rec.status)).Inc()
-				m.duration.WithLabelValues(listener, route).Observe(elapsed.Seconds())
+				// A realtime stream stays open for hours by design: that is not how long the server took to answer.
+				if !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/event-stream") {
+					m.duration.WithLabelValues(listener, route).Observe(elapsed.Seconds())
+				}
 			}
 			log.Info("request",
 				"listener", listener, "method", r.Method, "route", route, "status", rec.status,

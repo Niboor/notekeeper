@@ -41,7 +41,9 @@ func TestMetricsCoverTheServiceAndLeakNothing(t *testing.T) {
 		`nk_ingest_events_total{kind="message_created",result="created"}`, `nk_grouping_decisions_total{reason="first"}`, `nk_grouping_decisions_total{reason="media-adjacency"}`,
 		`nk_reminders_fired_total{late="false"}`, "nk_reminder_lag_seconds_bucket", `nk_outbox_items{state="queued"}`, "nk_db_pool_connections", "nk_realtime_streams",
 		`nk_auth_events_total{event="failed"}`, `nk_bot_requests_rejected_total{reason="bad_key"}`, `nk_share_requests_total{result="ok"}`, `nk_share_requests_total{result="not_found"}`,
-		"nk_http_requests_total",
+		"nk_http_requests_total", `nk_build_info{component="core"`, "nk_outbox_oldest_wait_seconds", "nk_db_pool_acquires_total",
+		"nk_db_pool_acquire_wait_seconds_total", "nk_db_pool_blocked_acquires_total", "nk_db_pool_canceled_acquires_total",
+		"nk_realtime_streams_refused_total",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing metric %s", want)
