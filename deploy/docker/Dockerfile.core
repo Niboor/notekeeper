@@ -1,7 +1,7 @@
 # Core: one static binary (serve, migrate, admin) on a distroless base that runs as a non-root user
 # with a read-only root filesystem (SEC-OPS-2). Build from the repository root:
 #   docker build -f deploy/docker/Dockerfile.core -t notekeeper/core .
-FROM golang:1.26-bookworm AS build
+FROM golang:1.27-bookworm AS build
 ARG VERSION=dev
 WORKDIR /src
 # The dependencies come first, in a layer of their own: it changes only with a go.mod or go.sum, so a change

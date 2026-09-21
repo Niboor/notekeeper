@@ -1,6 +1,6 @@
 module github.com/Niboor/notekeeper/core
 
-go 1.26.0
+go 1.27.1
 
 require (
 	github.com/getkin/kin-openapi v0.149.0
