@@ -112,6 +112,9 @@ jobs:
   github-release:
     name: GitHub release
     needs: publish
+    # Its own condition: the tests may have been skipped (the commit had passed CI on master), and a job whose
+    # chain holds a skipped job is skipped too unless it says otherwise. It runs when every image was published.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
