@@ -172,6 +172,7 @@ test('attach a file to a new note and download it again @cross', async ({ page }
   await todo.locator('input[type=file]').setInputFiles({ name: 'ticket.txt', mimeType: 'text/plain', buffer: Buffer.from('gate C, row 12') })
   await expect(todo.getByText('ticket.txt')).toBeVisible()
   await todo.getByRole('textbox').fill('concert ticket')
+  await expect(todo.getByRole('button', { name: 'Add note' })).toBeEnabled() // the file has finished uploading; before that adding waits
   await page.keyboard.press('Control+Enter')
   const note = card(todo, 'concert ticket')
   await expect(note.getByRole('link', { name: /ticket.txt/ })).toBeVisible()
