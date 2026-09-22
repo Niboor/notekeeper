@@ -242,7 +242,7 @@ Requirements: 331 (248 Must, 65 Should, 10 Could, 8 without priority). Deferred 
 | NFR-D7 | Should | unimplemented | 02 (independent API versions) | Review | 0 |
 | NFR-D8 | Must | fully tested | 01 §1; 08 §5 | Integration (16 and newest) | 1 |
 | NFR-O1 | Must | fully tested | README §3; 08 §7 | Integration | 1 |
-| NFR-O2 | Must | fully tested | 08 §7 | Integration | 1 |
+| NFR-O2 | Must | fully tested | 08 §7 | Integration | 8 |
 | NFR-O4 | Must | fully tested | 08 §2 | Integration | 1 |
 | NFR-O5 | Must | fully tested | 08 §3 | Review | 1 |
 | NFR-P1 | Must | fully tested | 04; 05 | E2E | 1 |
@@ -281,14 +281,14 @@ Requirements: 331 (248 Must, 65 Should, 10 Could, 8 without priority). Deferred 
 | SEC-API-1 | Must | fully tested | 01 §8 (query builder); sqlc | Integration | 1 |
 | SEC-API-2 | Must | fully tested | README §2; 08 §5 | Authz matrix | 1 |
 | SEC-API-3 | Must | fully tested | 04 §1; README §3 | Integration | 5 |
-| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 4 |
+| SEC-API-4 | Must | fully tested | README §3; 05 §2; 03 §3 | Integration | 5 |
 | SEC-API-5 | Must | fully tested | README §3 | Integration | 1 |
 | SEC-API-6 | Must | fully tested | 03 §2.4 | Integration | 1 |
 | SEC-API-7 | Must | fully tested | README §3; 01 §6.2 | Integration | 3 |
 | SEC-API-8 | Must | fully tested | 07 §7; 08 §1 | Integration | 3 |
 | SEC-AUD-1 | Must | fully tested | 03 §8; 01 §11 | Integration | 2 |
 | SEC-AUD-2 | Must | fully tested | 03 §8; 01 §11 | Integration | 3 |
-| SEC-AUD-3 | Should | fully tested | 08 §2, §7 | Review | 2 |
+| SEC-AUD-3 | Should | fully tested | 08 §2, §7 | Review | 4 |
 | SEC-AUD-4 | Should | fully tested | 03 §7 | Integration, E2E | 1 |
 | SEC-AUTH-1 | Must | fully tested | 03 §3 | Integration | 2 |
 | SEC-AUTH-2 | Must | fully tested | 03 §3 | Integration | 1 |
