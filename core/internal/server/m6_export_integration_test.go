@@ -103,15 +103,21 @@ func TestExportHoldsExactlyTheUsersOwnData(t *testing.T) {
 		t.Fatalf("states %v, history %v", states, sawHistory)
 	}
 	// Nothing of Bob's, in the text or in the files; and no share token in any form.
-	all := ""
+	all, words := "", ""
 	for name, b := range files {
 		all += name + string(b)
+		if !strings.HasPrefix(name, "attachments/") { // the attachment above is 600 KB of random bytes, which spell "bob" by chance
+			words += name + string(b)
+		}
 	}
 	token := link.token(t)
-	for _, foreign := range []string{"bob's private note", "bob-secret", "BOB-FILE-CONTENT", "Bobs page", "bob"} {
+	for _, foreign := range []string{"bob's private note", "bob-secret", "BOB-FILE-CONTENT", "Bobs page"} {
 		if strings.Contains(all, foreign) {
 			t.Fatalf("the export holds something of another user: %q", foreign)
 		}
+	}
+	if strings.Contains(words, "bob") {
+		t.Fatal("the export holds something of another user: \"bob\"")
 	}
 	if strings.Contains(all, token) || strings.Contains(string(files["export.json"]), "token") {
 		t.Fatal("the export holds a share token")
