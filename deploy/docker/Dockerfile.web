@@ -11,6 +11,9 @@ COPY web ./
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.31-alpine
+# The base image is a floating tag: it is rebuilt on its own schedule, which lags an Alpine security fix by a
+# few days. This picks up whatever is current in Alpine's own repository at build time, closing that gap.
+RUN apk update && apk upgrade --no-cache
 COPY --from=build /src/web/dist /usr/share/nginx/html
 # The official image renders /etc/nginx/templates/*.template with the environment at start (envsubst).
 COPY deploy/nginx/app.conf.template deploy/nginx/share.conf.template /etc/nginx/templates/
